@@ -1468,9 +1468,13 @@ static int MenuSource(FrontendState& state)
 	// A name over a round button while the pointer rests on it.
 	GuiText filterHint(tr("Filter"), 17, skin::kInk), settingsHint(tr("Settings"), 17, skin::kInk),
 		searchHint(tr("Search"), 17, skin::kInk);
-	Place(filterHint, 26, 358);
-	Place(settingsHint, 520, 358);
-	Place(searchHint, 470, 316);  // left of its button: the gap above the gear is the gear's
+	// Each name sits beside its button, level with it: the filter's to its
+	// right, the right-hand ones' ending just left of them (they start at
+	// x 538: 110 from the right edge).
+	Place(filterHint, 78, 398);
+	for (GuiText* t : {&settingsHint, &searchHint}) t->SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
+	settingsHint.SetPosition(-110, 398);
+	searchHint.SetPosition(-110, 316);
 	filterHint.SetVisible(false);
 	settingsHint.SetVisible(false);
 	searchHint.SetVisible(false);
