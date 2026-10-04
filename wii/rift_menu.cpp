@@ -380,16 +380,21 @@ struct SkinButton {
 	GuiTrigger trigHot[kMaxHot];
 	GuiButton button;
 	// `x`, `y`: where the visible shape starts; `margin`: the texture's
-	// transparent border around it.
+	// transparent border around it; `scale` shrinks the button (and its
+	// hit area) around the same top left corner.
 	SkinButton(const skin::Tex& face, const skin::Tex& faceOver, int margin, int x, int y, const char* label,
-		   u32 wpadHot, u16 padHot, u16 drcHot, const skin::Tex* iconTex = nullptr)
+		   u32 wpadHot, u16 padHot, u16 drcHot, const skin::Tex* iconTex = nullptr, float scale = 1.0f)
 		: image(face.data, face.w, face.h), imageOver(faceOver.data, faceOver.w, faceOver.h),
 		  icon(iconTex ? iconTex->data : nullptr, iconTex ? iconTex->w : 0, iconTex ? iconTex->h : 0),
-		  text(label, 22, skin::kInk), button(face.w, face.h)
+		  text(label, 22, skin::kInk),
+		  button(static_cast<int>(face.w * scale), static_cast<int>(face.h * scale))
 	{
 		trigA.SetSimpleTrigger(-1, WPAD_BUTTON_A | WPAD_CLASSIC_BUTTON_A, PAD_BUTTON_A, WIIDRC_BUTTON_A);
 		button.SetAlignment(ALIGN_H::LEFT, ALIGN_V::TOP);
-		button.SetPosition(x - margin, y - margin);
+		button.SetPosition(x - static_cast<int>(margin * scale), y - static_cast<int>(margin * scale));
+		image.SetScale(scale);
+		imageOver.SetScale(scale);
+		icon.SetScale(0.5f + scale / 2);
 		button.SetImage(&image);
 		button.SetImageOver(&imageOver);
 		if (label) button.SetLabel(&text);
@@ -1468,13 +1473,15 @@ static int MenuSource(FrontendState& state)
 	// A name over a round button while the pointer rests on it.
 	GuiText filterHint(tr("Filter"), 17, skin::kInk), settingsHint(tr("Settings"), 17, skin::kInk),
 		searchHint(tr("Search"), 17, skin::kInk);
-	// Names above the left and right buttons (clear of the pointer's hand
-	// and of the status line, which spans x 120-520 from y 390); the
-	// search button's, which has the gear under it, to its left.
-	Place(filterHint, 26, 360);
-	Place(settingsHint, 538, 360);
+	// The filter's and the gear's names go above them (80 square, y 384-464),
+	// centred on each; the small search button's to its left, level with it
+	// (the pointer's hand covers what is below or right of the button).
+	filterHint.SetAlignment(ALIGN_H::CENTRE, ALIGN_V::TOP);
+	filterHint.SetPosition(64 - 320, 362);
+	settingsHint.SetAlignment(ALIGN_H::CENTRE, ALIGN_V::TOP);
+	settingsHint.SetPosition(576 - 320, 362);
 	searchHint.SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
-	searchHint.SetPosition(-110, 316);
+	searchHint.SetPosition(-56, 21);  // ends at x 584, the button starting at 588
 	filterHint.SetVisible(false);
 	settingsHint.SetVisible(false);
 	searchHint.SetVisible(false);
@@ -1493,10 +1500,11 @@ static int MenuSource(FrontendState& state)
 	SkinButton settingsBtn(skin::roundBtn, skin::roundBtnOver, 2, 538, 386, nullptr,
 		WPAD_BUTTON_2 | WPAD_CLASSIC_BUTTON_X, PAD_TRIGGER_R, WIIDRC_BUTTON_Y, &skin::iconGear);
 	// Search: Z on a GameCube controller, ZL on a Classic Controller (a
-	// Wii Remote has no button left; point and press A). Above the blue
-	// line, over the gear, clear of the status line (centred, 400 wide).
-	SkinButton searchBtn(skin::roundBtn, skin::roundBtnOver, 2, 538, 304, nullptr,
-		WPAD_CLASSIC_BUTTON_ZL, PAD_TRIGGER_Z, 0, &skin::iconSearch);
+	// Wii Remote has no button left; point and press A). Small, in the top
+	// right corner above the tiles' last column and the page arrow (they
+	// end at x 626, 14 in from the edge), so the gear's name has room.
+	SkinButton searchBtn(skin::roundBtn, skin::roundBtnOver, 2, 588, 12, nullptr,
+		WPAD_CLASSIC_BUTTON_ZL, PAD_TRIGGER_Z, 0, &skin::iconSearch, 0.5f);
 	// Minus and Plus turn the grid's pages (in GuiGameGrid). Rescan is in
 	// Settings, and on X of a GameCube controller, which has neither. Its
 	// Wii Remote and Classic buttons are bits neither ever sends (a 0 would
