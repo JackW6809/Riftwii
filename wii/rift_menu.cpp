@@ -1406,6 +1406,15 @@ static int MenuSource(FrontendState& state)
 
 	GuiText pageTxt("", 15, skin::kInkDim);
 	Place(pageTxt, 40, 300);
+	// The view in use, always on screen (the status line below gives way to notices).
+	GuiText viewTxt("", 17, skin::kAccent);
+	Place(viewTxt, 40, 324);
+	// A name over a round button while the pointer rests on it.
+	GuiText filterHint(tr("Filter"), 17, skin::kInk), settingsHint(tr("Settings"), 17, skin::kInk);
+	Place(filterHint, 26, 358);
+	Place(settingsHint, 520, 358);
+	filterHint.SetVisible(false);
+	settingsHint.SetVisible(false);
 	std::string clock, date;
 	ClockText(clock, date);
 	GuiText clockTxt(clock.c_str(), 34, skin::kClock);
@@ -1439,6 +1448,9 @@ static int MenuSource(FrontendState& state)
 	w.Append(&grid);
 	w.Append(&bar);
 	w.Append(&pageTxt);
+	w.Append(&viewTxt);
+	w.Append(&filterHint);
+	w.Append(&settingsHint);
 	w.Append(&clockTxt);
 	w.Append(&dateTxt);
 	w.Append(&statusTxt);
@@ -1449,7 +1461,12 @@ static int MenuSource(FrontendState& state)
 	w.Append(&jumpBtn);
 	mainWindow->Append(&w);
 
+	const auto showView = [&] {
+		viewTxt.SetText((std::string(tr("View")) + ": " + tr(FilterLabel(g_filter))).c_str());
+	};
+	showView();
 	const auto refresh = [&](bool keepFocus) {
+		showView();
 		const int focus = keepFocus ? grid.FocusedIndex() : 0;
 		BuildHome(state, items, entries);
 		grid.SetItems(&items);
@@ -1536,6 +1553,8 @@ static int MenuSource(FrontendState& state)
 			coverNoteShown = false;
 		}
 		ClearStaleButtons({&filterBtn.button, &settingsBtn.button});
+		filterHint.SetVisible(filterBtn.button.GetState() == STATE::SELECTED);
+		settingsHint.SetVisible(settingsBtn.button.GetState() == STATE::SELECTED);
 		if (TakeUpdateCheck() && !coverNoteShown) statusTxt.SetText(HomeStatus(state, items.size()).c_str());
 		if (grid.Page() != shownPage || grid.Pages() != shownPages) {
 			shownPage = grid.Page();
