@@ -44,6 +44,9 @@ GXColor kDivider = {232, 232, 238, 255};
 GXColor kScrollTrack = {230, 230, 236, 255};
 GXColor kScrollThumb = {168, 168, 180, 255};
 GXColor kBadge = {236, 236, 241, 255};
+GXColor kChipOn = {227, 245, 252, 255};
+GXColor kChipOff = {244, 244, 246, 255};
+GXColor kChipOffEdge = {208, 208, 216, 255};
 
 namespace {
 
@@ -70,6 +73,9 @@ void ApplyColors(const Theme& t) {
     kScrollTrack = ToGx(c.scroll_track);
     kScrollThumb = ToGx(c.scroll_thumb);
     kBadge = ToGx(c.badge);
+    kChipOn = ToGx(c.chip_on);
+    kChipOff = ToGx(c.chip_off);
+    kChipOffEdge = ToGx(c.chip_off_edge);
     g_backdrop = ToGx(c.backdrop);
     g_backdrop_stripe = ToGx(c.backdrop_stripe);
     g_stripes = t.stripes;

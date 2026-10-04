@@ -19,6 +19,7 @@ namespace riftwii::wii::skin {
 extern GXColor kInk, kInkSoft, kInkDim, kClock, kAccent, kAccentInk, kWarn;
 extern GXColor kTextOnAccent;  // text on the accent or on a game's colour
 extern GXColor kBar, kDivider, kScrollTrack, kScrollThumb, kBadge;
+extern GXColor kChipOn, kChipOff, kChipOffEdge;  // the option chips' (and the search keys') fill and edge
 // Always white (a QR code's background).
 constexpr GXColor kWhite = {255, 255, 255, 255};
 

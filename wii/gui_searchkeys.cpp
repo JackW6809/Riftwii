@@ -183,9 +183,10 @@ void GuiSearchKeys::Draw() {
     Menu_DrawRectangle(0, 0, screenwidth, screenheight, (GXColor){0, 0, 0, 150}, 1);
     skin::Draw(skin::panelSettings, kPanelX - 4, kPanelY - 4);
     title->Draw();
-    // The text field, with a caret that blinks.
+    // The text field, with a caret that blinks. Every colour is the theme's
+    // (a dark one has light ink), as in the rest of the menu.
     const int fx = kKeyLeft, fy = 148, fw = 10 * kKeyPitch - 4, fh = 34;
-    Menu_DrawRectangle(fx, fy, fw, fh, (GXColor){236, 236, 241, 255}, 1);
+    Menu_DrawRectangle(fx, fy, fw, fh, skin::kBadge, 1);
     Menu_DrawRectangle(fx, fy + fh - 2, fw, 2, skin::kAccent, 1);
     shown->Draw();
     blink = (blink + 1) % 60;
@@ -197,10 +198,17 @@ void GuiSearchKeys::Draw() {
         const Key& k = keys[i];
         const bool on = static_cast<int>(i) == focus && (hover >= 0 || !AnyPointer());
         const int ky = Y(k.row), kh = k.row == kRows - 1 ? kActionH : kKeyH;
+        // Search is filled with the accent; a lit key has the accent's edge
+        // (lit Search, a ring around it as well).
         const bool primary = k.act == Key::Act::Search;
-        GXColor fill = on ? (GXColor){208, 238, 250, 255} : primary ? (GXColor){226, 244, 252, 255} : (GXColor){244, 244, 247, 255};
-        Menu_DrawRectangle(k.x, ky, k.w, kh, on ? skin::kAccent : (GXColor){208, 208, 216, 255}, 1);
+        if (on && primary) {
+            Menu_DrawRectangle(k.x - 4, ky - 4, k.w + 8, kh + 8, skin::kAccent, 0);
+            Menu_DrawRectangle(k.x - 3, ky - 3, k.w + 6, kh + 6, skin::kAccent, 0);
+        }
+        const GXColor fill = primary ? skin::kAccent : on ? skin::kChipOn : skin::kChipOff;
+        Menu_DrawRectangle(k.x, ky, k.w, kh, on || primary ? skin::kAccent : skin::kChipOffEdge, 1);
         Menu_DrawRectangle(k.x + 2, ky + 2, k.w - 4, kh - 4, fill, 1);
+        k.caption->SetColor(primary ? skin::kTextOnAccent : skin::kInk);
         k.caption->SetPosition(k.x + (k.w - k.caption->GetTextWidth()) / 2, ky + (kh - 18) / 2 - 1);
         k.caption->Draw();
     }
