@@ -1468,12 +1468,12 @@ static int MenuSource(FrontendState& state)
 	// A name over a round button while the pointer rests on it.
 	GuiText filterHint(tr("Filter"), 17, skin::kInk), settingsHint(tr("Settings"), 17, skin::kInk),
 		searchHint(tr("Search"), 17, skin::kInk);
-	// Each name sits beside its button, level with it: the filter's to its
-	// right, the right-hand ones' ending just left of them (they start at
-	// x 538: 110 from the right edge).
-	Place(filterHint, 78, 398);
-	for (GuiText* t : {&settingsHint, &searchHint}) t->SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
-	settingsHint.SetPosition(-110, 398);
+	// Names above the left and right buttons (clear of the pointer's hand
+	// and of the status line, which spans x 120-520 from y 390); the
+	// search button's, which has the gear under it, to its left.
+	Place(filterHint, 26, 360);
+	Place(settingsHint, 538, 360);
+	searchHint.SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
 	searchHint.SetPosition(-110, 316);
 	filterHint.SetVisible(false);
 	settingsHint.SetVisible(false);
@@ -1532,7 +1532,9 @@ static int MenuSource(FrontendState& state)
 	mainWindow->Append(&w);
 
 	const auto showView = [&] {
-		viewTxt.SetText((std::string(tr("View")) + ": " + tr(FilterLabel(g_filter))).c_str());
+		// A search lists every game whatever the filter, so it is the view.
+		viewTxt.SetText((std::string(tr("View")) + ": " +
+			(g_search.empty() ? std::string(tr(FilterLabel(g_filter))) : tr("Search \"{1}\"", {g_search}))).c_str());
 	};
 	showView();
 	const auto refresh = [&](bool keepFocus) {
