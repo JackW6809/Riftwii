@@ -18,7 +18,7 @@ Tex tile, tileOver, coverTile, coverTileOver, roundBtn, roundBtnOver, pill, pill
     stepBack, stepBackOver, stepForward, stepForwardOver, switchOn, switchOff,
     panelGame, panelSettings, bar, bannerStripes, arrowLeft, arrowLeftOver, arrowRight, arrowRightOver, iconDrives,
     scrollUp, scrollUpOver, scrollDown, scrollDownOver,
-    iconGear, iconDisc, hand[4];
+    iconGear, iconDisc, iconSearch, hand[4];
 
 // Textures and the menu font live below the MEM2 arena's low end, taken
 // once and never freed: the menu keeps them until the game replaces all of
@@ -134,7 +134,7 @@ void Init() {
         {"arrow_left", &arrowLeft}, {"arrow_left_over", &arrowLeftOver}, {"arrow_right", &arrowRight},
         {"arrow_right_over", &arrowRightOver}, {"scroll_up", &scrollUp}, {"scroll_up_over", &scrollUpOver},
         {"scroll_down", &scrollDown}, {"scroll_down_over", &scrollDownOver}, {"icon_drives", &iconDrives},
-        {"icon_gear", &iconGear}, {"icon_disc", &iconDisc}, {"pointer1", &hand[0]}, {"pointer2", &hand[1]},
+        {"icon_gear", &iconGear}, {"icon_search", &iconSearch}, {"icon_disc", &iconDisc}, {"pointer1", &hand[0]}, {"pointer2", &hand[1]},
         {"pointer3", &hand[2]}, {"pointer4", &hand[3]},
     };
     for (const ThemeImage& im : theme_images()) {

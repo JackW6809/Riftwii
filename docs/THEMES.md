@@ -122,6 +122,7 @@ Pictures ending in `_over` are the highlighted versions. Transparency
 | `scroll_up` / `scroll_up_over`, `scroll_down` / `scroll_down_over` | 44x44 | A list's scroll arrows |
 | `icon_drives` | 28x28 | Drive icon |
 | `icon_gear` | 28x28 | Gear icon |
+| `icon_search` | 28x28 | Magnifier icon on the search button |
 | `icon_disc` | 40x40 | Disc icon |
 | `pointer1` to `pointer4` | 96x96 | Each player's pointer; the fingertip must be at the centre (48, 48) |
 
