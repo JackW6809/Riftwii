@@ -54,7 +54,13 @@ once you have played something, **Recently played**, then
 **Plus** turn to the previous and next page of games (the arrows at the
 sides and the D-pad at a page's edge do too). **B** (L on a GameCube
 controller) jumps to the next game starting with another letter, A to
-Z. To look for new games on the drives, use Settings > Look for games
+Z. The magnifier button above the settings button (Z on a GameCube controller, ZL
+on a Classic Controller) opens a keyboard to search every game by name
+or game ID; point and press A on the keys, or use the D-pad, and Minus
+deletes a letter. A search looks through every game, whatever the view;
+press 1 (the view button), or search with nothing typed, to go back to
+the view.
+To look for new games on the drives, use Settings > Look for games
 again (or X on a GameCube controller). RiftWii remembers the view and opens on the last game
 you played. When the Wii is online,
 games show their real names from GameTDB (Super Mario Galaxy 2, not the
@@ -286,6 +292,23 @@ Nothing changes while packs are on: Mario Kart Wii distributions bring
 their own online setup. On AltWFC or a custom server, Mario Kart Wii
 also gets the fix for its remote code execution hole (Wiimmfi's and
 WiiLink's patches fix it themselves).
+
+### RiiTag
+
+[RiiTag](https://riitag.t0g3pii.de) shows the game you are playing on
+your tag (USB Loader GX calls it Wiinnertag). Make an account there and
+copy your key, then either:
+
+- put `riitag_key = <your key>` in `sd:/riftwii/settings.txt`, or
+- use a `Wiinnertag.xml` you already have for USB Loader GX: RiftWii reads
+  `sd:/apps/usbloader_gx/Wiinnertag.xml` as it is, and also
+  `sd:/riftwii/Wiinnertag.xml` (same format, one `<Tag URL="..."
+  Key="..."/>` per server, `{ID6}` and `{KEY}` in the URL).
+
+When you press Start, RiftWii tells each server the game's ID, while the
+Wii is still online (not with Settings > Online off). `session.log` says
+`RiiTag: ... updated`, or what the server answered. The key never goes in
+the logs or problem reports.
 
 ### Mario Kart Wii distributions
 
