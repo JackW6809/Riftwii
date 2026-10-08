@@ -1376,3 +1376,30 @@ msgstr "No se puede leer sd:{1}."
 
 msgid "The build has more than {1} files."
 msgstr "La build tiene más de {1} archivos."
+
+msgid "Disc Channel"
+msgstr "Canal Disco"
+
+msgid "Would you like the Disc Channel to appear on the home screen?"
+msgstr "¿Quieres que el Canal Disco aparezca en la pantalla de Inicio?"
+
+msgid "Yes"
+msgstr "Sí"
+
+msgid "No"
+msgstr "No"
+
+msgid "You can bring it back any time in Settings > Disc Channel."
+msgstr "Puedes volver a mostrarlo cuando quieras en Ajustes > Canal Disco."
+
+msgid "The Disc drive's tile on Home, for playing from a disc. A disc still plays from it when it is off: switch it back on here."
+msgstr "La casilla del lector de discos en Inicio, para jugar desde un disco. Si está desactivada y quieres jugar desde un disco, vuelve a activarla aquí."
+
+msgid "Update the RiftWii channel?"
+msgstr "¿Actualizar el canal de RiftWii?"
+
+msgid "The RiftWii channel on your Wii Menu is an older version ({1}). The new one ({2}) starts RiftWii with full access to the Wii's hardware, which some features need. Reinstall it with the channel installer: it opens, then brings you back here. Settings > RiftWii channel on the Wii Menu can open it later too."
+msgstr "El canal de RiftWii de tu Menú Wii es una versión anterior ({1}). El nuevo ({2}) inicia RiftWii con acceso completo al hardware de la Wii, que algunas funciones necesitan. Reinstálalo con el instalador del canal: se abre y luego te trae de vuelta aquí. También puedes abrirlo más tarde en Ajustes > Canal de RiftWii en el Menú Wii."
+
+msgid "The Wii Menu's font needs hardware access or a d2x cIOS, and neither worked this time, so RiftWii's font is used. Start RiftWii from an up to date Homebrew Channel or the RiftWii channel (version 9)."
+msgstr "La fuente del Menú de Wii necesita acceso al hardware o un cIOS d2x, y esta vez no funcionó ninguno, así que se usa la fuente de RiftWii. Inicia RiftWii desde un Homebrew Channel actualizado o desde el canal de RiftWii (versión 9)."

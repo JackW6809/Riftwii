@@ -1278,6 +1278,38 @@ T = {
     "{1} has folders too deep to copy.": ("{1} tiene carpetas demasiado profundas para copiarlas.", "{1}には深すぎてコピーできないフォルダがあります。", "{1} tem pastas profundas demais para copiar.", "{1} ha cartelle troppo profonde da copiare."),
     "Cannot read sd:{1}.": ("No se puede leer sd:{1}.", "sd:{1} を読み込めません。", "Não é possível ler sd:{1}.", "Impossibile leggere sd:{1}."),
     "The build has more than {1} files.": ("La build tiene más de {1} archivos.", "ビルドのファイル数が{1}個を超えています。", "A build tem mais de {1} arquivos.", "La build ha più di {1} file."),
+    # The Disc Channel tile (3.3.7), the channel update (3.3.8), the menu font fallback (3.3.9)
+    "Disc Channel": ("Canal Disco", "ディスクドライブチャンネル", "Canal Disco", "Canale Disco"),
+    "Would you like the Disc Channel to appear on the home screen?": (
+        "¿Quieres que el Canal Disco aparezca en la pantalla de Inicio?",
+        "ディスクドライブチャンネルをホームに表示しますか?",
+        "Quer que o Canal Disco apareça na tela de Início?",
+        "Vuoi che il Canale Disco compaia nella Home?"),
+    "Yes": ("Sí", "はい", "Sim", "Sì"),
+    "No": ("No", "いいえ", "Não", "No"),
+    "You can bring it back any time in Settings > Disc Channel.": (
+        "Puedes volver a mostrarlo cuando quieras en Ajustes > Canal Disco.",
+        "設定 > ディスクドライブチャンネル でいつでも戻せます。",
+        "Você pode trazê-lo de volta quando quiser em Configurações > Canal Disco.",
+        "Puoi riaverlo quando vuoi in Impostazioni > Canale Disco."),
+    "The Disc drive's tile on Home, for playing from a disc. A disc still plays from it when it is off: switch it back on here.": (
+        "La casilla del lector de discos en Inicio, para jugar desde un disco. Si está desactivada y quieres jugar desde un disco, vuelve a activarla aquí.",
+        "ホームのディスクドライブのタイルです。ディスクから遊ぶときに使います。オフのときにディスクで遊ぶには、ここでオンに戻してください。",
+        "O bloco do leitor de discos no Início, para jogar a partir de um disco. Se estiver desligado e quiser jogar um disco, ligue-o de novo aqui.",
+        "Il riquadro del lettore di dischi nella Home, per giocare da un disco. Se è spento e vuoi giocare da un disco, riattivalo qui."),
+    "Update the RiftWii channel?": (
+        "¿Actualizar el canal de RiftWii?", "RiftWiiチャンネルを更新しますか?", "Atualizar o canal da RiftWii?",
+        "Aggiornare il canale RiftWii?"),
+    "The RiftWii channel on your Wii Menu is an older version ({1}). The new one ({2}) starts RiftWii with full access to the Wii's hardware, which some features need. Reinstall it with the channel installer: it opens, then brings you back here. Settings > RiftWii channel on the Wii Menu can open it later too.": (
+        "El canal de RiftWii de tu Menú Wii es una versión anterior ({1}). El nuevo ({2}) inicia RiftWii con acceso completo al hardware de la Wii, que algunas funciones necesitan. Reinstálalo con el instalador del canal: se abre y luego te trae de vuelta aquí. También puedes abrirlo más tarde en Ajustes > Canal de RiftWii en el Menú Wii.",
+        "WiiメニューのRiftWiiチャンネルは古いバージョン ({1}) です。新しいバージョン ({2}) は、一部の機能に必要なWiiのハードウェアへのフルアクセスでRiftWiiを起動します。チャンネルのインストーラーで入れ直してください。インストーラーが開き、終わるとここに戻ります。あとで 設定 > WiiメニューのRiftWiiチャンネル から開くこともできます。",
+        "O canal da RiftWii no seu Menu Wii é uma versão antiga ({1}). O novo ({2}) inicia a RiftWii com acesso total ao hardware do Wii, que alguns recursos precisam. Reinstale-o com o instalador do canal: ele abre e depois traz você de volta aqui. Você também pode abri-lo mais tarde em Configurações > Canal da RiftWii no Menu Wii.",
+        "Il canale RiftWii nel tuo Menu Wii è una versione precedente ({1}). Quello nuovo ({2}) avvia RiftWii con pieno accesso all'hardware della Wii, che serve ad alcune funzioni. Reinstallalo con l'installer del canale: si apre e poi ti riporta qui. Puoi aprirlo anche più tardi da Impostazioni > Canale RiftWii nel Menu Wii."),
+    "The Wii Menu's font needs hardware access or a d2x cIOS, and neither worked this time, so RiftWii's font is used. Start RiftWii from an up to date Homebrew Channel or the RiftWii channel (version 9).": (
+        "La fuente del Menú de Wii necesita acceso al hardware o un cIOS d2x, y esta vez no funcionó ninguno, así que se usa la fuente de RiftWii. Inicia RiftWii desde un Homebrew Channel actualizado o desde el canal de RiftWii (versión 9).",
+        "Wiiメニューのフォントにはハードウェアへのアクセスかd2x cIOSが必要ですが、今回はどちらも使えなかったため、RiftWiiのフォントを使います。最新のHomebrew ChannelかRiftWiiチャンネル (バージョン9) からRiftWiiを起動してください。",
+        "A fonte do Menu do Wii precisa de acesso ao hardware ou de um cIOS d2x, e nenhum funcionou desta vez, então a fonte da RiftWii é usada. Inicie a RiftWii por um Homebrew Channel atualizado ou pelo canal da RiftWii (versão 9).",
+        "Il carattere del Menu Wii richiede l'accesso all'hardware o un cIOS d2x, e questa volta nessuno dei due ha funzionato, quindi si usa il carattere di RiftWii. Avvia RiftWii da un Homebrew Channel aggiornato o dal canale RiftWii (versione 9)."),
 }
 
 
@@ -3045,7 +3077,20 @@ def check(repo):
     missing = [k for k in T if '"%s"' % escape(k) not in text]
     for k in missing:
         print("not in the sources:", k)
-    return not missing
+    # And every tr("...") in the menu's code has an entry, so new text is
+    # not left in English by accident.
+    import glob
+    import re
+    untranslated = set()
+    for path in sorted(glob.glob(os.path.join(repo, "wii", "*.cpp"))):
+        code = open(path, encoding="utf-8").read()
+        for m in re.finditer(r'\btr\(\s*"((?:[^"\\]|\\.)*)"', code):
+            literal = m.group(1)
+            if not any(escape(k) == literal for k in T):
+                untranslated.add(literal)
+    for k in sorted(untranslated):
+        print("no translation:", k)
+    return not missing and not untranslated
 
 
 def main():
