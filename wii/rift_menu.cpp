@@ -1640,7 +1640,7 @@ static bool TurnOffEmptyPacks(FrontendState& state)
 	if (empty.empty()) return true;
 	std::string names;
 	for (std::size_t i : empty)
-		names += (names.empty() ? "" : ", ") + PackName(state.model.packages[i].file);
+		names += (names.empty() ? "" : ", ") + PackLabel(state.model.packages[i]);
 	if (ShowPopup(tr("Nothing picked in this mod"),
 		    tr("{1} is switched on, but none of its options are picked, so it would change nothing. Turn it off and start the game?",
 			    {FlatCapped(names, 80)}),
