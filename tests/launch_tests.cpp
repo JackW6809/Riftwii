@@ -246,6 +246,17 @@ static void test_persistence() {
     again.set_enabled(0, false);
     EXPECT_TRUE(again.packs_with_nothing_picked().empty());
     again.set_enabled(0, true);
+    // A pack with no options applies as a whole: switched on, it is never
+    // listed (Start must not offer to turn a working mod off).
+    riftwii::LaunchModel whole;
+    whole.add("whole.xml", "sd:/riivolution/whole.xml",
+              "<wiidisc version=\"1\"><id game=\"RMCE\"/>"
+              "<patch id=\"all\"><memory offset=\"0x80001800\" value=\"60000000\"/></patch></wiidisc>",
+              &disc);
+    EXPECT_TRUE(whole.packages[0].valid);
+    EXPECT_TRUE(whole.packages[0].package.options.empty());
+    EXPECT_TRUE(whole.set_enabled(0, true));
+    EXPECT_TRUE(whole.packs_with_nothing_picked().empty());
 
     // No disc known: everything valid is for the disc.
     riftwii::LaunchModel nodisc;

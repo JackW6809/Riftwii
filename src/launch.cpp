@@ -279,7 +279,8 @@ std::vector<std::size_t> LaunchModel::packs_with_nothing_picked() const {
     std::vector<std::size_t> out;
     for (std::size_t i = 0; i < packages.size(); ++i) {
         const LaunchPackage& p = packages[i];
-        if (!p.enabled || !p.valid || !p.for_disc || p.code_build()) continue;
+        // A pack with no options applies as a whole: nothing to pick.
+        if (!p.enabled || !p.valid || !p.for_disc || p.code_build() || p.package.options.empty()) continue;
         bool picked = false;
         for (const Option& o : p.package.options)
             if (o.selected != 0 && o.selected <= o.choices.size()) picked = true;
