@@ -639,6 +639,15 @@ static std::string PackName(const std::string& file)
 	return file;
 }
 
+// A pack as the menu names it: the name its author gave it (its section,
+// riftwii::pack_title), else its file's (a tester saw
+// "mkwiiriivoslottest" where the pack had a name of its own).
+static std::string PackLabel(const riftwii::LaunchPackage& p)
+{
+	const std::string title = riftwii::pack_title(p);
+	return title.empty() ? PackName(p.file) : FlatCapped(title, 44);
+}
+
 // What the status line says about a focused pack.
 static std::string PackSummary(const riftwii::LaunchPackage& p)
 {
@@ -3560,7 +3569,7 @@ static void BuildModRows(const FrontendState& state, const std::string& scanStat
 		FlowRow head;
 		head.kind = p.valid ? FlowRow::Kind::Toggle : FlowRow::Kind::Header;
 		head.heading = true;
-		head.label = PackName(p.file);
+		head.label = PackLabel(p);
 		head.value = !p.valid ? tr("Broken") : p.enabled ? tr("On") : tr("Off");
 		head.on = p.enabled;
 		head.dim = !p.valid;
@@ -3949,7 +3958,7 @@ static std::string ModsNote(const FrontendState& state, const std::string& scanS
 	}
 	std::string names;
 	for (const riftwii::LaunchPackage& p : state.model.packages)
-		if (riftwii::show_package(p) && p.valid && p.enabled) names += (names.empty() ? "" : ", ") + PackName(p.file);
+		if (riftwii::show_package(p) && p.valid && p.enabled) names += (names.empty() ? "" : ", ") + PackLabel(p);
 	if (names.empty())
 		return shown == 1 ? tr("1 mod pack for this game. Press A to turn it on.")
 				  : tr("{1} mod packs for this game. Press A to turn them on.", {std::to_string(shown)});
@@ -4249,7 +4258,11 @@ static void MenuMods(FrontendState& state, std::string& scanStatus)
 		if (row != shownRow && row >= 0 && static_cast<std::size_t>(row) < refs.size()) {
 			shownRow = row;
 			const RowRef& ref = refs[static_cast<std::size_t>(row)];
-			if (ref.what == RowRef::What::Pack) say(PackSummary(state.model.packages[ref.pkg]));
+			if (ref.what == RowRef::What::Pack) {
+				// Named by its section: the file's name too, to find it on the card.
+				const riftwii::LaunchPackage& p = state.model.packages[ref.pkg];
+				say(PackSummary(p) + (riftwii::pack_title(p).empty() ? std::string() : "\n" + p.file));
+			}
 			else if (ref.what == RowRef::What::Option) {
 				const riftwii::Option& o = state.model.packages[ref.pkg].package.options[ref.opt];
 				say(o.section.empty() ? PackName(state.model.packages[ref.pkg].file) : o.section);
