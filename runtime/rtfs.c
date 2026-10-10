@@ -253,7 +253,8 @@ static void riivo_start(struct rtfs_context* ctx, struct rtfs_request* r, uint32
 static void riivo_open(struct rtfs_context* ctx, struct rtfs_request* r, const char* path, uint32_t flags) {
     const uint32_t access = flags & RTFS_RIIVO_ACCMODE;
     r->final_action = RTFS_ACTION_R_OPEN;
-    if (!take_path(r, path, RTFS_PATH_BYTES, 1)) { finish(ctx, r, RTFS_RIIVO_NOT_OPENED); return; }
+    /* `path` follows the device's name, "file": IOS's 64 bytes hold both. */
+    if (!take_path(r, path, RTFS_PATH_BYTES - 4, 1)) { finish(ctx, r, RTFS_RIIVO_NOT_OPENED); return; }
     r->flags = flags;
     r->fat.length = access == 0 ? RTFS_MODE_READ : access == 1 ? RTFS_MODE_WRITE : RTFS_MODE_READ | RTFS_MODE_WRITE;
     riivo_start(ctx, r, RTFS_ACTION_R_OPEN);
