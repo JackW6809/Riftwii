@@ -237,6 +237,15 @@ static void test_persistence() {
     // An empty choice turns an option off.
     again.restore("a.xml\tTracks/Pack\t\n");
     EXPECT_EQ(again.choice_name(0, 0), std::string("Off"));
+    // A pack on with an option picked is not empty; with every option
+    // off it is, and off packs are never listed.
+    EXPECT_TRUE(again.packs_with_nothing_picked().empty());
+    again.restore("a.xml\tTracks/Music\t\n");
+    EXPECT_EQ(again.packs_with_nothing_picked().size(), static_cast<std::size_t>(1));
+    EXPECT_EQ(again.packs_with_nothing_picked()[0], static_cast<std::size_t>(0));
+    again.set_enabled(0, false);
+    EXPECT_TRUE(again.packs_with_nothing_picked().empty());
+    again.set_enabled(0, true);
 
     // No disc known: everything valid is for the disc.
     riftwii::LaunchModel nodisc;

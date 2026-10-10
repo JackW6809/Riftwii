@@ -160,6 +160,9 @@ public:
     // explicitly, so a package's defaults never leak past the frontend.
     // Code builds are not compiled (code_builds() lists them).
     std::vector<PackageChoices> selections() const;
+    // XML packs switched on with every option off: they patch nothing and
+    // the compile refuses them ("no patches selected").
+    std::vector<std::size_t> packs_with_nothing_picked() const;
 
     // Persistence, one line per fact, tab-separated:
     //   *riftwii*\tsaves\t<nand|separate|fresh>
