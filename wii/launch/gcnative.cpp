@@ -237,15 +237,19 @@ bool find_dvd_low(const Code& code, DvdLow& out, std::string& error) {
     return true;
 }
 
-// AIInitDMA: the function that stores the AI DMA start (0xCC005030,
-// 0xCC005032) and length (0xCC005036), with its base built from
-// "lis rX,0xCC00" and adds, which a walk through each function follows.
-std::uint32_t find_ai_init_dma(const Code& code) {
+// The function that stores to each of `addresses` (DSP registers, built
+// from "lis rX,0xCC00" and adds, which a walk through each function
+// follows):
+// - AIInitDMA: the AI DMA start (0xCC005030, 0xCC005032) and length (0xCC005036);
+// - ARStartDMA: the ARAM DMA's main memory address (0xCC005020/22), ARAM
+//   address (0xCC005024/26) and length with direction (0xCC005028/2A).
+std::uint32_t find_dsp_stores(const Code& code, const std::vector<std::uint32_t>& addresses) {
     std::uint32_t found = 0;
     std::uint32_t fn = 0;
     std::uint32_t value[32] = {};
     bool known[32] = {};
-    unsigned seen = 0;
+    std::uint32_t seen = 0;
+    const std::uint32_t all = (1u << addresses.size()) - 1;
     code.each([&](std::uint32_t a, std::uint32_t w) {
         if (found) return;
         if (fn == 0) {
@@ -263,10 +267,9 @@ std::uint32_t find_ai_init_dma(const Code& code) {
             known[d] = true;
         } else if ((op == 44 || op == 45) && known[ra]) {  // sth, sthu
             const std::uint32_t at = value[ra] + imm;
-            if (at == 0xCC005030) seen |= 1;
-            if (at == 0xCC005032) seen |= 2;
-            if (at == 0xCC005036) seen |= 4;
-            if (seen == 7) found = fn;
+            for (std::size_t i = 0; i < addresses.size(); ++i)
+                if (at == addresses[i]) seen |= 1u << i;
+            if (seen == all) found = fn;
         } else if (op >= 32 && op <= 43) {  // a load replaces its target
             known[d] = false;
         }
@@ -385,7 +388,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const std::uint32_t bounce_addr = (bi2_addr - kBounceBytes) & ~31u;
     const std::uint32_t adp_addr = (bounce_addr - kStreamBytes) & ~31u;
     const std::uint32_t stream_addr = (adp_addr - sizeof(gc_rt_stream)) & ~31u;
-    const std::uint32_t runs_addr = (stream_addr - runs_bytes) & ~31u;
+    const std::uint32_t trace_addr = (stream_addr - 512) & ~31u;
+    const std::uint32_t runs_addr = (trace_addr - runs_bytes) & ~31u;
     const std::uint32_t blob_addr = (runs_addr - h.size) & ~31u;
     // The DI registers' stand-in: its address must end in 0x6000, as the
     // game adds that to the upper half it loads.
@@ -411,6 +415,24 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     }
     std::memcpy(reinterpret_cast<void*>(fst_addr), fst.data(), fst.size());
     std::memcpy(reinterpret_cast<void*>(bi2_addr), bi2.data(), bi2.size());
+
+    // The trace (gc_rt.h): one cluster's worth of zeroed records, its
+    // sectors given to the blob, read back after a run that went wrong.
+    std::uint32_t trace_sector = 0, trace_count = 0;
+    {
+        static const char kTrace[] = "sd:/riftwii/gc/trace.bin";
+        std::vector<std::uint8_t> zeros(16 << 10);
+        std::FILE* t = std::fopen(kTrace, "wb");
+        const bool written = t && std::fwrite(zeros.data(), 1, zeros.size(), t) == zeros.size();
+        if (t) std::fclose(t);
+        Fat32File tf;
+        std::string why;
+        if (written && resolve_sd_file(kTrace, tf, why) && !tf.fragments.empty()) {
+            trace_sector = static_cast<std::uint32_t>(tf.fragments[0].sector);
+            trace_count = static_cast<std::uint32_t>(std::min<std::uint64_t>(32, tf.fragments[0].sector_count));
+        }
+        logf("GameCube: trace %s (sector %u, %u records)\n", trace_count ? "on" : "off", trace_sector, trace_count);
+    }
 
     // The card, opened and selected; the blob reads it after the jump.
     // IOS lets one owner have the slot: the file system lets go first (as
@@ -442,10 +464,22 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     stream->buf_bytes = kStreamBytes;
     stream->sample = 28;
     ctx->stream = stream_addr;
+    ctx->trace_sector = trace_sector;
+    ctx->trace_count = trace_count;
+    ctx->trace_buf = trace_addr;
+    ctx->card_rca = card.rca;
 
     // The hooks, in the staged code.
     auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
         if (fn != 0) code.put(fn, branch(fn, blob_addr + entry));
+    };
+    // A hook that runs the original afterwards: its first word to the
+    // replay slot, then the jump to its second.
+    auto replay_hook = [&](std::uint32_t fn, std::uint32_t entry, std::uint32_t replay, std::uint32_t back) {
+        store32(blob_addr + replay, code.at(fn));
+        store32(blob_addr + back, 0x3D800000 | ((fn + 4) >> 16));
+        store32(blob_addr + back + 4, 0x618C0000 | ((fn + 4) & 0xFFFF));
+        hook(fn, entry);
     };
     hook(low.read, h.hook_read);
     hook(low.seek, h.hook_seek);
@@ -457,7 +491,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     hook(low.audio_config, h.hook_cb_r5);
     hook(low.audio_stream, h.hook_audio_stream);
     const unsigned di_patches = redirect_di_registers(code, di_regs);
-    const std::uint32_t ai_dma = find_ai_init_dma(code);
+    const std::uint32_t ai_dma = find_dsp_stores(code, {0xCC005030, 0xCC005032, 0xCC005036});
     if (ai_dma != 0) {
         // Its first word to the replay slot, then the jump to its second.
         const std::uint32_t replay = blob_addr + h.replay_ai_dma;
@@ -474,20 +508,17 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     }
     // Test presses (Dolphin runs with no controller to press): only when
     // sd:/riftwii/gc/press exists.
-    if (test_presses) {
-        const std::uint32_t pad_read = find_pad_read(code);
-        if (pad_read != 0) {
-            const std::uint32_t first = code.at(pad_read);
-            store32(blob_addr + h.replay_pad_read, first);
-            store32(blob_addr + h.continue_pad_read, 0x3D800000 | ((pad_read + 4) >> 16));
-            store32(blob_addr + h.continue_pad_read + 4, 0x618C0000 | ((pad_read + 4) & 0xFFFF));
-            hook(pad_read, h.hook_pad_read);
-            ctx->flags |= GC_FLAG_PRESS;
-            logf("GameCube: test presses through PADRead 0x%08x\n", pad_read);
-        } else {
-            logf("GameCube: test presses: PADRead not found\n");
-        }
+    // PADRead, for the trace's heartbeat and (sd:/riftwii/gc/press: Dolphin
+    // runs with no controller to press) the test presses.
+    const std::uint32_t pad_read = find_pad_read(code);
+    if (pad_read != 0) {
+        replay_hook(pad_read, h.hook_pad_read, h.replay_pad_read, h.continue_pad_read);
+        if (test_presses) ctx->flags |= GC_FLAG_PRESS;
     }
+    const std::uint32_t ar_dma = find_dsp_stores(code, {0xCC005020, 0xCC005022, 0xCC005024, 0xCC005026,
+                                                         0xCC005028, 0xCC00502A});
+    if (ar_dma != 0) replay_hook(ar_dma, h.hook_ar_dma, h.replay_ar_dma, h.continue_ar_dma);
+    logf("GameCube: PADRead 0x%08x%s, ARStartDMA 0x%08x\n", pad_read, test_presses ? " (test presses)" : "", ar_dma);
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
          ai_dma ? "" : " (not found: no disc audio streaming)");
     if (low.reset != 0) code.put(low.reset, 0x4E800020);  // blr: the drive is not there to reset

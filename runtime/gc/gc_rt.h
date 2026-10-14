@@ -64,7 +64,27 @@ struct gc_rt_header {
     uint32_t hook_pad_read;   /* PADRead(status): the original, then the test presses (GC_FLAG_PRESS) */
     uint32_t replay_pad_read;
     uint32_t continue_pad_read;
+    uint32_t hook_ar_dma;     /* ARStartDMA(type, main, aram, length): counted, then the original */
+    uint32_t replay_ar_dma;
+    uint32_t continue_ar_dma;
 };
+
+/* The trace: a ring of 512-byte records in sd:/riftwii/gc/trace.bin
+ * (loader-made, its sectors known), written now and then while the game
+ * runs, so a run on a Wii that ends on a black screen says how far it
+ * got. Big-endian words. */
+#define GC_TRACE_MAGIC 0x52575452u  /* "RWTR" */
+enum gc_trace_word {
+    GC_TR_MAGIC, GC_TR_SEQ, GC_TR_WHERE, GC_TR_TBU, GC_TR_TBL, GC_TR_COMMANDS, GC_TR_READS, GC_TR_READ_BYTES,
+    GC_TR_SD_REQUESTS, GC_TR_FAILURES, GC_TR_LAST_ERROR, GC_TR_LAST_OFFSET, GC_TR_PAD_READS, GC_TR_STREAM_PLAYING,
+    GC_TR_STREAM_MIXES, GC_TR_STREAM_REFILLS, GC_TR_AI_DMAS, GC_TR_AR_DMAS, GC_TR_LAST_AR_TYPE, GC_TR_LAST_AR_MAIN,
+    GC_TR_LAST_AR_ARAM, GC_TR_LAST_AR_LENGTH, GC_TR_PENDING_CB, GC_TR_ALARMS, GC_TR_WORDS
+};
+/* where: what wrote the record */
+#define GC_TRACE_READ 1u
+#define GC_TRACE_PAD 2u
+#define GC_TRACE_AI 3u
+#define GC_TRACE_AR 4u
 
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
@@ -124,7 +144,16 @@ struct gc_rt_context {
     uint32_t stream;          /* struct gc_rt_stream */
     uint32_t flags;           /* GC_FLAG_* */
     uint32_t pad_reads;
-    uint32_t pad[9];
+    uint32_t trace_sector;    /* the trace's first sector, 0: no trace */
+    uint32_t trace_count;     /* its records */
+    uint32_t trace_buf;       /* 512 bytes, 32-byte aligned */
+    uint32_t trace_seq;
+    uint32_t card_rca;        /* for CMD13 after a write */
+    uint32_t ai_dmas;
+    uint32_t ar_dmas;
+    uint32_t alarms;
+    uint32_t last_ar[4];
+    uint32_t busy;            /* the IPC buffers are in use (a read or a trace write) */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
     uint32_t vec[8] __attribute__((aligned(32)));       /* three vectors */
@@ -132,7 +161,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x180u
+#define GC_RT_CONTEXT_BYTES 0x1A0u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
@@ -142,6 +171,7 @@ uint32_t gc_on_inquiry(struct gc_rt_context* ctx, uint32_t info, uint32_t cb);
 uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb);
 uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb);
 uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t length, uint32_t offset, uint32_t cb);
+void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx);

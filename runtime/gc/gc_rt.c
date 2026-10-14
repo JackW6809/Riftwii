@@ -182,16 +182,142 @@ static int gc_read_disc_unlocked(struct gc_rt_context* ctx, uint8_t* dst, uint32
     return 1;
 }
 
-/* ctx->pad[0]: a read is using the IPC buffers. The AI interrupt's
- * stream refill finds it set when it interrupted the game's own read,
- * and waits for the next buffer instead. */
+/* ctx->busy: a read is using the IPC buffers. The AI interrupt's stream
+ * refill finds it set when it interrupted the game's own read, and waits
+ * for the next buffer instead. */
 static int gc_read_disc(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset) {
     int ok;
-    if (ctx->pad[0]) return 0;
-    ctx->pad[0] = 1;
+    if (ctx->busy) return 0;
+    ctx->busy = 1;
     ok = gc_read_disc_unlocked(ctx, dst, length, offset);
-    ctx->pad[0] = 0;
+    ctx->busy = 0;
     return ok;
+}
+
+static uint32_t gc_irq_off(void) {
+    uint32_t msr;
+    __asm__ volatile("mfmsr %0" : "=r"(msr));
+    __asm__ volatile("mtmsr %0" : : "r"(msr & ~0x8000u) : "memory");
+    return msr;
+}
+static void gc_irq_restore(uint32_t msr) { __asm__ volatile("mtmsr %0" : : "r"(msr) : "memory"); }
+
+/* One ioctl (no vectors), polled like gc_ioctlv: CMD13 takes this form. */
+static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, uint32_t in, uint32_t in_len,
+                        uint32_t out, uint32_t out_len) {
+    uint32_t* rq = ctx->ipc;
+    const uint32_t phys = gc_physical((uint32_t)(uintptr_t)rq);
+    uint32_t i;
+    uint32_t polls;
+    for (i = 0; i < 16; ++i) rq[i] = 0;
+    rq[0] = 6;  /* IOS_IOCTL */
+    rq[2] = fd;
+    rq[3] = ioctl;
+    rq[4] = gc_physical(in);
+    rq[5] = in_len;
+    rq[6] = gc_physical(out);
+    rq[7] = out_len;
+    gc_flush(in, in_len);
+    gc_flush(out, out_len);
+    gc_flush((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
+    gc_write32(GC_IPC_PPCMSG, phys);
+    gc_write32(GC_IPC_PPCCTRL, GC_IPC_X1);
+    for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y2) == 0; ++polls)
+        if (polls == GC_IPC_TIMEOUT) return -1000;
+    gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y2);
+    for (;;) {
+        for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y1) == 0; ++polls)
+            if (polls == GC_IPC_TIMEOUT) return -1000;
+        {
+            const uint32_t reply = gc_read32(GC_IPC_ARMMSG);
+            gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y1);
+            gc_write32(GC_IPC_PPCCTRL, GC_IPC_X2);
+            if (reply == phys) break;
+        }
+    }
+    gc_invalidate((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
+    gc_invalidate(out, out_len);
+    return (int32_t)rq[1];
+}
+
+/* One record of the trace (gc_rt.h), with interrupts held off so it
+ * cannot meet a read on the card; skipped while a read is going on. */
+static void gc_trace(struct gc_rt_context* ctx, uint32_t where) {
+    uint32_t* w = (uint32_t*)(uintptr_t)ctx->trace_buf;
+    const struct gc_rt_stream* st = (const struct gc_rt_stream*)(uintptr_t)ctx->stream;
+    uint32_t* q = ctx->request;
+    uint32_t msr, tbu, tbl, i, sector;
+    if (ctx->trace_sector == 0 || ctx->trace_count == 0 || w == 0) return;
+    msr = gc_irq_off();
+    if (ctx->busy) {
+        gc_irq_restore(msr);
+        return;
+    }
+    ctx->busy = 1;
+    __asm__ volatile("mftbu %0" : "=r"(tbu));
+    __asm__ volatile("mftb %0" : "=r"(tbl));
+    for (i = 0; i < 128; ++i) w[i] = 0;
+    w[GC_TR_MAGIC] = GC_TRACE_MAGIC;
+    w[GC_TR_SEQ] = ++ctx->trace_seq;
+    w[GC_TR_WHERE] = where;
+    w[GC_TR_TBU] = tbu;
+    w[GC_TR_TBL] = tbl;
+    w[GC_TR_COMMANDS] = ctx->commands;
+    w[GC_TR_READS] = ctx->reads;
+    w[GC_TR_READ_BYTES] = ctx->read_bytes;
+    w[GC_TR_SD_REQUESTS] = ctx->sd_requests;
+    w[GC_TR_FAILURES] = ctx->failures;
+    w[GC_TR_LAST_ERROR] = (uint32_t)ctx->last_error;
+    w[GC_TR_LAST_OFFSET] = ctx->last_offset;
+    w[GC_TR_PAD_READS] = ctx->pad_reads;
+    if (st) {
+        w[GC_TR_STREAM_PLAYING] = st->playing;
+        w[GC_TR_STREAM_MIXES] = st->mixes;
+        w[GC_TR_STREAM_REFILLS] = st->refills;
+    }
+    w[GC_TR_AI_DMAS] = ctx->ai_dmas;
+    w[GC_TR_AR_DMAS] = ctx->ar_dmas;
+    for (i = 0; i < 4; ++i) w[GC_TR_LAST_AR_TYPE + i] = ctx->last_ar[i];
+    w[GC_TR_PENDING_CB] = ctx->pending_cb;
+    w[GC_TR_ALARMS] = ctx->alarms;
+    sector = ctx->trace_sector + (ctx->trace_seq - 1) % ctx->trace_count;
+    /* CMD25, one block; then CMD13 until the card has written it. */
+    q[0] = 0x19u;
+    q[1] = GC_SD_CMDTYPE_AC;
+    q[2] = GC_SD_RESPONSE_R1;
+    q[3] = ctx->sdhc ? sector : sector * GC_SECTOR;
+    q[4] = 1;
+    q[5] = GC_SECTOR;
+    q[6] = ctx->trace_buf;
+    q[7] = 1;
+    q[8] = 0;
+    ctx->vec[0] = gc_physical((uint32_t)(uintptr_t)q);
+    ctx->vec[1] = 36;
+    ctx->vec[2] = gc_physical(ctx->trace_buf);
+    ctx->vec[3] = GC_SECTOR;
+    ctx->vec[4] = gc_physical((uint32_t)(uintptr_t)ctx->response);
+    ctx->vec[5] = sizeof(ctx->response);
+    gc_flush((uint32_t)(uintptr_t)q, 36);
+    gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
+    gc_flush(ctx->trace_buf, GC_SECTOR);
+    if (gc_ioctlv(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, 2, 1) >= 0 && ctx->card_rca != 0) {
+        for (i = 0; i < 8192; ++i) {
+            uint32_t state;
+            q[0] = 0x0Du;
+            q[1] = GC_SD_CMDTYPE_AC;
+            q[2] = GC_SD_RESPONSE_R1;
+            q[3] = ctx->card_rca << 16;
+            q[4] = q[5] = q[6] = q[7] = q[8] = 0;
+            ctx->response[0] = 0;
+            if (gc_ioctl(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, (uint32_t)(uintptr_t)q, 36,
+                         (uint32_t)(uintptr_t)ctx->response, 16) < 0)
+                break;
+            state = (ctx->response[0] >> 9) & 0xFu;
+            if (state != 6 && state != 7) break;  /* left receive-data and programming */
+        }
+    }
+    ctx->busy = 0;
+    gc_irq_restore(msr);
 }
 
 /* The DI's immediate register, where the SDK reads a status reply. */
@@ -215,6 +341,7 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
     ctx->read_bytes += length;
     ctx->last_offset = offset;
     gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset) ? GC_DI_TC : GC_DI_DE);
+    if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
 }
 
@@ -247,6 +374,7 @@ uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb) {
 typedef void (*gc_callback_fn)(uint32_t type);
 void gc_on_alarm(struct gc_rt_context* ctx) {
     const uint32_t cb = ctx->pending_cb;
+    ctx->alarms++;
     ctx->pending_cb = 0;
     if (cb != 0) ((gc_callback_fn)(uintptr_t)cb)(ctx->pending_type);
 }
@@ -392,6 +520,7 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
     int16_t* out = (int16_t*)(uintptr_t)addr;
     uint32_t frames = length / 4;
     uint32_t i;
+    if ((++ctx->ai_dmas & 1023) == 0) gc_trace(ctx, GC_TRACE_AI);
     if (st == 0 || !st->playing || (cr & GC_AI_PSTAT) == 0 || length == 0) return;
     gc_invalidate(addr, length);
     for (i = 0; i < frames; ++i) {
@@ -424,6 +553,7 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
  * 0x1000). */
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
     const uint32_t n = ctx->pad_reads++;
+    if (n % 300 == 0) gc_trace(ctx, GC_TRACE_PAD);
     if ((ctx->flags & GC_FLAG_PRESS) && status != 0 && (n % 240) < 10) {
         uint8_t* p = (uint8_t*)(uintptr_t)status;
         const uint32_t which = (n / 240) % 3;
@@ -434,4 +564,13 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
         p[10] = 0;
     }
     return result;
+}
+
+void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length) {
+    ctx->ar_dmas++;
+    ctx->last_ar[0] = type;
+    ctx->last_ar[1] = main;
+    ctx->last_ar[2] = aram;
+    ctx->last_ar[3] = length;
+    if (ctx->ar_dmas <= 16 || (ctx->ar_dmas & 255) == 0) gc_trace(ctx, GC_TRACE_AR);
 }

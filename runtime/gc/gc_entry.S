@@ -14,6 +14,7 @@ _gc_blob_start:
     .long gc_alarm - _gc_blob_start
     .long gc_hook_ai_dma - _gc_blob_start, gc_replay_ai_dma - _gc_blob_start, gc_continue_ai_dma - _gc_blob_start
     .long gc_hook_pad_read - _gc_blob_start, gc_replay_pad_read - _gc_blob_start, gc_continue_pad_read - _gc_blob_start
+    .long gc_hook_ar_dma - _gc_blob_start, gc_replay_ar_dma - _gc_blob_start, gc_continue_ar_dma - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -100,6 +101,49 @@ gc_continue_pad_read:
     mtctr 12
     bctr
 
+/* ARStartDMA(type, main, aram, length): gc_on_ar_dma counts it, then
+ * the original runs from its replay slot with the game's arguments.
+ * Frame: 8 r3, 12 r4, 16 r5, 20 r6. */
+    .globl gc_hook_ar_dma
+gc_hook_ar_dma:
+    stwu 1, -0x20(1)
+    mflr 0
+    stw 0, 0x24(1)
+    stw 3, 0x08(1)
+    stw 4, 0x0C(1)
+    stw 5, 0x10(1)
+    stw 6, 0x14(1)
+    mr 7, 6
+    mr 6, 5
+    mr 5, 4
+    mr 4, 3
+    bl 6f
+6:  mflr 3
+    addi 3, 3, gc_context_data - 6b
+    bl gc_on_ar_dma
+    lwz 3, 0x08(1)
+    lwz 4, 0x0C(1)
+    lwz 5, 0x10(1)
+    lwz 6, 0x14(1)
+    lwz 0, 0x24(1)
+    mtlr 0
+    addi 1, 1, 0x20
+    b gc_replay_ar_dma
+
+    .balign 16
+    .globl gc_replay_ar_dma
+gc_replay_ar_dma:
+    nop
+    nop
+    nop
+    nop
+    .globl gc_continue_ar_dma
+gc_continue_ar_dma:
+    lis 12, 0
+    ori 12, 12, 0
+    mtctr 12
+    bctr
+
 /* Loader-filled: AIInitDMA's first word (and nops), then the jump to its
  * second word through r12. */
     .balign 16
@@ -161,4 +205,4 @@ gc_alarm:
     .globl gc_context_data
 gc_context_data:
     .long 0x52574743
-    .fill 95, 4, 0
+    .fill 103, 4, 0
