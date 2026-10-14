@@ -13,6 +13,9 @@
 #include <map>
 #include <vector>
 
+#include <fat.h>
+
+#include "d2xsd.hpp"
 #include "gc_rt.h"
 #include "log.hpp"
 #include "riftwii/fat32.hpp"
@@ -410,6 +413,12 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     std::memcpy(reinterpret_cast<void*>(bi2_addr), bi2.data(), bi2.size());
 
     // The card, opened and selected; the blob reads it after the jump.
+    // IOS lets one owner have the slot: the file system lets go first (as
+    // a Wii game's launch does), and the log goes on on screen only.
+    logf("Releasing the SD card (the log ends here; the rest is on screen)\n");
+    LogClose();
+    fatUnmount("sd:");
+    sd_interface()->shutdown();
     sdio::Card card;
     if (!sdio::open_card(card, error)) return false;
     if (card.d2x) {
