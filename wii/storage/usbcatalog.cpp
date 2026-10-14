@@ -23,6 +23,7 @@
 #include <sstream>
 
 #include "d2xsd.hpp"
+#include "gclaunch.hpp"
 #include "loadersettings.hpp"
 #include "online.hpp"
 #include "boot.hpp"
@@ -1703,6 +1704,7 @@ bool scan_sd_games(ImageCatalog& out, std::string& error) {
     if (!mount_image_volume(&sd_read, g_sd_volume, error)) { error = "SD has no readable FAT32 or NTFS volume: " + error; return false; }
     std::string failure; scan_dir(*g_sd_volume, "sd:/", ImageDevice::Sd, "sd:/wbfs", true, UsbImageFormat::Wbfs, out, failure); scan_dir(*g_sd_volume, "sd:/", ImageDevice::Sd, "sd:/games", false, UsbImageFormat::Iso, out, failure);
     scan_own_folders(*g_sd_volume, "sd", ImageDevice::Sd, out, failure);
+    ScanGcImages(out.games);
     apply_titles(out);
     out.status = out.games.empty() ? (failure.empty() ? "No valid Wii images under sd:/wbfs or sd:/games" : "No valid SD images: " + failure) : "SD: " + std::to_string(out.games.size()) + " valid game(s)";
     logf("%s\n", out.status.c_str());

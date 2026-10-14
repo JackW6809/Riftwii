@@ -186,7 +186,8 @@ bool SelectSdGame(FrontendState& state, std::size_t index, std::string& error) {
     state.warning_shown = false;
     state.game_id=g.id; state.disc_title=g.title; state.disc_status="SD: "+(g.display.empty() ? g.title : g.display)+"  ("+g.id+")";
     state.game_revision=g.revision; state.game_disc_number=g.disc_number;
-    if (!state.sd_catalog.cios_note.empty()) state.disc_status += "  [no cIOS: install d2x for SD boot]";
+    if (g.gamecube) state.disc_status += "  [GameCube: starts through Nintendont]";
+    else if (!state.sd_catalog.cios_note.empty()) state.disc_status += "  [no cIOS: install d2x for SD boot]";
     state.choices_path=std::string(kChoicesDir)+"/"+g.id+".txt";
     error.clear(); return true;
 }

@@ -66,8 +66,9 @@ bool dolboot_valid(const u8* dol, u32 size) {
 
 // argv[0] goes where the Homebrew Channel puts it: the program's "_arg"
 // block after its entry branch points to the string, placed after its
-// BSS, where libogc keeps its arena clear of it.
-static void set_argv(const DolHeader* h, const char* path) {
+// BSS, where libogc keeps its arena clear of it. `extra` follows it as
+// argv[1], NUL bytes and all (Nintendont's binary settings).
+static void set_argv(const DolHeader* h, const char* path, const void* extra, u32 extra_len) {
     const u32 text0 = h->address[0];
     struct __argv* args = (struct __argv*)(text0 + 8);
     if (*(u32*)(text0 + 4) != ARGV_MAGIC) return;
@@ -79,11 +80,13 @@ static void set_argv(const DolHeader* h, const char* path) {
     char* line = (char*)((end + 31) & ~31u);
     const u32 len = strlen(path) + 1;
     memcpy(line, path, len);
-    line[len] = 0;
-    DCFlushRange(line, (len + 32) & ~31u);
+    if (extra_len) memcpy(line + len, extra, extra_len);
+    const u32 total = len + extra_len;
+    line[total] = 0;
+    DCFlushRange(line, (total + 32) & ~31u);
     args->argvMagic = ARGV_MAGIC;
     args->commandLine = line;
-    args->length = (int)len + 1;
+    args->length = (int)total + 1;
     DCFlushRange(args, sizeof(*args));
 }
 
@@ -103,9 +106,14 @@ void dolboot_system_call_vector(void) {
     ICInvalidateRange(vector, sizeof(handler));
 }
 
-void dolboot_run(const u8* dol, const char* argv0) {
+void dolboot_run(const u8* dol, const char* argv0) { dolboot_run_args(dol, argv0, NULL, 0); }
+
+void dolboot_run_args(const u8* dol, const char* argv0, const void* arg1, u32 arg1_len) {
     static char path[256];
+    static u8 extra[1024];
     strncpy(path, argv0, sizeof(path) - 1);
+    if (arg1_len > sizeof(extra)) arg1_len = 0;
+    if (arg1_len) memcpy(extra, arg1, arg1_len);
     const DolHeader h = *(const DolHeader*)dol;
     SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
     IRQ_Disable();
@@ -119,7 +127,7 @@ void dolboot_run(const u8* dol, const char* argv0) {
         memset((void*)h.bss_address, 0, h.bss_size);
         DCFlushRange((void*)h.bss_address, h.bss_size);
     }
-    set_argv(&h, path);
+    set_argv(&h, path, extra, arg1_len);
     dolboot_system_call_vector();
     ((void (*)(void))h.entry)();
     for (;;) {
