@@ -49,6 +49,9 @@ struct ImageGame {
     // A GameCube image (sd:/games/<folder>/game.iso, Nintendont's layout):
     // started through RiftWii's Nintendont (wii/launch/gclaunch.hpp), not d2x.
     bool gamecube = false;
+    // A patch-only mod listed as the game it makes (wii/launch/gcpatch.hpp):
+    // `path` is the patch, this the original it is made from.
+    std::string gc_patch_source;
 };
 
 struct ImageCatalog {

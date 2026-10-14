@@ -19,6 +19,7 @@ namespace riftwii::wii {
 struct GcImage {
     std::string path;  // sd:/games/.../game.iso
     std::string id;    // ID6 from its header
+    std::string patch_source;  // set: `path` is a patch (gcpatch.hpp) to make the game from this original
 };
 
 // A GameCube image on the SD card in games/<folder>/ (.iso or .gcm) whose

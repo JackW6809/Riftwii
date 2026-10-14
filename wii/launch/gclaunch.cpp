@@ -19,6 +19,7 @@
 
 #include "dolboot.h"
 #include "gcnative.hpp"
+#include "gcpatch.hpp"
 #include "log.hpp"
 #include "netpacks.hpp"
 #include "riftwii/apply.hpp"
@@ -355,7 +356,18 @@ bool FindGcImage(const std::string& game, const std::string& path, GcImage& out)
         if (found) break;
     }
     closedir(games);
-    return found;
+    if (found) return true;
+    // A patch that makes it from one of them.
+    std::vector<ImageGame> all;
+    ScanGcImages(all);
+    for (const ImageGame& g : all) {
+        if (g.gc_patch_source.empty() || g.id.compare(0, game.size(), game) != 0) continue;
+        out.path = g.path;
+        out.id = g.id;
+        out.patch_source = g.gc_patch_source;
+        return true;
+    }
+    return false;
 }
 
 void ScanGcImages(std::vector<ImageGame>& out) {
@@ -392,9 +404,12 @@ void ScanGcImages(std::vector<ImageGame>& out) {
         closedir(inner);
     }
     closedir(games);
+    ScanGcPatches(out);
 }
 
-bool LaunchGcGame(const GcImage& image, const std::vector<PackageChoices>& packages, std::string& error) {
+bool LaunchGcGame(const GcImage& wanted, const std::vector<PackageChoices>& packages, std::string& error) {
+    GcImage image = wanted;
+    if (!image.patch_source.empty() && !PrepareGcPatch(image, error)) return false;
     logf("GameCube: %s (%s)\n", image.id.c_str(), image.path.c_str());
     // Trial: RiftWii's own GameCube loader instead of Nintendont.
     struct stat st;
