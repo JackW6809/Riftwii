@@ -4,6 +4,7 @@
 
 #include <gccore.h>
 #include <malloc.h>
+#include <sys/stat.h>
 #include <ogc/machine/processor.h>
 
 #include <algorithm>
@@ -271,6 +272,30 @@ std::uint32_t find_ai_init_dma(const Code& code) {
     return found;
 }
 
+// PADRead(PADStatus status[4]): for each port it cannot read, it stores
+// the error into the status's `err` byte (offset 10) and clears the 10
+// bytes before it (`stb rE,10(rS)`, then `li r5,10` and a call): the
+// function with the most such places, at least three.
+std::uint32_t find_pad_read(const Code& code) {
+    std::map<std::uint32_t, unsigned> sites;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if ((w >> 26) != 38 || (w & 0xFFFF) != 10) return;  // stb rX,10(rY)
+        for (std::uint32_t b = a + 4; b <= a + 16; b += 4)
+            if (code.at(b) == 0x38A0000A) {  // li r5,10
+                if (std::uint32_t f = function_start(code, a)) sites[f]++;
+                break;
+            }
+    });
+    std::uint32_t best = 0;
+    unsigned most = 2;
+    for (auto& [f, n] : sites)
+        if (n > most) {
+            most = n;
+            best = f;
+        }
+    return best;
+}
+
 // Sends the game's DI register accesses to `base` (where 0xCC006000 was):
 // each "lis rX,0xCC00" whose register is then only used at 0x6000-0x603F
 // gets `base`'s upper half. Returns how many.
@@ -306,6 +331,9 @@ void store32(std::uint32_t a, std::uint32_t v) { *reinterpret_cast<volatile std:
 
 bool LaunchGcNative(const GcImage& image, std::string& error) {
     logf("GameCube (native): %s (%s)\n", image.id.c_str(), image.path.c_str());
+    // Read while the card is still the file system's (before it is opened raw).
+    struct stat st_press;
+    const bool test_presses = stat("sd:/riftwii/gc/press", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     std::vector<PlacedRun> placed;
@@ -434,6 +462,22 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
         store32(back, 0x3D800000 | ((ai_dma + 4) >> 16));        // lis r12, hi
         store32(back + 4, 0x618C0000 | ((ai_dma + 4) & 0xFFFF));  // ori r12, r12, lo
         hook(ai_dma, h.hook_ai_dma);
+    }
+    // Test presses (Dolphin runs with no controller to press): only when
+    // sd:/riftwii/gc/press exists.
+    if (test_presses) {
+        const std::uint32_t pad_read = find_pad_read(code);
+        if (pad_read != 0) {
+            const std::uint32_t first = code.at(pad_read);
+            store32(blob_addr + h.replay_pad_read, first);
+            store32(blob_addr + h.continue_pad_read, 0x3D800000 | ((pad_read + 4) >> 16));
+            store32(blob_addr + h.continue_pad_read + 4, 0x618C0000 | ((pad_read + 4) & 0xFFFF));
+            hook(pad_read, h.hook_pad_read);
+            ctx->flags |= GC_FLAG_PRESS;
+            logf("GameCube: test presses through PADRead 0x%08x\n", pad_read);
+        } else {
+            logf("GameCube: test presses: PADRead not found\n");
+        }
     }
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
          ai_dma ? "" : " (not found: no disc audio streaming)");

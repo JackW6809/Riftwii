@@ -61,7 +61,13 @@ struct gc_rt_header {
     uint32_t hook_ai_dma;     /* AIInitDMA(start, length): the stream mixed in, then the original */
     uint32_t replay_ai_dma;   /* 16 bytes: AIInitDMA's displaced first word, then padding */
     uint32_t continue_ai_dma; /* 16 bytes: the jump to its second word */
+    uint32_t hook_pad_read;   /* PADRead(status): the original, then the test presses (GC_FLAG_PRESS) */
+    uint32_t replay_pad_read;
+    uint32_t continue_pad_read;
 };
+
+/* gc_rt_context.flags */
+#define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
 
 /* Disc audio streaming (the drive's own ADPCM, 48 kHz stereo): what the
  * drive would have played into the AI is decoded here and mixed into the
@@ -116,7 +122,9 @@ struct gc_rt_context {
     uint32_t last_offset;
     uint32_t di_regs;         /* where the game's DI register reads were sent (its 0xCC006000) */
     uint32_t stream;          /* struct gc_rt_stream */
-    uint32_t pad[11];
+    uint32_t flags;           /* GC_FLAG_* */
+    uint32_t pad_reads;
+    uint32_t pad[9];
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
     uint32_t vec[8] __attribute__((aligned(32)));       /* three vectors */
@@ -134,6 +142,7 @@ uint32_t gc_on_inquiry(struct gc_rt_context* ctx, uint32_t info, uint32_t cb);
 uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb);
 uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb);
 uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t length, uint32_t offset, uint32_t cb);
+uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx);
 #endif

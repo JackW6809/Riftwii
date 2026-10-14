@@ -13,6 +13,7 @@ _gc_blob_start:
     .long gc_hook_cb_r5 - _gc_blob_start, gc_hook_audio_stream - _gc_blob_start
     .long gc_alarm - _gc_blob_start
     .long gc_hook_ai_dma - _gc_blob_start, gc_replay_ai_dma - _gc_blob_start, gc_continue_ai_dma - _gc_blob_start
+    .long gc_hook_pad_read - _gc_blob_start, gc_replay_pad_read - _gc_blob_start, gc_continue_pad_read - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -64,6 +65,40 @@ gc_hook_ai_dma:
     mtlr 0
     addi 1, 1, 0x20
     b gc_replay_ai_dma
+
+/* u32 PADRead(PADStatus status[4]): the original through its replay
+ * slot, then gc_on_pad_read(ctx, status, its result). */
+    .globl gc_hook_pad_read
+gc_hook_pad_read:
+    stwu 1, -0x20(1)
+    mflr 0
+    stw 0, 0x24(1)
+    stw 3, 0x08(1)
+    bl gc_replay_pad_read
+    mr 5, 3
+    lwz 4, 0x08(1)
+    bl 5f
+5:  mflr 3
+    addi 3, 3, gc_context_data - 5b
+    bl gc_on_pad_read
+    lwz 0, 0x24(1)
+    mtlr 0
+    addi 1, 1, 0x20
+    blr
+
+    .balign 16
+    .globl gc_replay_pad_read
+gc_replay_pad_read:
+    nop
+    nop
+    nop
+    nop
+    .globl gc_continue_pad_read
+gc_continue_pad_read:
+    lis 12, 0
+    ori 12, 12, 0
+    mtctr 12
+    bctr
 
 /* Loader-filled: AIInitDMA's first word (and nops), then the jump to its
  * second word through r12. */

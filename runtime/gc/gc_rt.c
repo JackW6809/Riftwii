@@ -418,3 +418,20 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
     gc_flush(addr, length);
     st->mixes++;
 }
+
+/* Test presses: every 240 reads, 10 reads of A, then B, then Start, on
+ * port 1 (PADStatus: buttons at 0, err at 10; A 0x100, B 0x200, Start
+ * 0x1000). */
+uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
+    const uint32_t n = ctx->pad_reads++;
+    if ((ctx->flags & GC_FLAG_PRESS) && status != 0 && (n % 240) < 10) {
+        uint8_t* p = (uint8_t*)(uintptr_t)status;
+        const uint32_t which = (n / 240) % 3;
+        const uint32_t bit = which == 0 ? 0x0100u : which == 1 ? 0x0200u : 0x1000u;
+        const uint32_t now = ((uint32_t)p[0] << 8) | p[1];
+        p[0] = (uint8_t)((now | bit) >> 8);
+        p[1] = (uint8_t)(now | bit);
+        p[10] = 0;
+    }
+    return result;
+}
