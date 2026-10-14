@@ -425,13 +425,15 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
         std::FILE* t = std::fopen(kTrace, "wb");
         const bool written = t && std::fwrite(zeros.data(), 1, zeros.size(), t) == zeros.size();
         if (t) std::fclose(t);
+        forget_sd_layout();  // the raw lookups' folder listings predate it
         Fat32File tf;
         std::string why;
         if (written && resolve_sd_file(kTrace, tf, why) && !tf.fragments.empty()) {
             trace_sector = static_cast<std::uint32_t>(tf.fragments[0].sector);
             trace_count = static_cast<std::uint32_t>(std::min<std::uint64_t>(32, tf.fragments[0].sector_count));
         }
-        logf("GameCube: trace %s (sector %u, %u records)\n", trace_count ? "on" : "off", trace_sector, trace_count);
+        logf("GameCube: trace %s (sector %u, %u records)%s%s\n", trace_count ? "on" : "off", trace_sector, trace_count,
+             why.empty() ? "" : ": ", why.c_str());
     }
 
     // The card, opened and selected; the blob reads it after the jump.
