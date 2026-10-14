@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <functional>
 
 namespace riftwii {
 
@@ -193,50 +194,54 @@ public:
         }
 
         out.resize(static_cast<std::size_t>(window_len));
-        Section data(data_), insts(inst_), addrs(addr_);
-        AddressCache cache;
-        std::uint64_t at = 0;
-        const auto& table = code_table();
-        while (!insts.done()) {
-            std::uint8_t code;
-            if (!insts.byte(code)) break;
-            for (const Inst& in : table[code]) {
-                if (in.type == kNoop) continue;
-                std::uint64_t size = in.size;
-                if (size == 0 && !insts.integer(size)) return fail("a patch instruction is cut short");
-                if (size > window_len - at) return fail("a patch instruction runs past its window");
-                std::uint8_t* dst = out.data() + at;
-                if (in.type == kAdd) {
-                    const std::uint8_t* src;
-                    if (!data.take(static_cast<std::size_t>(size), src)) return fail("a patch instruction runs past its data");
-                    std::memcpy(dst, src, static_cast<std::size_t>(size));
-                } else if (in.type == kRun) {
-                    std::uint8_t b;
-                    if (!data.byte(b)) return fail("a patch instruction runs past its data");
-                    std::memset(dst, b, static_cast<std::size_t>(size));
-                } else {
-                    std::uint64_t addr;
-                    if (!cache.decode(seg_len + at, in.mode, addrs, addr)) return fail("a patch address is damaged");
-                    // U is the copy window followed by this window's output;
-                    // a copy may run on into bytes it makes itself.
-                    for (std::uint64_t i = 0; i < size;) {
-                        const std::uint64_t from = addr + i;
-                        if (from < seg_len) {
-                            const std::uint64_t n = std::min(size - i, seg_len - from);
-                            if (seg_whole_) std::memcpy(dst + i, seg_.data() + from, static_cast<std::size_t>(n));
-                            else if (!cached(seg_pos_ + from, dst + i, n)) return false;
-                            i += n;
-                        } else {
-                            dst[i] = out[static_cast<std::size_t>(from - seg_len)];
-                            ++i;
-                        }
-                    }
+        window_len_ = window_len;
+        seg_len_ = seg_len;
+        if (!seg_whole_ && seg_len != 0) {
+            // A copy window too large to read at once: note the blocks of it
+            // the window copies from, then read them in one forward pass, a
+            // region at a time, putting each copy's bytes in place; the
+            // final pass below then leaves those copies alone.
+            const std::uint64_t bs = limits_.cache_block;
+            const std::uint64_t region = bs * limits_.cache_blocks;
+            std::vector<bool> used(static_cast<std::size_t>((seg_len + bs - 1) / bs));
+            if (!walk(out, [&](std::uint64_t from, std::uint64_t n, std::uint64_t) {
+                    for (std::uint64_t b = from / bs; b <= (from + n - 1) / bs; ++b) used[b] = true;
+                    return true;
+                }))
+                return false;
+            if (cache_.size() < region) cache_.resize(static_cast<std::size_t>(region));
+            for (std::uint64_t lo = 0; lo < seg_len; lo += region) {
+                const std::uint64_t hi = std::min(seg_len, lo + region);
+                bool any = false;
+                for (std::uint64_t b = lo / bs; b * bs < hi; ++b) {
+                    if (!used[b]) continue;
+                    // A run of used blocks, read as one.
+                    std::uint64_t e = b;
+                    while ((e + 1) * bs < hi && used[e + 1]) ++e;
+                    const std::uint64_t from = b * bs, to = std::min(hi, (e + 1) * bs);
+                    if (!read_seg(seg_pos + from, cache_.data() + (from - lo), static_cast<std::size_t>(to - from)))
+                        return false;
+                    any = true;
+                    b = e;
                 }
-                at += size;
+                if (!any) continue;
+                if (!walk(out, [&](std::uint64_t from, std::uint64_t n, std::uint64_t dst) {
+                        const std::uint64_t a = std::max(from, lo), z = std::min(from + n, hi);
+                        if (a < z)
+                            std::memcpy(out.data() + dst + (a - from), cache_.data() + (a - lo),
+                                        static_cast<std::size_t>(z - a));
+                        return true;
+                    }))
+                    return false;
             }
         }
+        // The final pass, in order: adds, runs, copies from this window's
+        // own output, and (when it was read whole) the copy window.
+        Section data(data_);
+        if (!walk(out, nullptr, &data)) return false;
+        const std::uint64_t at = window_len;
         if (at != window_len) return fail("a patch window makes fewer bytes than it says");
-        if (!data.done() || !addrs.done()) return fail("a patch window has bytes left over");
+        if (!data.done()) return fail("a patch window has bytes left over");
         if (has_adler_ && vcdiff_adler32(out.data(), out.size()) != adler)
             return fail("a patch window's checksum does not match (is it the right game?)");
         made_ += window_len;
@@ -256,30 +261,65 @@ private:
         if (!source_(at, out, n)) return fail("cannot read the original");
         return true;
     }
-    // Bytes of the original through the block cache (direct mapped).
-    bool cached(std::uint64_t at, std::uint8_t* out, std::uint64_t n) {
-        const std::uint64_t bs = limits_.cache_block;
-        if (cache_.empty()) {
-            cache_.resize(std::size_t(limits_.cache_blocks) * bs);
-            cache_tag_.assign(limits_.cache_blocks, ~0ull);
-        }
-        while (n != 0) {
-            const std::uint64_t block = at / bs;
-            const std::size_t slot = static_cast<std::size_t>(block % limits_.cache_blocks);
-            std::uint8_t* b = cache_.data() + slot * bs;
-            if (cache_tag_[slot] != block) {
-                const std::uint64_t start = block * bs;
-                const std::uint64_t len = std::min(bs, source_size_ - start);
-                if (!read_seg(start, b, static_cast<std::size_t>(len))) return false;
-                cache_tag_[slot] = block;
+    using SourceCopyFn = std::function<bool(std::uint64_t from, std::uint64_t n, std::uint64_t dst)>;
+    // Runs the window's instructions. With `on_source` (a planning pass)
+    // only the copies from the copy window are reported, nothing is
+    // written. Without it (the final pass) the window is made, with `data`
+    // as the data section; copies from a copy window that was not read
+    // whole were put in place already.
+    bool walk(std::vector<std::uint8_t>& out, const SourceCopyFn& on_source, Section* data = nullptr) {
+        Section insts(inst_), addrs(addr_);
+        AddressCache cache;
+        std::uint64_t at = 0;
+        const auto& table = code_table();
+        while (!insts.done()) {
+            std::uint8_t code;
+            if (!insts.byte(code)) break;
+            for (const Inst& in : table[code]) {
+                if (in.type == kNoop) continue;
+                std::uint64_t size = in.size;
+                if (size == 0 && !insts.integer(size)) return fail("a patch instruction is cut short");
+                if (size > window_len_ - at) return fail("a patch instruction runs past its window");
+                std::uint8_t* dst = out.data() + at;
+                if (in.type == kAdd) {
+                    if (data) {
+                        const std::uint8_t* src;
+                        if (!data->take(static_cast<std::size_t>(size), src))
+                            return fail("a patch instruction runs past its data");
+                        std::memcpy(dst, src, static_cast<std::size_t>(size));
+                    }
+                } else if (in.type == kRun) {
+                    if (data) {
+                        std::uint8_t b;
+                        if (!data->byte(b)) return fail("a patch instruction runs past its data");
+                        std::memset(dst, b, static_cast<std::size_t>(size));
+                    }
+                } else {
+                    std::uint64_t addr;
+                    if (!cache.decode(seg_len_ + at, in.mode, addrs, addr)) return fail("a patch address is damaged");
+                    // U is the copy window followed by this window's output;
+                    // a copy may run on into bytes it makes itself.
+                    for (std::uint64_t i = 0; i < size;) {
+                        const std::uint64_t from = addr + i;
+                        if (from < seg_len_) {
+                            const std::uint64_t n = std::min(size - i, seg_len_ - from);
+                            if (on_source) {
+                                if (!on_source(from, n, at + i)) return false;
+                            } else if (seg_whole_) {
+                                std::memcpy(dst + i, seg_.data() + from, static_cast<std::size_t>(n));
+                            }
+                            i += n;
+                        } else {
+                            if (!on_source) dst[i] = out[static_cast<std::size_t>(from - seg_len_)];
+                            ++i;
+                        }
+                    }
+                }
+                at += size;
             }
-            const std::uint64_t in = at - block * bs;
-            const std::uint64_t k = std::min(n, bs - in);
-            std::memcpy(out, b + in, static_cast<std::size_t>(k));
-            out += k;
-            at += k;
-            n -= k;
         }
+        if (at != window_len_) return fail("a patch window makes fewer bytes than it says");
+        if (!addrs.done()) return fail("a patch window has bytes left over");
         return true;
     }
     bool fail(const char* why) {
@@ -311,8 +351,9 @@ private:
     std::uint64_t made_ = 0;
     bool has_adler_ = false;
     std::vector<std::uint8_t> data_, inst_, addr_, seg_, cache_;
-    std::vector<std::uint64_t> cache_tag_;
     std::uint64_t seg_pos_ = 0;
+    std::uint64_t seg_len_ = 0;
+    std::uint64_t window_len_ = 0;
     bool seg_whole_ = true;
     bool seg_target_ = false;
 };
