@@ -30,6 +30,7 @@ constexpr std::uint32_t kLoaderCeiling = 0x81200000;  // its heap's top (memlimi
 constexpr std::uint32_t kGameFloor = 0x80003100;
 constexpr std::uint32_t kBounceBytes = 0x8000;
 constexpr std::uint32_t kBi2Bytes = 0x2000;
+constexpr std::uint32_t kStreamBytes = 0x4000;  // disc audio read ahead: about a third of a second
 // Broadway in Wii mode: the time base runs at the bus clock / 4 whatever
 // the game believes, so the game is told the Wii's clocks and its OSTicks
 // conversions come out right.
@@ -232,6 +233,71 @@ bool find_dvd_low(const Code& code, DvdLow& out, std::string& error) {
     return true;
 }
 
+// AIInitDMA: the function that stores the AI DMA start (0xCC005030,
+// 0xCC005032) and length (0xCC005036), with its base built from
+// "lis rX,0xCC00" and adds, which a walk through each function follows.
+std::uint32_t find_ai_init_dma(const Code& code) {
+    std::uint32_t found = 0;
+    std::uint32_t fn = 0;
+    std::uint32_t value[32] = {};
+    bool known[32] = {};
+    unsigned seen = 0;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (found) return;
+        if (fn == 0) {
+            fn = a;
+            std::fill(std::begin(known), std::end(known), false);
+            seen = 0;
+        }
+        const unsigned op = w >> 26, d = (w >> 21) & 31, ra = (w >> 16) & 31;
+        const std::int32_t imm = static_cast<std::int16_t>(w & 0xFFFF);
+        if (op == 15 && ra == 0) {  // lis
+            value[d] = static_cast<std::uint32_t>(imm) << 16;
+            known[d] = true;
+        } else if (op == 14 && ra != 0 && known[ra]) {  // addi
+            value[d] = value[ra] + imm;
+            known[d] = true;
+        } else if ((op == 44 || op == 45) && known[ra]) {  // sth, sthu
+            const std::uint32_t at = value[ra] + imm;
+            if (at == 0xCC005030) seen |= 1;
+            if (at == 0xCC005032) seen |= 2;
+            if (at == 0xCC005036) seen |= 4;
+            if (seen == 7) found = fn;
+        } else if (op >= 32 && op <= 43) {  // a load replaces its target
+            known[d] = false;
+        }
+        if (w == 0x4E800020) fn = 0;  // blr: the next word starts a function
+    });
+    return found;
+}
+
+// Sends the game's DI register accesses to `base` (where 0xCC006000 was):
+// each "lis rX,0xCC00" whose register is then only used at 0x6000-0x603F
+// gets `base`'s upper half. Returns how many.
+unsigned redirect_di_registers(Code& code, std::uint32_t base) {
+    std::vector<std::uint32_t> patch;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (!is_lis(w, 0xCC00)) return;
+        const unsigned r = (w >> 21) & 31;
+        bool di = false, other = false;
+        for (std::uint32_t b = a + 4; b < a + 4 * 40 && code.has(b); b += 4) {
+            const std::uint32_t x = code.at(b);
+            const unsigned op = x >> 26, d = (x >> 21) & 31, ra = (x >> 16) & 31;
+            const std::uint32_t disp = x & 0xFFFF;
+            if ((op == 14 || (op >= 32 && op <= 47)) && ra == r) {
+                if (disp >= 0x6000 && disp < 0x6040) di = true;
+                else other = true;
+            }
+            if (x == 0x4E800020) break;
+            if ((op == 14 || op == 15 || (op >= 32 && op <= 43)) && d == r && !(op >= 32 && op <= 43 && ra == r && false))
+                break;  // the register gets another value
+        }
+        if (di && !other) patch.push_back(a);
+    });
+    for (std::uint32_t a : patch) code.put(a, (code.at(a) & 0xFFFF0000) | ((base - 0x6000) >> 16));
+    return static_cast<unsigned>(patch.size());
+}
+
 std::uint32_t branch(std::uint32_t from, std::uint32_t to) { return 0x48000000 | ((to - from) & 0x03FFFFFC); }
 
 void store32(std::uint32_t a, std::uint32_t v) { *reinterpret_cast<volatile std::uint32_t*>(a) = v; }
@@ -286,9 +352,14 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const std::uint32_t fst_addr = (kMem1Top - fst_max) & ~31u;
     const std::uint32_t bi2_addr = fst_addr - kBi2Bytes;
     const std::uint32_t bounce_addr = (bi2_addr - kBounceBytes) & ~31u;
-    const std::uint32_t runs_addr = (bounce_addr - runs_bytes) & ~31u;
+    const std::uint32_t adp_addr = (bounce_addr - kStreamBytes) & ~31u;
+    const std::uint32_t stream_addr = (adp_addr - sizeof(gc_rt_stream)) & ~31u;
+    const std::uint32_t runs_addr = (stream_addr - runs_bytes) & ~31u;
     const std::uint32_t blob_addr = (runs_addr - h.size) & ~31u;
-    const std::uint32_t arena_hi = blob_addr;
+    // The DI registers' stand-in: its address must end in 0x6000, as the
+    // game adds that to the upper half it loads.
+    const std::uint32_t di_regs = ((blob_addr - 0x40 - 0x6000) & ~0xFFFFu) + 0x6000;
+    const std::uint32_t arena_hi = di_regs;
     if (arena_hi < kLoaderCeiling) {
         error = "the game's FST is too large";
         return false;
@@ -326,6 +397,14 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     ctx->bounce = bounce_addr;
     ctx->bounce_bytes = kBounceBytes;
     ctx->delay_ticks = 2000;  // about 30 microseconds
+    ctx->di_regs = di_regs;
+    std::memset(reinterpret_cast<void*>(di_regs), 0, 0x40);
+    auto* stream = reinterpret_cast<gc_rt_stream*>(stream_addr);
+    std::memset(stream, 0, sizeof(*stream));
+    stream->buf = adp_addr;
+    stream->buf_bytes = kStreamBytes;
+    stream->sample = 28;
+    ctx->stream = stream_addr;
 
     // The hooks, in the staged code.
     auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
@@ -337,9 +416,27 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     hook(low.inquiry, h.hook_inquiry);
     hook(low.stop_motor, h.hook_cb_r3);
     hook(low.request_error, h.hook_cb_r3);
-    hook(low.audio_status, h.hook_cb_r4);
+    hook(low.audio_status, h.hook_audio_status);
     hook(low.audio_config, h.hook_cb_r5);
-    hook(low.audio_stream, h.hook_cb_r6);
+    hook(low.audio_stream, h.hook_audio_stream);
+    const unsigned di_patches = redirect_di_registers(code, di_regs);
+    const std::uint32_t ai_dma = find_ai_init_dma(code);
+    if (ai_dma != 0) {
+        // Its first word to the replay slot, then the jump to its second.
+        const std::uint32_t replay = blob_addr + h.replay_ai_dma;
+        const std::uint32_t back = blob_addr + h.continue_ai_dma;
+        const std::uint32_t first = code.at(ai_dma);
+        if ((first >> 26) == 18 || (first >> 26) == 16) {
+            error = "AIInitDMA starts with a branch (not handled yet)";
+            return false;
+        }
+        store32(replay, first);
+        store32(back, 0x3D800000 | ((ai_dma + 4) >> 16));        // lis r12, hi
+        store32(back + 4, 0x618C0000 | ((ai_dma + 4) & 0xFFFF));  // ori r12, r12, lo
+        hook(ai_dma, h.hook_ai_dma);
+    }
+    logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
+         ai_dma ? "" : " (not found: no disc audio streaming)");
     if (low.reset != 0) code.put(low.reset, 0x4E800020);  // blr: the drive is not there to reset
 
     const std::uint32_t tv_mode = image.id.size() > 3 && (image.id[3] == 'P' || image.id[3] == 'D' ||
@@ -350,7 +447,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     logf("GameCube: entry 0x%08x, FST 0x%08x, blob 0x%08x (%u bytes), %u run(s), arena top 0x%08x, card fd %d %s\n",
          dol.entry, fst_addr, blob_addr, static_cast<unsigned>(h.size), static_cast<unsigned>(placed.size()),
          arena_hi, card.fd, card.sdhc ? "SDHC" : "SDSC");
-    DCFlushRange(reinterpret_cast<void*>(blob_addr), kMem1Top - blob_addr);
+    DCFlushRange(reinterpret_cast<void*>(di_regs), kMem1Top - di_regs);
     ICInvalidateRange(reinterpret_cast<void*>(blob_addr), h.size);
 
     LogClose();

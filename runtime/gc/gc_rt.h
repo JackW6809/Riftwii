@@ -54,10 +54,37 @@ struct gc_rt_header {
     uint32_t hook_disk_id;    /* DVDLowReadDiskID(id, cb) */
     uint32_t hook_inquiry;    /* DVDLowInquiry(info, cb) */
     uint32_t hook_cb_r3;      /* DVDLowStopMotor(cb), DVDLowRequestError(cb) */
-    uint32_t hook_cb_r4;      /* DVDLowRequestAudioStatus(sub, cb) */
+    uint32_t hook_audio_status;  /* DVDLowRequestAudioStatus(sub, cb) */
     uint32_t hook_cb_r5;      /* DVDLowAudioBufferConfig(on, size, cb) */
-    uint32_t hook_cb_r6;      /* DVDLowAudioStream(sub, length, offset, cb) */
+    uint32_t hook_audio_stream;  /* DVDLowAudioStream(sub, length, offset, cb) */
     uint32_t alarm_entry;     /* the OSAlarm handler that runs the callback */
+    uint32_t hook_ai_dma;     /* AIInitDMA(start, length): the stream mixed in, then the original */
+    uint32_t replay_ai_dma;   /* 16 bytes: AIInitDMA's displaced first word, then padding */
+    uint32_t continue_ai_dma; /* 16 bytes: the jump to its second word */
+};
+
+/* Disc audio streaming (the drive's own ADPCM, 48 kHz stereo): what the
+ * drive would have played into the AI is decoded here and mixed into the
+ * game's audio as it goes out. In MEM1 beside the blob (loader-placed). */
+struct gc_rt_stream {
+    uint32_t playing;         /* a stream is set (AudioStream with a length) */
+    uint32_t start;           /* the stream, disc bytes */
+    uint32_t length;
+    uint32_t pos;             /* the next ADPCM block to decode */
+    uint32_t next_start;      /* played after this one ends (the drive's queue); 0 length: stop */
+    uint32_t next_length;
+    uint32_t buf;             /* ADPCM read ahead from the disc, 32-byte aligned */
+    uint32_t buf_bytes;
+    uint32_t buf_valid;
+    uint32_t buf_at;
+    int32_t hist[4];          /* left hist1, hist2, right hist1, hist2 */
+    int16_t left[28];
+    int16_t right[28];
+    uint32_t sample;          /* the next of left/right to use, 28: decode another block */
+    uint32_t phase;           /* 48 to 32 kHz: two of every three samples */
+    uint32_t mixes;
+    uint32_t refills;
+    uint32_t pad[2];
 };
 
 /* The OSAlarm the callbacks run from: the SDK's is 0x28 bytes. */
@@ -87,7 +114,9 @@ struct gc_rt_context {
     uint32_t failures;
     int32_t last_error;
     uint32_t last_offset;
-    uint32_t pad[13];
+    uint32_t di_regs;         /* where the game's DI register reads were sent (its 0xCC006000) */
+    uint32_t stream;          /* struct gc_rt_stream */
+    uint32_t pad[11];
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
     uint32_t vec[8] __attribute__((aligned(32)));       /* three vectors */
@@ -103,6 +132,9 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
 uint32_t gc_on_disk_id(struct gc_rt_context* ctx, uint32_t id, uint32_t cb);
 uint32_t gc_on_inquiry(struct gc_rt_context* ctx, uint32_t info, uint32_t cb);
 uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb);
+uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb);
+uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t length, uint32_t offset, uint32_t cb);
+void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx);
 #endif
 

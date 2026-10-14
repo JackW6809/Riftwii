@@ -153,7 +153,7 @@ static int gc_read_sd_run(struct gc_rt_context* ctx, const struct gc_rt_run* run
 }
 
 /* The game's view of the disc, `length` bytes from `offset` into `dst`. */
-static int gc_read_disc(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset) {
+static int gc_read_disc_unlocked(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset) {
     const struct gc_rt_run* runs = (const struct gc_rt_run*)(uintptr_t)ctx->runs;
     const uint32_t start = (uint32_t)(uintptr_t)dst;
     const uint32_t total = length;
@@ -180,6 +180,23 @@ static int gc_read_disc(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length
     /* As the DI's DMA leaves it: in memory, not only in the cache. */
     gc_flush(start, total);
     return 1;
+}
+
+/* ctx->pad[0]: a read is using the IPC buffers. The AI interrupt's
+ * stream refill finds it set when it interrupted the game's own read,
+ * and waits for the next buffer instead. */
+static int gc_read_disc(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset) {
+    int ok;
+    if (ctx->pad[0]) return 0;
+    ctx->pad[0] = 1;
+    ok = gc_read_disc_unlocked(ctx, dst, length, offset);
+    ctx->pad[0] = 0;
+    return ok;
+}
+
+/* The DI's immediate register, where the SDK reads a status reply. */
+static void gc_set_imm(struct gc_rt_context* ctx, uint32_t value) {
+    if (ctx->di_regs != 0) *(volatile uint32_t*)(uintptr_t)(ctx->di_regs + 0x20) = value;
 }
 
 /* The callback runs from an OSAlarm a moment from now, where the DI
@@ -222,6 +239,7 @@ uint32_t gc_on_inquiry(struct gc_rt_context* ctx, uint32_t info, uint32_t cb) {
 
 uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb) {
     ctx->commands++;
+    gc_set_imm(ctx, 0);  /* RequestError: no error */
     gc_complete(ctx, cb, GC_DI_TC);
     return 1;
 }
@@ -231,4 +249,172 @@ void gc_on_alarm(struct gc_rt_context* ctx) {
     const uint32_t cb = ctx->pending_cb;
     ctx->pending_cb = 0;
     if (cb != 0) ((gc_callback_fn)(uintptr_t)cb)(ctx->pending_type);
+}
+
+/* ---- Disc audio streaming ------------------------------------------ */
+
+#define GC_AI_CR 0xCC006C00u
+#define GC_AI_VR 0xCC006C04u
+#define GC_AI_PSTAT 0x01u   /* the stream plays */
+#define GC_AI_32K 0x40u     /* the DMA (the game's own audio) runs at 32 kHz */
+#define GC_ADP_BLOCK 32u    /* 28 stereo samples */
+
+static void gc_stream_reset(struct gc_rt_stream* st) {
+    st->hist[0] = st->hist[1] = st->hist[2] = st->hist[3] = 0;
+    st->sample = 28;
+    st->phase = 0;
+    st->buf_valid = 0;
+    st->buf_at = 0;
+}
+
+/* E1: set the stream (or the next one), or cancel it. */
+uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t length, uint32_t offset, uint32_t cb) {
+    struct gc_rt_stream* st = (struct gc_rt_stream*)(uintptr_t)ctx->stream;
+    ctx->commands++;
+    if (st != 0) {
+        if (sub & 0x00010000u) {
+            st->playing = 0;  /* cancel at once */
+        } else if (length != 0) {
+            if (!st->playing) {
+                st->start = offset;
+                st->length = length;
+                st->pos = offset;
+                gc_stream_reset(st);
+                st->playing = 1;
+            }
+            st->next_start = offset;  /* the drive loops a stream until told otherwise */
+            st->next_length = length;
+        } else {
+            st->next_length = 0;  /* stop at its end */
+        }
+    }
+    gc_set_imm(ctx, 0);
+    gc_complete(ctx, cb, GC_DI_TC);
+    return 1;
+}
+
+/* E2: the stream's state, address, start or length, in the immediate
+ * register (addresses in 4-byte words, as the drive gives them). */
+uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb) {
+    const struct gc_rt_stream* st = (const struct gc_rt_stream*)(uintptr_t)ctx->stream;
+    uint32_t value = 0;
+    ctx->commands++;
+    if (st != 0) {
+        const uint32_t which = (sub >> 16) & 0xFFu;
+        const uint32_t played = st->pos - (st->buf_valid - st->buf_at);
+        if (which == 0) value = st->playing ? 1u : 0u;
+        else if (which == 1) value = played >> 2;
+        else if (which == 2) value = st->start >> 2;
+        else if (which == 3) value = st->length;
+    }
+    gc_set_imm(ctx, value);
+    gc_complete(ctx, cb, GC_DI_TC);
+    return 1;
+}
+
+static int32_t gc_clamp16(int32_t v) { return v < -32768 ? -32768 : v > 32767 ? 32767 : v; }
+
+/* One 4-bit sample of the drive's ADPCM: the filter in the header's top
+ * nibble, the shift in its bottom one (the format as documented in yagcd
+ * and implemented in Dolphin's StreamADPCM). */
+static int16_t gc_adp_sample(int32_t nibble, uint32_t header, int32_t* hist1, int32_t* hist2) {
+    int32_t predict = 0;
+    int32_t cur;
+    switch (header >> 4) {
+    case 1: predict = *hist1 * 0x3C; break;
+    case 2: predict = *hist1 * 0x73 - *hist2 * 0x34; break;
+    case 3: predict = *hist1 * 0x62 - *hist2 * 0x37; break;
+    default: break;
+    }
+    predict = (predict + 0x20) >> 6;
+    if (predict < -0x200000) predict = -0x200000;
+    if (predict > 0x1FFFFF) predict = 0x1FFFFF;
+    cur = (((int32_t)(int16_t)(nibble << 12) >> (header & 0xF)) << 6) + predict;
+    *hist2 = *hist1;
+    *hist1 = cur;
+    return (int16_t)gc_clamp16(cur >> 6);
+}
+
+/* The next ADPCM block into left/right; 0 when the stream has ended (or
+ * the card is busy with the game's own read). */
+static int gc_stream_block(struct gc_rt_context* ctx, struct gc_rt_stream* st) {
+    const uint8_t* b;
+    uint32_t i;
+    if (st->buf_at + GC_ADP_BLOCK > st->buf_valid) {
+        const uint32_t end = st->start + st->length;
+        uint32_t n;
+        if (st->pos >= end) {
+            if (st->next_length == 0) {
+                st->playing = 0;
+                return 0;
+            }
+            st->start = st->next_start;
+            st->length = st->next_length;
+            st->pos = st->start;
+        }
+        n = st->start + st->length - st->pos;
+        if (n > st->buf_bytes) n = st->buf_bytes;
+        n &= ~(GC_ADP_BLOCK - 1);
+        if (n == 0 || !gc_read_disc(ctx, (uint8_t*)(uintptr_t)st->buf, n, st->pos)) return 0;
+        st->pos += n;
+        st->buf_valid = n;
+        st->buf_at = 0;
+        st->refills++;
+    }
+    b = (const uint8_t*)(uintptr_t)(st->buf + st->buf_at);
+    st->buf_at += GC_ADP_BLOCK;
+    for (i = 0; i < 28; ++i) {
+        st->left[i] = gc_adp_sample(b[4 + i] & 0xF, b[0], &st->hist[0], &st->hist[1]);
+        st->right[i] = gc_adp_sample(b[4 + i] >> 4, b[1], &st->hist[2], &st->hist[3]);
+    }
+    st->sample = 0;
+    return 1;
+}
+
+/* The next 48 kHz stereo sample; 0 when there is none. */
+static int gc_stream_next(struct gc_rt_context* ctx, struct gc_rt_stream* st, int32_t* l, int32_t* r) {
+    if (st->sample >= 28 && !gc_stream_block(ctx, st)) return 0;
+    *l = st->left[st->sample];
+    *r = st->right[st->sample];
+    st->sample++;
+    return 1;
+}
+
+/* AIInitDMA: the buffer the AI plays next is the game's finished mix;
+ * the stream goes into it at the AI's stream volume. */
+void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
+    struct gc_rt_stream* st = (struct gc_rt_stream*)(uintptr_t)ctx->stream;
+    const uint32_t cr = gc_read32(GC_AI_CR);
+    const uint32_t vr = gc_read32(GC_AI_VR);
+    const int32_t vol_l = (int32_t)(vr & 0xFFu);
+    const int32_t vol_r = (int32_t)((vr >> 8) & 0xFFu);
+    const uint32_t addr = 0x80000000u | (start & 0x01FFFFE0u);
+    int16_t* out = (int16_t*)(uintptr_t)addr;
+    uint32_t frames = length / 4;
+    uint32_t i;
+    if (st == 0 || !st->playing || (cr & GC_AI_PSTAT) == 0 || length == 0) return;
+    gc_invalidate(addr, length);
+    for (i = 0; i < frames; ++i) {
+        int32_t l;
+        int32_t r;
+        if (!gc_stream_next(ctx, st, &l, &r)) break;
+        if (cr & GC_AI_32K) {
+            /* 48 to 32 kHz: of every three samples, the first, then the
+             * other two averaged. */
+            if (st->phase == 0) {
+                st->phase = 1;
+            } else {
+                int32_t l2;
+                int32_t r2;
+                if (!gc_stream_next(ctx, st, &l2, &r2)) break;
+                l = (l + l2) >> 1;
+                r = (r + r2) >> 1;
+                st->phase = 0;
+            }
+        }
+        out[2 * i] = (int16_t)gc_clamp16(out[2 * i] + ((l * vol_l) >> 8));
+        out[2 * i + 1] = (int16_t)gc_clamp16(out[2 * i + 1] + ((r * vol_r) >> 8));
+    }
+    gc_flush(addr, length);
+    st->mixes++;
 }

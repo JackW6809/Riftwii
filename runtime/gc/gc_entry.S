@@ -9,9 +9,10 @@ _gc_blob_start:
     .long 0x52574744, 1, _gc_blob_end - _gc_blob_start, gc_context_data - _gc_blob_start
     .long gc_hook_read - _gc_blob_start, gc_hook_seek - _gc_blob_start
     .long gc_hook_disk_id - _gc_blob_start, gc_hook_inquiry - _gc_blob_start
-    .long gc_hook_cb_r3 - _gc_blob_start, gc_hook_cb_r4 - _gc_blob_start
-    .long gc_hook_cb_r5 - _gc_blob_start, gc_hook_cb_r6 - _gc_blob_start
+    .long gc_hook_cb_r3 - _gc_blob_start, gc_hook_audio_status - _gc_blob_start
+    .long gc_hook_cb_r5 - _gc_blob_start, gc_hook_audio_stream - _gc_blob_start
     .long gc_alarm - _gc_blob_start
+    .long gc_hook_ai_dma - _gc_blob_start, gc_replay_ai_dma - _gc_blob_start, gc_continue_ai_dma - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -38,6 +39,47 @@ gc_hook_\name:
     GC_HOOK read, gc_on_read
     GC_HOOK disk_id, gc_on_disk_id
     GC_HOOK inquiry, gc_on_inquiry
+    GC_HOOK audio_status, gc_on_audio_status
+    GC_HOOK audio_stream, gc_on_audio_stream
+
+/* AIInitDMA(start, length): gc_on_ai_dma(ctx, start, length) mixes the
+ * disc stream into the buffer, then the original runs from the replay
+ * slot with the game's arguments. Frame: 8 start, 12 length. */
+    .globl gc_hook_ai_dma
+gc_hook_ai_dma:
+    stwu 1, -0x20(1)
+    mflr 0
+    stw 0, 0x24(1)
+    stw 3, 0x08(1)
+    stw 4, 0x0C(1)
+    mr 5, 4
+    mr 4, 3
+    bl 4f
+4:  mflr 3
+    addi 3, 3, gc_context_data - 4b
+    bl gc_on_ai_dma
+    lwz 3, 0x08(1)
+    lwz 4, 0x0C(1)
+    lwz 0, 0x24(1)
+    mtlr 0
+    addi 1, 1, 0x20
+    b gc_replay_ai_dma
+
+/* Loader-filled: AIInitDMA's first word (and nops), then the jump to its
+ * second word through r12. */
+    .balign 16
+    .globl gc_replay_ai_dma
+gc_replay_ai_dma:
+    nop
+    nop
+    nop
+    nop
+    .globl gc_continue_ai_dma
+gc_continue_ai_dma:
+    lis 12, 0
+    ori 12, 12, 0
+    mtctr 12
+    bctr
 
 /* Commands with nothing to do but their callback, in r3..r6: moved to
  * r4 for gc_on_done(ctx, cb). */
@@ -50,9 +92,7 @@ gc_hook_\name:
 
     GC_DONE seek, 4
     GC_DONE cb_r3, 3
-    GC_DONE cb_r4, 4
     GC_DONE cb_r5, 5
-    GC_DONE cb_r6, 6
 
 gc_done_common:
     stwu 1, -0x20(1)
