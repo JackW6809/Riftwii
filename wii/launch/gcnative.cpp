@@ -1,0 +1,403 @@
+// SPDX-FileCopyrightText: 2026 RiftWii contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+#include "gcnative.hpp"
+
+#include <gccore.h>
+#include <malloc.h>
+#include <ogc/machine/processor.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <cstring>
+#include <map>
+#include <vector>
+
+#include "gc_rt.h"
+#include "log.hpp"
+#include "riftwii/fat32.hpp"
+#include "riftwii/redirect.hpp"
+#include "riftwii_gc_bin.h"
+#include "sdfile.hpp"
+#include "sdio.hpp"
+
+namespace riftwii::wii {
+
+namespace {
+
+constexpr std::uint32_t kMem1Top = 0x81800000;
+constexpr std::uint32_t kLoaderStart = 0x80A00000;  // RiftWii's own image (Makefile.wii)
+constexpr std::uint32_t kLoaderCeiling = 0x81200000;  // its heap's top (memlimits.hpp)
+constexpr std::uint32_t kGameFloor = 0x80003100;
+constexpr std::uint32_t kBounceBytes = 0x8000;
+constexpr std::uint32_t kBi2Bytes = 0x2000;
+// Broadway in Wii mode: the time base runs at the bus clock / 4 whatever
+// the game believes, so the game is told the Wii's clocks and its OSTicks
+// conversions come out right.
+constexpr std::uint32_t kWiiBusClock = 243000000;
+constexpr std::uint32_t kWiiCpuClock = 729000000;
+
+std::uint32_t be32(const std::uint8_t* p) {
+    return (std::uint32_t(p[0]) << 24) | (std::uint32_t(p[1]) << 16) | (std::uint32_t(p[2]) << 8) | p[3];
+}
+
+struct Section {
+    std::uint32_t address = 0;
+    std::vector<std::uint8_t> bytes;
+};
+
+struct Dol {
+    std::vector<Section> text;
+    std::vector<Section> data;
+    std::uint32_t bss = 0;
+    std::uint32_t bss_size = 0;
+    std::uint32_t entry = 0;
+};
+
+bool read_at(std::FILE* f, std::uint64_t offset, void* out, std::size_t length) {
+    if (fseeko(f, static_cast<off_t>(offset), SEEK_SET) != 0) return false;
+    return std::fread(out, 1, length, f) == length;
+}
+
+bool read_dol(std::FILE* f, std::uint32_t at, Dol& out, std::string& error) {
+    std::uint8_t h[0x100];
+    if (!read_at(f, at, h, sizeof(h))) {
+        error = "cannot read the game's executable";
+        return false;
+    }
+    for (int i = 0; i < 18; ++i) {
+        const std::uint32_t offset = be32(h + 4 * i);
+        const std::uint32_t address = be32(h + 0x48 + 4 * i);
+        const std::uint32_t size = be32(h + 0x90 + 4 * i);
+        if (size == 0) continue;
+        if (address < kGameFloor || address + size > kLoaderStart) {
+            error = "the game's executable reaches memory RiftWii is still in (not handled yet)";
+            return false;
+        }
+        Section s;
+        s.address = address;
+        s.bytes.resize(size);
+        if (!read_at(f, std::uint64_t(at) + offset, s.bytes.data(), size)) {
+            error = "cannot read the game's executable";
+            return false;
+        }
+        (i < 7 ? out.text : out.data).push_back(std::move(s));
+    }
+    out.bss = be32(h + 0xD8);
+    out.bss_size = be32(h + 0xDC);
+    out.entry = be32(h + 0xE0);
+    if (out.bss_size != 0 && out.bss + out.bss_size > kLoaderStart) {
+        error = "the game's memory reaches memory RiftWii is still in (not handled yet)";
+        return false;
+    }
+    return !out.text.empty();
+}
+
+// The game's code as words by address, for the search below.
+class Code {
+public:
+    explicit Code(std::vector<Section>& text) : text_(text) {}
+    bool has(std::uint32_t a) const { return find(a) != nullptr; }
+    std::uint32_t at(std::uint32_t a) const {
+        const std::uint8_t* p = find(a);
+        return p ? be32(p) : 0;
+    }
+    void put(std::uint32_t a, std::uint32_t word) {
+        std::uint8_t* p = const_cast<std::uint8_t*>(find(a));
+        p[0] = word >> 24;
+        p[1] = word >> 16;
+        p[2] = word >> 8;
+        p[3] = word;
+    }
+    template <class F>
+    void each(F f) const {
+        for (const Section& s : text_)
+            for (std::uint32_t i = 0; i + 4 <= s.bytes.size(); i += 4) f(s.address + i, be32(&s.bytes[i]));
+    }
+
+private:
+    const std::uint8_t* find(std::uint32_t a) const {
+        for (const Section& s : text_)
+            if (a >= s.address && a + 4 <= s.address + s.bytes.size()) return &s.bytes[a - s.address];
+        return nullptr;
+    }
+    std::vector<Section>& text_;
+};
+
+bool is_lis(std::uint32_t w, std::uint16_t value) { return (w & 0xFC1F0000) == 0x3C000000 && (w & 0xFFFF) == value; }
+bool is_oris(std::uint32_t w, std::uint16_t value) { return (w >> 26) == 25 && (w & 0xFFFF) == value; }
+std::uint32_t bl_target(std::uint32_t at, std::uint32_t w) {
+    if ((w & 0xFC000003) != 0x48000001) return 0;
+    std::int32_t d = static_cast<std::int32_t>(w & 0x03FFFFFC);
+    if (d & 0x02000000) d -= 0x04000000;
+    return at + d;
+}
+
+// The DVDLow* functions, found by the DI command each one writes (the
+// command words are the drive's, documented on wiibrew and in yagcd).
+struct DvdLow {
+    std::uint32_t read = 0, seek = 0, disk_id = 0, inquiry = 0, stop_motor = 0, request_error = 0;
+    std::uint32_t audio_stream = 0, audio_status = 0, audio_config = 0, reset = 0;
+    std::uint32_t set_alarm = 0;
+};
+
+// The start of the function holding `at`: the word after the previous blr.
+std::uint32_t function_start(const Code& code, std::uint32_t at) {
+    for (std::uint32_t a = at - 4; code.has(a) && at - a < 0x400; a -= 4)
+        if (code.at(a) == 0x4E800020) return a + 4;
+    return 0;
+}
+
+bool find_dvd_low(const Code& code, DvdLow& out, std::string& error) {
+    std::uint32_t just_read = 0;
+    std::map<std::uint32_t, std::vector<std::uint32_t>> calls;  // target -> call sites
+    // Each command's candidates; the same words turn up elsewhere in a
+    // game, so only those beside the read, seek and disc ID are taken.
+    std::map<std::uint32_t*, std::vector<std::uint32_t>> found;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (std::uint32_t t = bl_target(a, w)) calls[t].push_back(a);
+        auto take = [&](std::uint32_t& slot) {
+            const std::uint32_t f = function_start(code, a);
+            if (f != 0) found[&slot].push_back(f);
+        };
+        if (is_lis(w, 0xA800)) {
+            // ReadDiskID adds 0x40 to the read command.
+            const std::uint32_t next = code.at(a + 4);
+            if ((next >> 26) == 14 && (next & 0xFFFF) == 0x40) take(out.disk_id);
+            else take(just_read);
+        } else if (is_lis(w, 0xAB00)) take(out.seek);
+        else if (is_lis(w, 0x1200)) take(out.inquiry);
+        else if (is_lis(w, 0xE300)) take(out.stop_motor);
+        else if (is_lis(w, 0xE000)) take(out.request_error);
+        else if (is_oris(w, 0xE100)) take(out.audio_stream);
+        else if (is_oris(w, 0xE200)) take(out.audio_status);
+        else if (is_oris(w, 0xE400)) take(out.audio_config);
+    });
+    // The read, seek and disc ID functions sit together: the read that has
+    // a seek within 4 KB.
+    for (std::uint32_t r : found[&just_read])
+        for (std::uint32_t k : found[&out.seek])
+            for (std::uint32_t d : found[&out.disk_id])
+                if (just_read == 0 && std::max({r, k, d}) - std::min({r, k, d}) < 0x1000) {
+                    just_read = r;
+                    out.seek = k;
+                    out.disk_id = d;
+                }
+    if (just_read == 0) {
+        error = "the game's disc functions were not found";
+        return false;
+    }
+    // DVDLowRead may be a wrapper round the function that writes the
+    // command (older SDKs seek first on some drives): of the two, the one
+    // the rest of the game calls.
+    const std::uint32_t lo = std::min({just_read, out.seek, out.disk_id}) - 0x1000;
+    const std::uint32_t hi = std::max({just_read, out.seek, out.disk_id}) + 0x1000;
+    for (std::uint32_t* slot : {&out.inquiry, &out.stop_motor, &out.request_error, &out.audio_stream,
+                                &out.audio_status, &out.audio_config})
+        for (std::uint32_t f : found[slot])
+            if (*slot == 0 && f >= lo && f <= hi) *slot = f;
+    auto outside = [&](std::uint32_t target) {
+        std::size_t n = 0;
+        for (std::uint32_t site : calls[target])
+            if (site < lo || site > hi) ++n;
+        return n;
+    };
+    out.read = just_read;
+    std::size_t best = outside(just_read);
+    for (std::uint32_t site : calls[just_read]) {
+        const std::uint32_t f = function_start(code, site);
+        if (f != 0 && f >= lo && f <= hi && outside(f) > best) {
+            best = outside(f);
+            out.read = f;
+        }
+    }
+    // OSSetAlarm: Seek's last call (its timeout alarm).
+    for (std::uint32_t a = out.seek; code.has(a) && code.at(a) != 0x4E800020; a += 4)
+        if (std::uint32_t t = bl_target(a, code.at(a))) out.set_alarm = t;
+    // DVDLowReset: near the others, toggles the DI reset bit in PI's reset
+    // register (0xCC003024) with "ori 1" then "ori 5".
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (a < lo || a > hi || out.reset != 0) return;
+        if ((w >> 26) == 24 && (w & 0xFFFF) == 5 && (code.at(a + 4) & 0xFC00FFFF) == 0x90000000) {
+            for (std::uint32_t b = a; b > a - 0x80; b -= 4)
+                if ((code.at(b) >> 26) == 24 && (code.at(b) & 0xFFFF) == 1) {
+                    out.reset = function_start(code, b);
+                    break;
+                }
+        }
+    });
+    if (out.set_alarm == 0) {
+        error = "the game's OSSetAlarm was not found";
+        return false;
+    }
+    return true;
+}
+
+std::uint32_t branch(std::uint32_t from, std::uint32_t to) { return 0x48000000 | ((to - from) & 0x03FFFFFC); }
+
+void store32(std::uint32_t a, std::uint32_t v) { *reinterpret_cast<volatile std::uint32_t*>(a) = v; }
+
+}  // namespace
+
+bool LaunchGcNative(const GcImage& image, std::string& error) {
+    logf("GameCube (native): %s (%s)\n", image.id.c_str(), image.path.c_str());
+    Fat32File file;
+    if (!resolve_sd_file(image.path, file, error)) return false;
+    std::vector<PlacedRun> placed;
+    if (!place_on_fragments(file.fragments, 0, file.entry.size, placed, error)) return false;
+
+    std::FILE* f = std::fopen(image.path.c_str(), "rb");
+    if (!f) {
+        error = "cannot open " + image.path;
+        return false;
+    }
+    std::vector<std::uint8_t> boot(0x440), bi2(kBi2Bytes);
+    Dol dol;
+    bool ok = read_at(f, 0, boot.data(), boot.size()) && read_at(f, 0x440, bi2.data(), bi2.size());
+    if (!ok) error = "cannot read " + image.path;
+    ok = ok && read_dol(f, be32(&boot[0x420]), dol, error);
+    const std::uint32_t fst_size = be32(&boot[0x428]);
+    const std::uint32_t fst_max = std::max(be32(&boot[0x42C]), fst_size);
+    std::vector<std::uint8_t> fst(fst_size);
+    if (ok && (fst.empty() || !read_at(f, be32(&boot[0x424]), fst.data(), fst.size()))) {
+        error = "cannot read the game's FST";
+        ok = false;
+    }
+    std::fclose(f);
+    if (!ok) return false;
+
+    Code code(dol.text);
+    DvdLow low;
+    if (!find_dvd_low(code, low, error)) return false;
+    logf("GameCube: DVDLowRead 0x%08x, Seek 0x%08x, ReadDiskID 0x%08x, Inquiry 0x%08x, StopMotor 0x%08x, "
+         "RequestError 0x%08x, AudioStream 0x%08x, AudioStatus 0x%08x, AudioConfig 0x%08x, Reset 0x%08x, "
+         "OSSetAlarm 0x%08x\n",
+         low.read, low.seek, low.disk_id, low.inquiry, low.stop_motor, low.request_error, low.audio_stream,
+         low.audio_status, low.audio_config, low.reset, low.set_alarm);
+
+    // Top of MEM1, as the apploader leaves it: the FST, then (ours) BI2's
+    // copy, the blob, its runs and its bounce buffer; the arena below.
+    const gc_rt_header& h = *reinterpret_cast<const gc_rt_header*>(riftwii_gc_bin);
+    if (riftwii_gc_bin_size < sizeof(h) || h.magic != GC_RT_MAGIC || h.version != GC_RT_VERSION ||
+        h.size > riftwii_gc_bin_size) {
+        error = "the GameCube blob is damaged";
+        return false;
+    }
+    const std::uint32_t runs_bytes = static_cast<std::uint32_t>(placed.size() * sizeof(gc_rt_run));
+    const std::uint32_t fst_addr = (kMem1Top - fst_max) & ~31u;
+    const std::uint32_t bi2_addr = fst_addr - kBi2Bytes;
+    const std::uint32_t bounce_addr = (bi2_addr - kBounceBytes) & ~31u;
+    const std::uint32_t runs_addr = (bounce_addr - runs_bytes) & ~31u;
+    const std::uint32_t blob_addr = (runs_addr - h.size) & ~31u;
+    const std::uint32_t arena_hi = blob_addr;
+    if (arena_hi < kLoaderCeiling) {
+        error = "the game's FST is too large";
+        return false;
+    }
+
+    // The blob and its table, straight into place (above RiftWii's heap).
+    std::memcpy(reinterpret_cast<void*>(blob_addr), riftwii_gc_bin, h.size);
+    auto* ctx = reinterpret_cast<gc_rt_context*>(blob_addr + h.context_offset);
+    auto* runs = reinterpret_cast<gc_rt_run*>(runs_addr);
+    std::uint32_t disc = 0;
+    for (std::size_t i = 0; i < placed.size(); ++i) {
+        runs[i].disc = disc;
+        runs[i].length = static_cast<std::uint32_t>(placed[i].length);
+        runs[i].source = static_cast<std::uint32_t>(placed[i].source);
+        runs[i].skip = placed[i].skip;
+        runs[i].kind = GC_RUN_SD;
+        disc += runs[i].length;
+    }
+    std::memcpy(reinterpret_cast<void*>(fst_addr), fst.data(), fst.size());
+    std::memcpy(reinterpret_cast<void*>(bi2_addr), bi2.data(), bi2.size());
+
+    // The card, opened and selected; the blob reads it after the jump.
+    sdio::Card card;
+    if (!sdio::open_card(card, error)) return false;
+    if (card.d2x) {
+        error = "the SD card is in use through d2x (not handled yet)";
+        return false;
+    }
+    ctx->sdio_fd = static_cast<std::uint32_t>(card.fd);
+    ctx->sdhc = card.sdhc ? 1 : 0;
+    ctx->runs = runs_addr;
+    ctx->run_count = static_cast<std::uint32_t>(placed.size());
+    ctx->set_alarm = low.set_alarm;
+    ctx->alarm_entry = blob_addr + h.alarm_entry;
+    ctx->bounce = bounce_addr;
+    ctx->bounce_bytes = kBounceBytes;
+    ctx->delay_ticks = 2000;  // about 30 microseconds
+
+    // The hooks, in the staged code.
+    auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
+        if (fn != 0) code.put(fn, branch(fn, blob_addr + entry));
+    };
+    hook(low.read, h.hook_read);
+    hook(low.seek, h.hook_seek);
+    hook(low.disk_id, h.hook_disk_id);
+    hook(low.inquiry, h.hook_inquiry);
+    hook(low.stop_motor, h.hook_cb_r3);
+    hook(low.request_error, h.hook_cb_r3);
+    hook(low.audio_status, h.hook_cb_r4);
+    hook(low.audio_config, h.hook_cb_r5);
+    hook(low.audio_stream, h.hook_cb_r6);
+    if (low.reset != 0) code.put(low.reset, 0x4E800020);  // blr: the drive is not there to reset
+
+    const std::uint32_t tv_mode = image.id.size() > 3 && (image.id[3] == 'P' || image.id[3] == 'D' ||
+                                                          image.id[3] == 'F' || image.id[3] == 'S' ||
+                                                          image.id[3] == 'I' || image.id[3] == 'X')
+                                      ? 1  // PAL
+                                      : 0;
+    logf("GameCube: entry 0x%08x, FST 0x%08x, blob 0x%08x (%u bytes), %u run(s), arena top 0x%08x, card fd %d %s\n",
+         dol.entry, fst_addr, blob_addr, static_cast<unsigned>(h.size), static_cast<unsigned>(placed.size()),
+         arena_hi, card.fd, card.sdhc ? "SDHC" : "SDSC");
+    DCFlushRange(reinterpret_cast<void*>(blob_addr), kMem1Top - blob_addr);
+    ICInvalidateRange(reinterpret_cast<void*>(blob_addr), h.size);
+
+    LogClose();
+    VIDEO_SetBlack(true);
+    VIDEO_Flush();
+    VIDEO_WaitVSync();
+    SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
+    u32 level;
+    _CPU_ISR_Disable(level);
+    (void)level;
+
+    // Low memory as a GameCube's start-up leaves it for the game.
+    std::memset(reinterpret_cast<void*>(0x80000000), 0, kGameFloor - 0x80000000);
+    for (const Section& s : dol.text) std::memcpy(reinterpret_cast<void*>(s.address), s.bytes.data(), s.bytes.size());
+    for (const Section& s : dol.data) std::memcpy(reinterpret_cast<void*>(s.address), s.bytes.data(), s.bytes.size());
+    if (dol.bss_size != 0) {
+        // Sections may sit inside the BSS range; zero only around them.
+        std::vector<std::pair<std::uint32_t, std::uint32_t>> used;
+        for (const Section& s : dol.data) used.emplace_back(s.address, s.address + s.bytes.size());
+        for (std::uint32_t a = dol.bss; a < dol.bss + dol.bss_size; ++a) {
+            bool inside = false;
+            for (auto& u : used)
+                if (a >= u.first && a < u.second) inside = true;
+            if (!inside) *reinterpret_cast<volatile std::uint8_t*>(a) = 0;
+        }
+    }
+    std::memcpy(reinterpret_cast<void*>(0x80000000), boot.data(), 0x20);
+    store32(0x80000020, 0x0D15EA5E);
+    store32(0x80000024, 1);
+    store32(0x80000028, 0x01800000);
+    store32(0x8000002C, 0x00000003);  // a retail console
+    store32(0x80000034, arena_hi);
+    store32(0x80000038, fst_addr);
+    store32(0x8000003C, fst_max);
+    store32(0x800000CC, tv_mode);
+    store32(0x800000D0, 0x01000000);  // ARAM
+    store32(0x800000EC, kMem1Top);
+    store32(0x800000F0, 0x01800000);
+    store32(0x800000F4, bi2_addr);
+    store32(0x800000F8, kWiiBusClock);
+    store32(0x800000FC, kWiiCpuClock);
+    // IOS's replies stay polled: no IPC interrupt reaches the game.
+    store32(0xCD000004, 0);
+    DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
+    ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
+    reinterpret_cast<void (*)()>(dol.entry)();
+    return false;
+}
+
+}  // namespace riftwii::wii

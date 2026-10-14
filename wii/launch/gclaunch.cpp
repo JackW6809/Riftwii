@@ -18,6 +18,7 @@
 #include <sstream>
 
 #include "dolboot.h"
+#include "gcnative.hpp"
 #include "log.hpp"
 #include "netpacks.hpp"
 #include "riftwii/apply.hpp"
@@ -395,6 +396,9 @@ void ScanGcImages(std::vector<ImageGame>& out) {
 
 bool LaunchGcGame(const GcImage& image, const std::vector<PackageChoices>& packages, std::string& error) {
     logf("GameCube: %s (%s)\n", image.id.c_str(), image.path.c_str());
+    // Trial: RiftWii's own GameCube loader instead of Nintendont.
+    struct stat st;
+    if (packages.empty() && stat("sd:/riftwii/gc/native", &st) == 0) return LaunchGcNative(image, error);
     IsoFile iso(image.path);
     if (!iso.ok()) {
         error = "cannot open " + image.path;
