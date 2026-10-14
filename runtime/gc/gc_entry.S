@@ -15,6 +15,7 @@ _gc_blob_start:
     .long gc_hook_ai_dma - _gc_blob_start, gc_replay_ai_dma - _gc_blob_start, gc_continue_ai_dma - _gc_blob_start
     .long gc_hook_pad_read - _gc_blob_start, gc_replay_pad_read - _gc_blob_start, gc_continue_pad_read - _gc_blob_start
     .long gc_hook_ar_dma - _gc_blob_start, gc_replay_ar_dma - _gc_blob_start, gc_continue_ar_dma - _gc_blob_start
+    .long gc_trace_now - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -181,6 +182,22 @@ gc_done_common:
 2:  mflr 3
     addi 3, 3, gc_context_data - 2b
     bl gc_on_done
+    lwz 0, 0x24(1)
+    mtlr 0
+    addi 1, 1, 0x20
+    blr
+
+/* trace_now(where): one trace record, for the loader. */
+    .globl gc_trace_now
+gc_trace_now:
+    stwu 1, -0x20(1)
+    mflr 0
+    stw 0, 0x24(1)
+    mr 4, 3
+    bl 7f
+7:  mflr 3
+    addi 3, 3, gc_context_data - 7b
+    bl gc_on_trace_now
     lwz 0, 0x24(1)
     mtlr 0
     addi 1, 1, 0x20

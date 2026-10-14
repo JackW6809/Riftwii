@@ -577,6 +577,9 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     store32(0x800000FC, kWiiCpuClock);
     // IOS's replies stay polled: no IPC interrupt reaches the game.
     store32(0xCD000004, 0);
+    // A first trace record through the blob's own IPC, as the game will
+    // use it: written here, the card and the polling work on this console.
+    reinterpret_cast<void (*)(std::uint32_t)>(blob_addr + h.trace_now)(GC_TRACE_JUMP);
     DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     reinterpret_cast<void (*)()>(dol.entry)();

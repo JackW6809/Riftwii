@@ -574,3 +574,5 @@ void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint3
     ctx->last_ar[3] = length;
     if (ctx->ar_dmas <= 16 || (ctx->ar_dmas & 255) == 0) gc_trace(ctx, GC_TRACE_AR);
 }
+
+void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) { gc_trace(ctx, where); }

@@ -67,6 +67,7 @@ struct gc_rt_header {
     uint32_t hook_ar_dma;     /* ARStartDMA(type, main, aram, length): counted, then the original */
     uint32_t replay_ar_dma;
     uint32_t continue_ar_dma;
+    uint32_t trace_now;       /* trace(where): a record from the loader, just before the jump */
 };
 
 /* The trace: a ring of 512-byte records in sd:/riftwii/gc/trace.bin
@@ -85,6 +86,7 @@ enum gc_trace_word {
 #define GC_TRACE_PAD 2u
 #define GC_TRACE_AI 3u
 #define GC_TRACE_AR 4u
+#define GC_TRACE_JUMP 5u
 
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
@@ -171,6 +173,7 @@ uint32_t gc_on_inquiry(struct gc_rt_context* ctx, uint32_t info, uint32_t cb);
 uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb);
 uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb);
 uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t length, uint32_t offset, uint32_t cb);
+void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where);
 void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
