@@ -203,12 +203,15 @@ gc_trace_now:
     addi 1, 1, 0x20
     blr
 
-/* The OSAlarm handler (alarm, context): runs the pending callback. */
+/* The OSAlarm handler (alarm, context): runs the pending callback, or
+ * takes the heartbeat's sample of the interrupted context. */
     .globl gc_alarm
 gc_alarm:
     stwu 1, -0x20(1)
     mflr 0
     stw 0, 0x24(1)
+    mr 5, 4
+    mr 4, 3
     bl 3f
 3:  mflr 3
     addi 3, 3, gc_context_data - 3b
@@ -222,4 +225,4 @@ gc_alarm:
     .globl gc_context_data
 gc_context_data:
     .long 0x52574743
-    .fill 103, 4, 0
+    .fill 127, 4, 0

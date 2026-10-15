@@ -458,6 +458,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     ctx->bounce = bounce_addr;
     ctx->bounce_bytes = kBounceBytes;
     ctx->delay_ticks = 2000;  // about 30 microseconds
+    ctx->beat_ticks = 30375000;  // half a second of the bus clock / 4
     ctx->di_regs = di_regs;
     std::memset(reinterpret_cast<void*>(di_regs), 0, 0x40);
     auto* stream = reinterpret_cast<gc_rt_stream*>(stream_addr);

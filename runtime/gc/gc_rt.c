@@ -315,6 +315,14 @@ static void gc_show_hex(const struct gc_rt_context* ctx, uint32_t row, uint32_t 
 
 /* One record of the trace (gc_rt.h), with interrupts held off so it
  * cannot meet a read on the card; skipped while a read is going on. */
+/* Record `seq`'s sector: the first GC_TRACE_KEPT stay, the rest go round. */
+static uint32_t gc_trace_slot(const struct gc_rt_context* ctx, uint32_t seq) {
+    const uint32_t ring = ctx->trace_count - GC_TRACE_KEPT;
+    if (ctx->trace_count <= GC_TRACE_KEPT) return ctx->trace_sector + (seq - 1) % ctx->trace_count;
+    if (seq <= GC_TRACE_KEPT) return ctx->trace_sector + seq - 1;
+    return ctx->trace_sector + GC_TRACE_KEPT + (seq - GC_TRACE_KEPT - 1) % ring;
+}
+
 #define GC_TRACE_SKIPPED (-3000)  /* no trace, or the IPC buffers were in use */
 static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     int32_t result;
@@ -355,7 +363,11 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     for (i = 0; i < 4; ++i) w[GC_TR_LAST_AR_TYPE + i] = ctx->last_ar[i];
     w[GC_TR_PENDING_CB] = ctx->pending_cb;
     w[GC_TR_ALARMS] = ctx->alarms;
-    sector = ctx->trace_sector + (ctx->trace_seq - 1) % ctx->trace_count;
+    w[GC_TR_BEATS] = ctx->beats;
+    w[GC_TR_BEAT_PC] = ctx->beat_pc;
+    w[GC_TR_BEAT_LR] = ctx->beat_lr;
+    w[GC_TR_BEAT_MSR] = ctx->beat_msr;
+    sector = gc_trace_slot(ctx, ctx->trace_seq);
     /* CMD25, one block; then CMD13 until the card has written it. */
     q[0] = 0x19u;
     q[1] = GC_SD_CMDTYPE_AC;
@@ -413,13 +425,22 @@ static void gc_complete(struct gc_rt_context* ctx, uint32_t cb, uint32_t type) {
     set_alarm(ctx->alarm, ctx->delay_ticks, ctx->alarm_entry);
 }
 
+/* The heartbeat (gc_rt.h): once more, half a second from now. */
+static void gc_beat_arm(struct gc_rt_context* ctx) {
+    gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
+    set_alarm(ctx->beat_alarm, ctx->beat_ticks, ctx->alarm_entry);
+}
+
 uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, uint32_t offset, uint32_t cb) {
     ctx->commands++;
     ctx->reads++;
     ctx->read_bytes += length;
     ctx->last_offset = offset;
     gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset) ? GC_DI_TC : GC_DI_DE);
-    if (ctx->reads == 1) gc_paint(ctx, GC_COLOUR_MAGENTA);
+    if (ctx->reads == 1) {
+        gc_paint(ctx, GC_COLOUR_MAGENTA);
+        if (ctx->beat_ticks != 0) gc_beat_arm(ctx);
+    }
     if ((ctx->reads & 7) == 0) gc_led_toggle();
     if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
@@ -452,8 +473,24 @@ uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb) {
 }
 
 typedef void (*gc_callback_fn)(uint32_t type);
-void gc_on_alarm(struct gc_rt_context* ctx) {
+/* An OSContext's saved LR, SRR0 and SRR1 (the SDK's layout). */
+#define GC_OSCONTEXT_LR 0x84u
+#define GC_OSCONTEXT_SRR0 0x198u
+#define GC_OSCONTEXT_SRR1 0x19Cu
+
+void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context) {
     const uint32_t cb = ctx->pending_cb;
+    if (alarm == (uint32_t)(uintptr_t)ctx->beat_alarm) {
+        ctx->beats++;
+        if (os_context != 0) {
+            ctx->beat_pc = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR0);
+            ctx->beat_lr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_LR);
+            ctx->beat_msr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR1);
+        }
+        gc_trace(ctx, GC_TRACE_BEAT);
+        gc_beat_arm(ctx);
+        return;
+    }
     ctx->alarms++;
     ctx->pending_cb = 0;
     if (cb != 0) ((gc_callback_fn)(uintptr_t)cb)(ctx->pending_type);
@@ -677,7 +714,7 @@ void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
     ctx->response[0] = 0;
     status = gc_ioctl(ctx, ctx->sdio_fd, GC_SDIO_GETSTATUS, 0, 0, (uint32_t)(uintptr_t)ctx->response, 4);
     for (i = 0; i < GC_SECTOR; ++i) back[i] = 0;
-    readback = gc_sd_read(ctx, ctx->trace_sector + (seq - 1) % ctx->trace_count, 1, ctx->bounce) ? 0 : ctx->last_error;
+    readback = gc_sd_read(ctx, gc_trace_slot(ctx, seq), 1, ctx->bounce) ? 0 : ctx->last_error;
     matches = ((const uint32_t*)back)[0] == w[0] && ((const uint32_t*)back)[1] == seq;
     for (i = 0; i < 0x20; ++i) back[i] = 0;
     image_ok = (uint32_t)gc_read_disc(ctx, back, 0x20, 0);

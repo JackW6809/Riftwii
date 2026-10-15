@@ -79,7 +79,8 @@ enum gc_trace_word {
     GC_TR_MAGIC, GC_TR_SEQ, GC_TR_WHERE, GC_TR_TBU, GC_TR_TBL, GC_TR_COMMANDS, GC_TR_READS, GC_TR_READ_BYTES,
     GC_TR_SD_REQUESTS, GC_TR_FAILURES, GC_TR_LAST_ERROR, GC_TR_LAST_OFFSET, GC_TR_PAD_READS, GC_TR_STREAM_PLAYING,
     GC_TR_STREAM_MIXES, GC_TR_STREAM_REFILLS, GC_TR_AI_DMAS, GC_TR_AR_DMAS, GC_TR_LAST_AR_TYPE, GC_TR_LAST_AR_MAIN,
-    GC_TR_LAST_AR_ARAM, GC_TR_LAST_AR_LENGTH, GC_TR_PENDING_CB, GC_TR_ALARMS, GC_TR_WORDS
+    GC_TR_LAST_AR_ARAM, GC_TR_LAST_AR_LENGTH, GC_TR_PENDING_CB, GC_TR_ALARMS, GC_TR_BEATS, GC_TR_BEAT_PC,
+    GC_TR_BEAT_LR, GC_TR_BEAT_MSR, GC_TR_WORDS
 };
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
@@ -87,6 +88,9 @@ enum gc_trace_word {
 #define GC_TRACE_AI 3u
 #define GC_TRACE_AR 4u
 #define GC_TRACE_JUMP 5u
+#define GC_TRACE_BEAT 6u
+/* The first records stay (how the game started); the rest go round. */
+#define GC_TRACE_KEPT 16u
 
 /* Whole-screen colours (YUYV pairs) a run on a Wii shows until the game
  * sets up its own video: how far it got when nothing else can say. */
@@ -169,14 +173,23 @@ struct gc_rt_context {
     uint32_t busy;            /* the IPC buffers are in use (a read or a trace write) */
     uint32_t xfb;             /* the frame on screen at the jump (YUYV), painted as steps pass; 0: none */
     uint32_t xfb_bytes;
+    /* The heartbeat: an OSAlarm of its own every half second once the
+     * game reads, noting where the game was when it went off (the
+     * decrementer interrupt's saved context), for a run that hangs. */
+    uint32_t beat_ticks;      /* loader-filled, 0: no heartbeat */
+    uint32_t beats;
+    uint32_t beat_pc;
+    uint32_t beat_lr;
+    uint32_t beat_msr;
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
+    uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
     uint32_t vec[8] __attribute__((aligned(32)));       /* three vectors */
     uint32_t request[16] __attribute__((aligned(32)));  /* the SENDCMD block (36 bytes) */
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x1A0u
+#define GC_RT_CONTEXT_BYTES 0x200u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
@@ -190,7 +203,7 @@ void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where);
 void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
-void gc_on_alarm(struct gc_rt_context* ctx);
+void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context);
 #endif
 
 #endif
