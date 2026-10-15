@@ -218,6 +218,7 @@ struct gc_rt_context {
     uint32_t guard_first_value;
     uint32_t guard_copy[64];
     uint32_t probe[4];        /* gc_aram_probe's findings */
+    uint8_t aram_scratch[32] __attribute__((aligned(32)));  /* the hardware's own ARAM DMA goes here */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
@@ -226,7 +227,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x360u
+#define GC_RT_CONTEXT_BYTES 0x380u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
@@ -237,7 +238,7 @@ uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb);
 uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb);
 uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t length, uint32_t offset, uint32_t cb);
 void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where);
-void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
+uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context);

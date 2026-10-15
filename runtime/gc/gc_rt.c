@@ -565,6 +565,8 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
 #define GC_AI_VR 0xCC006C04u
 #define GC_AI_PSTAT 0x01u   /* the stream plays */
 #define GC_AI_32K 0x40u     /* the DMA (the game's own audio) runs at 32 kHz */
+#define GC_AI_AIINT 0x08u   /* write 1 to clear: kept out of our writes */
+#define GC_AI_SCRESET 0x20u /* write 1 to reset the sample counter: likewise */
 #define GC_ADP_BLOCK 32u    /* 28 stereo samples */
 
 static void gc_stream_reset(struct gc_rt_stream* st) {
@@ -692,9 +694,17 @@ static int gc_stream_next(struct gc_rt_context* ctx, struct gc_rt_stream* st, in
  * the stream goes into it at the AI's stream volume. */
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
     struct gc_rt_stream* st = (struct gc_rt_stream*)(uintptr_t)ctx->stream;
-    const uint32_t cr = gc_read32(GC_AI_CR);
+    uint32_t cr = gc_read32(GC_AI_CR);
     const uint32_t vr = gc_read32(GC_AI_VR);
     gc_guard(ctx);
+    /* A GameCube's audio DMA always runs at 32 kHz; a Wii's runs at 48 kHz
+     * unless this bit is set (Wii only), which played the game's sound
+     * 1.5 times too fast on a Wii. */
+    if (ctx->ai_dmas == 0) ctx->probe[3] = cr;  /* the game's own setting, for the trace */
+    if ((cr & GC_AI_32K) == 0) {
+        gc_write32(GC_AI_CR, (cr & ~(GC_AI_AIINT | GC_AI_SCRESET)) | GC_AI_32K);
+        cr |= GC_AI_32K;
+    }
     const int32_t vol_l = (int32_t)(vr & 0xFFu);
     const int32_t vol_r = (int32_t)((vr >> 8) & 0xFFu);
     const uint32_t addr = 0x80000000u | (start & 0x01FFFFE0u);
@@ -753,8 +763,8 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
  * behind it (measured on a Wii with gc_aram_probe; Dolphin emulates one).
  * So ARAM lives in MEM2 at physical 0x10000000 + the ARAM address, where
  * the DSP finds it too once its microcode is pointed there, and every
- * ARStartDMA is done here by the CPU before the game's own call runs for
- * the interrupt. Main memory comes as an address the hardware masks. */
+ * ARStartDMA is done here by the CPU before the game's own call runs, on
+ * a scratch buffer, for the interrupt. Main memory comes as an address the hardware masks. */
 #define GC_ARAM_BASE 0x90000000u  /* MEM2, cached (Broadway's BAT4, left on) */
 #define GC_ARAM_SIZE 0x01000000u
 static void gc_aram_copy(uint32_t to_main, uint32_t main, uint32_t aram, uint32_t length) {
@@ -772,7 +782,7 @@ static void gc_aram_copy(uint32_t to_main, uint32_t main, uint32_t aram, uint32_
     gc_flush((uint32_t)(uintptr_t)to, length);
 }
 
-void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length) {
+uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length) {
     gc_aram_copy(type != 0, main, aram, length);
     ctx->ar_dmas++;
     ctx->last_ar[0] = type;
@@ -780,6 +790,10 @@ void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint3
     ctx->last_ar[2] = aram;
     ctx->last_ar[3] = length;
     if (ctx->ar_dmas <= 16 || (ctx->ar_dmas & 255) == 0) gc_trace(ctx, GC_TRACE_AR);
+    /* The game's own call still runs, for the interrupt it waits for, but
+     * on this buffer: an ARAM read on a Wii writes zeros (there is no ARAM
+     * behind it) and would undo the copy above. */
+    return gc_physical((uint32_t)(uintptr_t)ctx->aram_scratch);
 }
 
 /* Trial: where ARAM is on a Wii. Three 32-byte ARAM DMAs through the

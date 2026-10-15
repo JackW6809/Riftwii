@@ -105,8 +105,10 @@ gc_continue_pad_read:
     mtctr 12
     bctr
 
-/* ARStartDMA(type, main, aram, length): gc_on_ar_dma counts it, then
- * the original runs from its replay slot with the game's arguments.
+/* ARStartDMA(type, main, aram, length): gc_on_ar_dma does the transfer
+ * itself and returns a 32-byte scratch buffer; the original then runs
+ * from its replay slot on that buffer for 32 bytes, so the hardware still
+ * raises its interrupt but writes nothing of the game's.
  * Frame: 8 r3, 12 r4, 16 r5, 20 r6. */
     .globl gc_hook_ar_dma
 gc_hook_ar_dma:
@@ -125,10 +127,10 @@ gc_hook_ar_dma:
 6:  mflr 3
     addi 3, 3, gc_context_data - 6b
     bl gc_on_ar_dma
+    mr 4, 3
     lwz 3, 0x08(1)
-    lwz 4, 0x0C(1)
     lwz 5, 0x10(1)
-    lwz 6, 0x14(1)
+    li 6, 32
     lwz 0, 0x24(1)
     mtlr 0
     addi 1, 1, 0x20
@@ -259,4 +261,4 @@ gc_dsi_entry:
     .globl gc_context_data
 gc_context_data:
     .long 0x52574743
-    .fill 215, 4, 0
+    .fill 223, 4, 0
