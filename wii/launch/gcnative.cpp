@@ -433,6 +433,44 @@ unsigned redirect_di_registers(Code& code, std::uint32_t base) {
     return static_cast<unsigned>(patch.size());
 }
 
+// The serial interface (GameCube controllers), EXI (memory cards) and the
+// audio interface sit at 0xCD006400-0xCD006FFF on a Wii in Wii mode; a
+// GameCube game reaches for them at 0xCC006400-0xCC006FFF, which goes
+// nowhere there (so its sound played at the Wii's 48 kHz, 1.5 times too
+// fast, and it found no memory card; Dolphin answers at both). Each
+// "lis rX,0xCC00" whose register is then only used in that range gets
+// 0xCD00. Returns how many; `mixed` counts those also used elsewhere,
+// left alone.
+unsigned redirect_wii_blocks(Code& code, unsigned& mixed) {
+    std::vector<std::uint32_t> patch;
+    mixed = 0;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (!is_lis(w, 0xCC00)) return;
+        const unsigned r = (w >> 21) & 31;
+        bool moved = false, other = false;
+        for (std::uint32_t b = a + 4; b < a + 4 * 40 && code.has(b); b += 4) {
+            const std::uint32_t x = code.at(b);
+            const unsigned op = x >> 26, d = (x >> 21) & 31, ra = (x >> 16) & 31;
+            const std::uint32_t disp = x & 0xFFFF;
+            if ((op == 14 || (op >= 32 && op <= 47)) && ra == r) {
+                if (disp >= 0x6400 && disp < 0x7000) moved = true;
+                else other = true;
+                // An update form (lwzu, sthu...) leaves the register on that
+                // block's register: what follows is relative to it.
+                if (op >= 32 && (op & 1) && disp >= 0x6400 && disp < 0x7000) break;
+            }
+            if (x == 0x4E800020) break;
+            if ((op == 14 || op == 15 || (op >= 32 && op <= 43)) && d == r) break;  // the register gets another value
+            const unsigned xo = (x >> 1) & 0x1FF;
+            if (op == 31 && d == r && (xo == 266 || xo == 40 || xo == 10)) break;  // add, subf, addc into it
+        }
+        if (moved && !other) patch.push_back(a);
+        if (moved && other) ++mixed;
+    });
+    for (std::uint32_t a : patch) code.put(a, (code.at(a) & 0xFFFF0000) | 0xCD00);
+    return static_cast<unsigned>(patch.size());
+}
+
 // The sound chip's ARAM in Wii mode. A GameCube game copies its samples
 // to ARAM addresses below 16 MB and has the DSP read them back from
 // there; in Wii mode the blob keeps ARAM at the start of MEM2 (its ARAM
@@ -715,6 +753,9 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     hook(low.audio_config, h.hook_cb_r5);
     hook(low.audio_stream, h.hook_audio_stream);
     const unsigned di_patches = redirect_di_registers(code, di_regs);
+    unsigned wii_mixed = 0;
+    const unsigned wii_blocks = redirect_wii_blocks(code, wii_mixed);
+    logf("GameCube: %u SI/EXI/AI register base(s) moved to 0xCD00 (%u mixed, left)\n", wii_blocks, wii_mixed);
     const std::uint32_t ai_dma = find_dsp_stores(code, {0xCC005030, 0xCC005032, 0xCC005036});
     if (ai_dma != 0) {
         // Its first word to the replay slot, then the jump to its second.

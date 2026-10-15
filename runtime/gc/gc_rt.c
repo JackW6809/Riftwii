@@ -561,8 +561,10 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
 
 /* ---- Disc audio streaming ------------------------------------------ */
 
-#define GC_AI_CR 0xCC006C00u
-#define GC_AI_VR 0xCC006C04u
+/* The audio interface where a Wii in Wii mode has it (0xCC006C00 on a
+ * GameCube; the loader moves the game's own accesses too). */
+#define GC_AI_CR 0xCD006C00u
+#define GC_AI_VR 0xCD006C04u
 #define GC_AI_PSTAT 0x01u   /* the stream plays */
 #define GC_AI_32K 0x40u     /* the DMA (the game's own audio) runs at 32 kHz */
 #define GC_AI_AIINT 0x08u   /* write 1 to clear: kept out of our writes */
