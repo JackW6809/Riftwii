@@ -4,6 +4,7 @@
  * blobs: no globals, no literals that need relocations, no library
  * calls; all state is in the context the trampolines hand over. */
 #include "gc_rt.h"
+#include "gc_bt.h"
 
 /* Hollywood's IPC registers, uncached (wiibrew "Hardware/IPC"): the
  * request's physical address, the control bits, IOS's reply. */
@@ -31,14 +32,14 @@ static void gc_write32(uint32_t address, uint32_t value) { *(volatile uint32_t*)
 
 static uint32_t gc_physical(uint32_t address) { return address & 0x3FFFFFFFu; }
 
-static void gc_flush(uint32_t address, uint32_t length) {
+void gc_flush(uint32_t address, uint32_t length) {
     uint32_t a = address & ~31u;
     const uint32_t end = address + length;
     for (; a < end; a += 32) __asm__ volatile("dcbf 0,%0" : : "r"(a) : "memory");
     __asm__ volatile("sync" : : : "memory");
 }
 
-static void gc_invalidate(uint32_t address, uint32_t length) {
+void gc_invalidate(uint32_t address, uint32_t length) {
     uint32_t a = address & ~31u;
     const uint32_t end = address + length;
     for (; a < end; a += 32) __asm__ volatile("dcbi 0,%0" : : "r"(a) : "memory");
@@ -56,7 +57,7 @@ static void gc_zero(uint8_t* dst, uint32_t n) {
 /* The guard (gc_rt.h): the game's bytes at guard_addr put back wherever
  * IOS wrote over them, in memory and out of both caches. */
 #define GC_GUARD_WORDS 64u
-static void gc_guard(struct gc_rt_context* ctx) {
+void gc_guard(struct gc_rt_context* ctx) {
     uint32_t i;
     if (ctx->guard_addr == 0) return;
     for (i = 0; i < GC_GUARD_WORDS; ++i) {
@@ -75,9 +76,36 @@ static void gc_guard(struct gc_rt_context* ctx) {
     }
 }
 
-/* One ioctlv to IOS and its reply, by polling: the request is the only
- * one in flight (the menu's IPC ended with libogc). Returns IOS's result,
- * or -1000 when IOS does not answer. */
+/* A request to IOS (its physical address): sent, and taken by IOS. */
+int32_t gc_ipc_send(uint32_t phys) {
+    uint32_t polls;
+    gc_write32(GC_IPC_PPCMSG, phys);
+    gc_write32(GC_IPC_PPCCTRL, GC_IPC_X1);
+    for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y2) == 0; ++polls)
+        if (polls == GC_IPC_TIMEOUT) return -1000;
+    gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y2);
+    return 0;
+}
+
+/* The reply IOS has ready (the request's physical address), or 0. */
+uint32_t gc_ipc_take(void) {
+    uint32_t reply;
+    if ((gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y1) == 0) return 0;
+    reply = gc_read32(GC_IPC_ARMMSG);
+    gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y1);
+    gc_write32(GC_IPC_PPCCTRL, GC_IPC_X2);
+    return reply;
+}
+
+/* A reply that is not the one being waited for: the Wii Remotes' reads
+ * (gc_bt.c), or something left from the menu (dropped). */
+static void gc_ipc_other(struct gc_rt_context* ctx, uint32_t reply) {
+    if (ctx->bt) gc_bt_on_reply((struct gc_bt*)(uintptr_t)ctx->bt, reply);
+}
+
+/* One ioctlv to IOS and its reply, by polling (the Wii Remotes' reads may
+ * be in flight meanwhile; their replies go to gc_bt.c). Returns IOS's
+ * result, or -1000 when IOS does not answer. */
 static int32_t gc_ioctlv(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, uint32_t in_count,
                          uint32_t out_count) {
     uint32_t* rq = ctx->ipc;
@@ -104,7 +132,8 @@ static int32_t gc_ioctlv(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl,
             const uint32_t reply = gc_read32(GC_IPC_ARMMSG);
             gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y1);
             gc_write32(GC_IPC_PPCCTRL, GC_IPC_X2);
-            if (reply == phys) break;  /* a reply for anything else is not ours */
+            if (reply == phys) break;
+            gc_ipc_other(ctx, reply);
         }
     }
     gc_invalidate((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
@@ -221,13 +250,13 @@ static int gc_read_disc(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length
     return ok;
 }
 
-static uint32_t gc_irq_off(void) {
+uint32_t gc_irq_off(void) {
     uint32_t msr;
     __asm__ volatile("mfmsr %0" : "=r"(msr));
     __asm__ volatile("mtmsr %0" : : "r"(msr & ~0x8000u) : "memory");
     return msr;
 }
-static void gc_irq_restore(uint32_t msr) { __asm__ volatile("mtmsr %0" : : "r"(msr) : "memory"); }
+void gc_irq_restore(uint32_t msr) { __asm__ volatile("mtmsr %0" : : "r"(msr) : "memory"); }
 
 /* One ioctl (no vectors), polled like gc_ioctlv: CMD13 takes this form. */
 static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, uint32_t in, uint32_t in_len,
@@ -260,6 +289,7 @@ static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, 
             gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y1);
             gc_write32(GC_IPC_PPCCTRL, GC_IPC_X2);
             if (reply == phys) break;
+            gc_ipc_other(ctx, reply);
         }
     }
     gc_invalidate((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
@@ -395,6 +425,20 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_AI_DMAS] = ctx->ai_dmas;
     w[GC_TR_AR_DMAS] = ctx->ar_dmas;
     for (i = 0; i < 4; ++i) w[GC_TR_LAST_AR_TYPE + i] = ctx->last_ar[i];
+    if (ctx->bt) {
+        const struct gc_bt* bt = (const struct gc_bt*)(uintptr_t)ctx->bt;
+        w[GC_TR_BT_STAGE] = bt->stage;
+        w[GC_TR_BT_ERROR] = (uint32_t)bt->last_error;
+        w[GC_TR_BT_EVENTS] = bt->event_count;
+        w[GC_TR_BT_ACL] = bt->acl_count;
+        w[GC_TR_BT_LAST_EVENT] = bt->last_event;
+        w[GC_TR_BT_KEYS] = bt->key_count << 16 | bt->connects;
+        w[GC_TR_BT_REMOTES] = (uint32_t)bt->remotes[0].chans << 24 | (uint32_t)bt->remotes[0].ready << 16 |
+                              bt->remotes[0].ext_step << 8 | bt->remotes[0].ext_kind;
+        w[GC_TR_BT_BUTTONS] = (uint32_t)bt->remotes[0].core[0] << 8 | bt->remotes[0].core[1];
+        w[GC_TR_BT_EVENT_LENGTHS] = bt->event_lengths;
+        gc_copy((uint8_t*)&w[GC_TR_BT_EVENT_LOG], &bt->event_log[0][0], 32);
+    }
     w[GC_TR_PENDING_CB] = ctx->pending_cb;
     w[GC_TR_ALARMS] = ctx->alarms;
     w[GC_TR_BEATS] = ctx->beats;
@@ -747,6 +791,11 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
     const uint32_t n = ctx->pad_reads++;
     gc_guard(ctx);  /* once a frame: IOS rewrites its counter there all the time */
+    if (ctx->bt && status != 0) {
+        struct gc_bt* bt = (struct gc_bt*)(uintptr_t)ctx->bt;
+        gc_bt_poll(ctx, bt);
+        gc_bt_fill(bt, (uint8_t*)(uintptr_t)status);
+    }
     if (n % 300 == 0) gc_trace(ctx, GC_TRACE_PAD);
     if ((ctx->flags & GC_FLAG_PRESS) && status != 0 && (n % 240) < 10) {
         uint8_t* p = (uint8_t*)(uintptr_t)status;

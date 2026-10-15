@@ -94,7 +94,13 @@ enum gc_trace_word {
     GC_TR_WATCH_ADDR, GC_TR_WATCH_NOW, GC_TR_WATCH_WAS, /* a word watched for being overwritten */
     GC_TR_GUARD_HITS, GC_TR_GUARD_FIRST_REQUEST, GC_TR_GUARD_FIRST_OFFSET, GC_TR_GUARD_FIRST_VALUE,
     GC_TR_PROBE, /* 4 words: gc_aram_probe */
-    GC_TR_WORDS = GC_TR_PROBE + 4
+    GC_TR_BT_STAGE = GC_TR_PROBE + 4, GC_TR_BT_ERROR, GC_TR_BT_EVENTS, GC_TR_BT_ACL, GC_TR_BT_LAST_EVENT,
+    GC_TR_BT_KEYS, /* stored link keys << 16 | connections */
+    GC_TR_BT_REMOTES, /* the first remote: chans << 24 | ready << 16 | ext_step << 8 | ext_kind */
+    GC_TR_BT_BUTTONS,
+    GC_TR_BT_EVENT_LENGTHS,
+    GC_TR_BT_EVENT_LOG, /* 8 words: the first four events' first 8 bytes */
+    GC_TR_WORDS = GC_TR_BT_EVENT_LOG + 8
 };
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
@@ -219,6 +225,7 @@ struct gc_rt_context {
     uint32_t guard_first_value;
     uint32_t guard_copy[64];
     uint32_t probe[4];        /* gc_aram_probe's findings */
+    uint32_t bt;              /* struct gc_bt (loader-placed), 0: no Wii Remotes */
     uint8_t aram_scratch[32] __attribute__((aligned(32)));  /* the hardware's own ARAM DMA goes here */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
@@ -244,6 +251,14 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context);
 void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_context, uint32_t dsisr, uint32_t dar);
+/* Shared with gc_bt.c. */
+void gc_flush(uint32_t address, uint32_t length);
+void gc_invalidate(uint32_t address, uint32_t length);
+void gc_guard(struct gc_rt_context* ctx);
+uint32_t gc_irq_off(void);
+void gc_irq_restore(uint32_t msr);
+int32_t gc_ipc_send(uint32_t phys);
+uint32_t gc_ipc_take(void);
 #endif
 
 #endif

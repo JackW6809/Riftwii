@@ -16,6 +16,7 @@
 #include <fat.h>
 
 #include "d2xsd.hpp"
+#include "gc_bt.h"
 #include "gc_rt.h"
 #include "log.hpp"
 #include "riftwii/fat32.hpp"
@@ -604,6 +605,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     if (stat("sd:/riftwii/gc/keep-exi", &st_press) == 0) moved_blocks &= ~2u;
     if (stat("sd:/riftwii/gc/keep-ai", &st_press) == 0) moved_blocks &= ~4u;
     const bool no_ai_rate = stat("sd:/riftwii/gc/no-ai-rate", &st_press) == 0;
+    // Trial switch: the Wii Remote driver left out (sd:/riftwii/gc/no-remotes).
+    const bool no_remotes = stat("sd:/riftwii/gc/no-remotes", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     std::vector<PlacedRun> placed;
@@ -656,7 +659,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const std::uint32_t adp_addr = (bounce_addr - kStreamBytes) & ~31u;
     const std::uint32_t stream_addr = (adp_addr - sizeof(gc_rt_stream)) & ~31u;
     const std::uint32_t trace_addr = (stream_addr - 512) & ~31u;
-    const std::uint32_t runs_addr = (trace_addr - runs_bytes) & ~31u;
+    const std::uint32_t bt_addr = (trace_addr - sizeof(gc_bt)) & ~31u;
+    const std::uint32_t runs_addr = (bt_addr - runs_bytes) & ~31u;
     const std::uint32_t moved_addr = (runs_addr - kMovedBytes) & ~31u;
     const std::uint32_t blob_addr = (moved_addr - h.size) & ~31u;
     // The DI registers' stand-in: its address must end in 0x6000, as the
@@ -739,6 +743,10 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     ctx->trace_count = trace_count;
     ctx->trace_buf = trace_addr;
     ctx->card_rca = card.rca;
+    // The Wii Remotes' state (gc_bt.h): the blob opens the Bluetooth
+    // controller at the game's first PADRead.
+    std::memset(reinterpret_cast<void*>(bt_addr), 0, sizeof(gc_bt));
+    ctx->bt = no_remotes ? 0 : bt_addr;
 
     // The hooks, in the staged code.
     auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
@@ -822,6 +830,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
         }
     logf("GameCube: __OSUnhandledException 0x%08x\n", unhandled);
     logf("GameCube: PADRead 0x%08x%s, ARStartDMA 0x%08x\n", pad_read, test_presses ? " (test presses)" : "", ar_dma);
+    logf("GameCube: Wii Remotes %s\n", ctx->bt == 0 ? "off (no-remotes)" : pad_read == 0 ? "off (no PADRead)" : "on");
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
          ai_dma ? "" : " (not found: no disc audio streaming)");
     if (low.reset != 0) code.put(low.reset, 0x4E800020);  // blr: the drive is not there to reset
