@@ -440,8 +440,9 @@ unsigned redirect_di_registers(Code& code, std::uint32_t base) {
 // fast, and it found no memory card; Dolphin answers at both). Each
 // "lis rX,0xCC00" whose register is then only used in that range gets
 // 0xCD00. Returns how many; `mixed` counts those also used elsewhere,
-// left alone.
-unsigned redirect_wii_blocks(Code& code, unsigned& mixed) {
+// left alone. `blocks` says which may move (bit 0 SI 0x64xx, bit 1 EXI
+// 0x68xx, bit 2 AI 0x6Cxx); a register touching a block not allowed stays.
+unsigned redirect_wii_blocks(Code& code, unsigned blocks, unsigned& mixed) {
     std::vector<std::uint32_t> patch;
     mixed = 0;
     code.each([&](std::uint32_t a, std::uint32_t w) {
@@ -453,7 +454,8 @@ unsigned redirect_wii_blocks(Code& code, unsigned& mixed) {
             const unsigned op = x >> 26, d = (x >> 21) & 31, ra = (x >> 16) & 31;
             const std::uint32_t disp = x & 0xFFFF;
             if ((op == 14 || (op >= 32 && op <= 47)) && ra == r) {
-                if (disp >= 0x6400 && disp < 0x7000) moved = true;
+                const bool allowed = disp >= 0x6400 && disp < 0x7000 && (blocks & (1u << ((disp - 0x6400) >> 10)));
+                if (allowed) moved = true;
                 else other = true;
                 // An update form (lwzu, sthu...) leaves the register on that
                 // block's register: what follows is relative to it.
@@ -595,6 +597,12 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     // Read while the card is still the file system's (before it is opened raw).
     struct stat st_press;
     const bool test_presses = stat("sd:/riftwii/gc/press", &st_press) == 0;
+    // Trial: which of SI, EXI and AI move to their Wii addresses (all, unless
+    // sd:/riftwii/gc/keep-si, keep-exi or keep-ai says to leave one).
+    unsigned moved_blocks = 7;
+    if (stat("sd:/riftwii/gc/keep-si", &st_press) == 0) moved_blocks &= ~1u;
+    if (stat("sd:/riftwii/gc/keep-exi", &st_press) == 0) moved_blocks &= ~2u;
+    if (stat("sd:/riftwii/gc/keep-ai", &st_press) == 0) moved_blocks &= ~4u;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     std::vector<PlacedRun> placed;
@@ -754,8 +762,9 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     hook(low.audio_stream, h.hook_audio_stream);
     const unsigned di_patches = redirect_di_registers(code, di_regs);
     unsigned wii_mixed = 0;
-    const unsigned wii_blocks = redirect_wii_blocks(code, wii_mixed);
-    logf("GameCube: %u SI/EXI/AI register base(s) moved to 0xCD00 (%u mixed, left)\n", wii_blocks, wii_mixed);
+    const unsigned wii_blocks = redirect_wii_blocks(code, moved_blocks, wii_mixed);
+    logf("GameCube: %u SI/EXI/AI register base(s) moved to 0xCD00 (blocks 0x%x; %u mixed, left)\n", wii_blocks,
+         moved_blocks, wii_mixed);
     const std::uint32_t ai_dma = find_dsp_stores(code, {0xCC005030, 0xCC005032, 0xCC005036});
     if (ai_dma != 0) {
         // Its first word to the replay slot, then the jump to its second.
