@@ -713,8 +713,35 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     // use it: written here, the card and the polling work on this console.
     paint(GC_COLOUR_YELLOW);
     reinterpret_cast<void (*)(std::uint32_t)>(blob_addr + h.trace_now)(GC_TRACE_JUMP);
+    // Trial: a write watch (DABR, translated stores) on 0x800031a0, where a
+    // Wii run finds a halfword (0xffc1) stored over memset's code. Until
+    // the game's OS installs its own handlers, a DSI comes to this stub at
+    // 0x300: r3, SRR0 and SRR1 to SPRG0-2, then an rfi to the blob's
+    // dsi_entry with translation on (the crash screen and trace).
+    {
+        const std::uint32_t entry = blob_addr + h.dsi_entry;
+        const std::uint32_t stub[] = {
+            0x7C7043A6,                    // mtsprg 0,r3
+            0x7C7A02A6,                    // mfsrr0 r3
+            0x7C7143A6,                    // mtsprg 1,r3
+            0x7C7B02A6,                    // mfsrr1 r3
+            0x7C7243A6,                    // mtsprg 2,r3
+            0x3C600000 | (entry >> 16),    // lis r3,entry@h
+            0x60630000 | (entry & 0xFFFF), // ori r3,r3,entry@l
+            0x7C7A03A6,                    // mtsrr0 r3
+            0x7C6000A6,                    // mfmsr r3
+            0x60630030,                    // ori r3,r3,0x30 (IR, DR)
+            0x7C7B03A6,                    // mtsrr1 r3
+            0x4C000064,                    // rfi
+        };
+        for (std::size_t i = 0; i < sizeof(stub) / sizeof(stub[0]); ++i) store32(0x80000300 + 4 * i, stub[i]);
+    }
     DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
+    {
+        const std::uint32_t watch = 0x800031A0 | 0x4 | 0x2;  // BT | DW
+        asm volatile("mtspr 1013, %0" : : "r"(watch) : "memory");
+    }
     reinterpret_cast<void (*)()>(dol.entry)();
     return false;
 }

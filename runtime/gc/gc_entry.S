@@ -17,6 +17,7 @@ _gc_blob_start:
     .long gc_hook_ar_dma - _gc_blob_start, gc_replay_ar_dma - _gc_blob_start, gc_continue_ar_dma - _gc_blob_start
     .long gc_trace_now - _gc_blob_start
     .long gc_hook_fatal - _gc_blob_start
+    .long gc_dsi_entry - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -222,6 +223,36 @@ gc_alarm:
     mtlr 0
     addi 1, 1, 0x20
     blr
+
+/* A DSI before the game's OS has its handlers. The loader's stub at 0x300
+ * has put r3, SRR0 and SRR1 in SPRG0-2 and come here with translation
+ * back on. The registers go into an OSContext-shaped block on the stack
+ * (GPRs at 0, LR at 0x84, SRR0/SRR1 at 0x198) for gc_on_fatal, which
+ * never returns. */
+    .globl gc_dsi_entry
+gc_dsi_entry:
+    stwu 1, -0x1C0(1)
+    stw 0, 8(1)
+    stmw 2, 16(1)
+    mfsprg 0, 0
+    stw 0, 20(1)
+    addi 0, 1, 0x1C0
+    stw 0, 12(1)
+    mflr 0
+    stw 0, 8 + 0x84(1)
+    mfsprg 0, 1
+    stw 0, 8 + 0x198(1)
+    mfsprg 0, 2
+    stw 0, 8 + 0x19C(1)
+    li 4, 0x12
+    addi 5, 1, 8
+    mfdsisr 6
+    mfdar 7
+    bl 4f
+4:  mflr 3
+    addi 3, 3, gc_context_data - 4b
+    bl gc_on_fatal
+5:  b 5b
 
     .balign 32
     .globl gc_context_data
