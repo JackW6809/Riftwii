@@ -299,8 +299,20 @@ std::uint32_t find_unhandled_exception(const Code& code, const Dol& dol) {
 // the size: the 16 MB every console has, none of the test DMAs.
 bool skip_aram_size_check(Code& code) {
     std::uint32_t check = 0;
+    // 0xDEADBEEF itself: `lis rX,0xDEAE`, then `addi rY,rX,0xBEEF` within a
+    // few words. The OS's thread code builds 0xDEADBABE the same way, and
+    // matching only the `lis` picked that function in Super Mario Eclipse,
+    // so the real check ran (in Dolphin its test DMAs reach main memory).
     code.each([&](std::uint32_t a, std::uint32_t w) {
-        if (check == 0 && (w & 0xFC1FFFFF) == 0x3C00DEAE) check = function_start(code, a);  // lis rX,0xDEAE
+        if (check != 0 || (w & 0xFC1FFFFF) != 0x3C00DEAE) return;  // lis rX,0xDEAE
+        const std::uint32_t high = (w >> 21) & 31;
+        for (std::uint32_t b = a + 4; b <= a + 16 && code.has(b); b += 4) {
+            const std::uint32_t x = code.at(b);
+            if ((x >> 26) == 14 && ((x >> 16) & 31) == high && (x & 0xFFFF) == 0xBEEF) {  // addi rY,rX,0xBEEF
+                check = function_start(code, a);
+                return;
+            }
+        }
     });
     if (check == 0) return false;
     std::uint32_t from = 0, to = 0, end = 0;
