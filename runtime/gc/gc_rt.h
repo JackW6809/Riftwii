@@ -69,12 +69,13 @@ struct gc_rt_header {
     uint32_t continue_ar_dma;
     uint32_t trace_now;       /* trace(where): a record from the loader, just before the jump */
     uint32_t hook_fatal;      /* __OSUnhandledException(exception, context, dsisr, dar): shown, never returns */
-    uint32_t dsi_entry;       /* a DSI before the game's OS has its handlers (the loader's 0x300 stub) */
+    uint32_t dsi_entry;       /* an exception before the game's OS has its handlers (the loader's vector stubs) */
 };
 
-/* gc_on_fatal's exception number for a DSI caught by the loader's own
- * vector, before the game's OS replaced it: the write watch (DABR). */
-#define GC_EXCEPTION_EARLY_DSI 0x12u
+/* gc_on_fatal's exception number for one caught by the loader's own
+ * vectors, before the game's OS replaced them: 0x10 plus the vector
+ * (0x12 DSI, 0x13 ISI, 0x16 program...). */
+#define GC_EXCEPTION_EARLY 0x10u
 
 /* The trace: a ring of 512-byte records in sd:/riftwii/gc/trace.bin
  * (loader-made, its sectors known), written now and then while the game

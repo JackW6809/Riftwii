@@ -224,9 +224,9 @@ gc_alarm:
     addi 1, 1, 0x20
     blr
 
-/* A DSI before the game's OS has its handlers. The loader's stub at 0x300
- * has put r3, SRR0 and SRR1 in SPRG0-2 and come here with translation
- * back on. The registers go into an OSContext-shaped block on the stack
+/* An exception before the game's OS has its handlers. The loader's stub
+ * at the vector has put r3, SRR0, SRR1 and the vector number in SPRG0-3
+ * and come here with translation back on. The registers go into an OSContext-shaped block on the stack
  * (GPRs at 0, LR at 0x84, SRR0/SRR1 at 0x198) for gc_on_fatal, which
  * never returns. */
     .globl gc_dsi_entry
@@ -244,7 +244,8 @@ gc_dsi_entry:
     stw 0, 8 + 0x198(1)
     mfsprg 0, 2
     stw 0, 8 + 0x19C(1)
-    li 4, 0x12
+    mfsprg 4, 3
+    addi 4, 4, 0x10
     addi 5, 1, 8
     mfdsisr 6
     mfdar 7

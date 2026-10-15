@@ -714,6 +714,34 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     // use it: written here, the card and the polling work on this console.
     paint(GC_COLOUR_YELLOW);
     reinterpret_cast<void (*)(std::uint32_t)>(blob_addr + h.trace_now)(GC_TRACE_JUMP);
+    // Until the game's OS installs its own exception handlers, every
+    // vector goes to the blob's crash screen (gc_on_fatal), so a crash in
+    // the first moments shows instead of hanging on an empty vector. Each
+    // stub saves r3, SRR0, SRR1 and its number in SPRG0-3 and rfi's to
+    // dsi_entry with translation on.
+    {
+        const std::uint32_t entry = blob_addr + h.dsi_entry;
+        for (std::uint32_t vector = 0x2; vector <= 0xD; ++vector) {
+            const std::uint32_t stub[] = {
+                0x7C7043A6,                    // mtsprg 0,r3
+                0x38600000 | vector,           // li r3,vector
+                0x7C7343A6,                    // mtsprg 3,r3
+                0x7C7A02A6,                    // mfsrr0 r3
+                0x7C7143A6,                    // mtsprg 1,r3
+                0x7C7B02A6,                    // mfsrr1 r3
+                0x7C7243A6,                    // mtsprg 2,r3
+                0x3C600000 | (entry >> 16),    // lis r3,entry@h
+                0x60630000 | (entry & 0xFFFF), // ori r3,r3,entry@l
+                0x7C7A03A6,                    // mtsrr0 r3
+                0x7C6000A6,                    // mfmsr r3
+                0x60630030,                    // ori r3,r3,0x30 (IR, DR)
+                0x7C7B03A6,                    // mtsrr1 r3
+                0x4C000064,                    // rfi
+            };
+            for (std::size_t i = 0; i < sizeof(stub) / sizeof(stub[0]); ++i)
+                store32(0x80000000 + vector * 0x100 + 4 * i, stub[i]);
+        }
+    }
     // Trial: the word at 0x800031a0 (Eclipse's memset), which a Wii run
     // finds overwritten (0xffc1 in its top half) after Kuribo loads its
     // first module, goes into every trace record to show when it changes.
