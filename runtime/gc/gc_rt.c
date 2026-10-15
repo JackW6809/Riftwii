@@ -381,6 +381,7 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_DAR] = ctx->dar;
     for (i = 0; i < 5; ++i) w[GC_TR_CRASH_R1 + i] = ctx->crash_gpr[i];
     for (i = 0; i < 4; ++i) w[GC_TR_CRASH_CHAIN + i] = ctx->crash_chain[i];
+    w[GC_TR_CRASH_WORD] = ctx->crash_word;
     /* Interrupts: the PI's cause and mask, and Hollywood's lines to the
      * CPU (Wii-only; a GameCube game cannot clear them). */
     w[GC_TR_PI_CAUSE] = gc_read32(0xCC003000u);
@@ -798,7 +799,10 @@ void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_cont
         ctx->beat_lr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_LR);
         ctx->beat_msr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR1);
         gc_crash_stack(ctx, (const uint32_t*)(uintptr_t)os_context);
+        if (gc_in_mem1(ctx->beat_pc))
+            ctx->crash_word = gc_read32(gc_physical(ctx->beat_pc) | 0xC0000000u);
     }
+    __asm__ volatile("mtspr 1013, %0" : : "r"(0) : "memory");  /* the loader's write watch off (DABR) */
     ctx->busy = 0;  /* a crash inside a read leaves it set; nothing else runs now */
     gc_trace(ctx, GC_TRACE_FATAL);
     gc_paint(ctx, GC_COLOUR_WHITE);

@@ -647,6 +647,13 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     reinterpret_cast<void (*)(std::uint32_t)>(blob_addr + h.trace_now)(GC_TRACE_JUMP);
     DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
+    // Trial: a write watch (DABR, translated stores) on 0x800031a0, where
+    // a Wii run finds memset's code overwritten; the store that does it
+    // raises a DSI, which the crash hook shows.
+    {
+        const std::uint32_t watch = 0x800031A0 | 0x4 | 0x2;  // BT | DW
+        asm volatile("mtspr 1013, %0" : : "r"(watch) : "memory");
+    }
     reinterpret_cast<void (*)()>(dol.entry)();
     return false;
 }
