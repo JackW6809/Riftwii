@@ -96,6 +96,8 @@ enum gc_trace_word {
 #define GC_COLOUR_CYAN 0xB3ABB300u     /* it went: the card and the polled IPC work */
 #define GC_COLOUR_RED 0x4C544CFFu      /* it did not: IOS did not answer */
 #define GC_COLOUR_MAGENTA 0x69D469EAu  /* the game's first disc read through the blob */
+#define GC_COLOUR_ORANGE 0xAD1EADC9u   /* the record was taken but does not read back */
+#define GC_COLOUR_GREY 0x80808080u     /* it reads back, but the game image's first bytes do not */
 
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */

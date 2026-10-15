@@ -252,16 +252,17 @@ static void gc_paint(const struct gc_rt_context* ctx, uint32_t colour) {
 
 /* One record of the trace (gc_rt.h), with interrupts held off so it
  * cannot meet a read on the card; skipped while a read is going on. */
-static void gc_trace(struct gc_rt_context* ctx, uint32_t where) {
+static int gc_trace(struct gc_rt_context* ctx, uint32_t where) {
+    int written = 0;
     uint32_t* w = (uint32_t*)(uintptr_t)ctx->trace_buf;
     const struct gc_rt_stream* st = (const struct gc_rt_stream*)(uintptr_t)ctx->stream;
     uint32_t* q = ctx->request;
     uint32_t msr, tbu, tbl, i, sector;
-    if (ctx->trace_sector == 0 || ctx->trace_count == 0 || w == 0) return;
+    if (ctx->trace_sector == 0 || ctx->trace_count == 0 || w == 0) return 0;
     msr = gc_irq_off();
     if (ctx->busy) {
         gc_irq_restore(msr);
-        return;
+        return 0;
     }
     ctx->busy = 1;
     __asm__ volatile("mftbu %0" : "=r"(tbu));
@@ -311,7 +312,8 @@ static void gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
     gc_flush(ctx->trace_buf, GC_SECTOR);
     i = gc_ioctlv(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, 2, 1) >= 0;
-    if (where == GC_TRACE_JUMP) gc_paint(ctx, i ? GC_COLOUR_CYAN : GC_COLOUR_RED);
+    ctx->last_error = i ? ctx->last_error : -2000;
+    written = i;
     if (i && ctx->card_rca != 0) {
         for (i = 0; i < 8192; ++i) {
             uint32_t state;
@@ -330,6 +332,7 @@ static void gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     }
     ctx->busy = 0;
     gc_irq_restore(msr);
+    return written;
 }
 
 /* The DI's immediate register, where the SDK reads a status reply. */
@@ -588,4 +591,29 @@ void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint3
     if (ctx->ar_dmas <= 16 || (ctx->ar_dmas & 255) == 0) gc_trace(ctx, GC_TRACE_AR);
 }
 
-void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) { gc_trace(ctx, where); }
+/* Before the jump: a record written and read back, and the image's first
+ * bytes read through the runs and checked against the ID the loader put
+ * at 0x80000000; the screen says which of them failed. */
+void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
+    const uint8_t* id = (const uint8_t*)(uintptr_t)0x80000000u;
+    uint8_t* back = (uint8_t*)(uintptr_t)ctx->bounce;
+    const uint32_t* w = (const uint32_t*)(uintptr_t)ctx->trace_buf;
+    const uint32_t seq = ctx->trace_seq + 1;
+    uint32_t i;
+    uint32_t colour = GC_COLOUR_CYAN;
+    if (!gc_trace(ctx, where)) {
+        gc_paint(ctx, GC_COLOUR_RED);
+        return;
+    }
+    for (i = 0; i < GC_SECTOR; ++i) back[i] = 0;
+    if (!gc_sd_read(ctx, ctx->trace_sector + (seq - 1) % ctx->trace_count, 1, ctx->bounce) ||
+        ((const uint32_t*)back)[0] != w[0] || ((const uint32_t*)back)[1] != seq) {
+        gc_paint(ctx, GC_COLOUR_ORANGE);
+        return;
+    }
+    for (i = 0; i < 0x20; ++i) back[i] = 0;
+    if (!gc_read_disc(ctx, back, 0x20, 0)) colour = GC_COLOUR_GREY;
+    for (i = 0; i < 6; ++i)
+        if (back[i] != id[i]) colour = GC_COLOUR_GREY;
+    gc_paint(ctx, colour);
+}
