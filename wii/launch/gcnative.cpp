@@ -237,6 +237,48 @@ bool find_dvd_low(const Code& code, DvdLow& out, std::string& error) {
     return true;
 }
 
+// __OSUnhandledException(exception, context, dsisr, dar), the GameCube
+// OS's last stop for a crash: the function that prints "Unhandled
+// Exception %d". The SDK loads the address of its block of strings once
+// (lis/addi) and adds each string's offset, so a function whose base is
+// at most 0x200 bytes before the string and that adds the difference.
+std::uint32_t find_unhandled_exception(const Code& code, const Dol& dol) {
+    static const char kText[] = "Unhandled Exception %d";
+    std::uint32_t text = 0;
+    for (const Section& s : dol.data) {
+        const auto at = std::search(s.bytes.begin(), s.bytes.end(), kText, kText + sizeof(kText));
+        if (at != s.bytes.end()) {
+            text = s.address + static_cast<std::uint32_t>(at - s.bytes.begin());
+            break;
+        }
+    }
+    if (text == 0) return 0;
+    std::uint32_t found = 0;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (found != 0 || (w & 0xFC1F0000) != 0x3C000000) return;  // lis rX,hi
+        const std::uint32_t reg = (w >> 21) & 31;
+        for (std::uint32_t b = a + 4; b <= a + 40; b += 4) {
+            const std::uint32_t add = code.at(b);
+            if ((add >> 26) != 14 || ((add >> 16) & 31) != reg) continue;  // addi rY,rX,lo
+            const std::uint32_t base = (w << 16) + static_cast<std::uint32_t>(static_cast<std::int16_t>(add & 0xFFFF));
+            if (base > text || text - base >= 0x200) return;
+            const std::uint32_t held = (add >> 21) & 31;
+            const std::uint32_t wanted = (14u << 26) | (3u << 21) | (held << 16) | (text - base);  // addi r3,rY,off
+            if (base == text && held == 3) {
+                found = function_start(code, a);
+                return;
+            }
+            for (std::uint32_t c = b + 4; code.has(c) && c < b + 0x300; c += 4)
+                if (code.at(c) == wanted) {
+                    found = function_start(code, a);
+                    return;
+                }
+            return;
+        }
+    });
+    return found;
+}
+
 // The function that stores to each of `addresses` (DSP registers, built
 // from "lis rX,0xCC00" and adds, which a walk through each function
 // follows):
@@ -521,6 +563,11 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const std::uint32_t ar_dma = find_dsp_stores(code, {0xCC005020, 0xCC005022, 0xCC005024, 0xCC005026,
                                                          0xCC005028, 0xCC00502A});
     if (ar_dma != 0) replay_hook(ar_dma, h.hook_ar_dma, h.replay_ar_dma, h.continue_ar_dma);
+    // A crash shows itself on the screen and in the trace instead of a
+    // blank halt.
+    const std::uint32_t unhandled = find_unhandled_exception(code, dol);
+    hook(unhandled, h.hook_fatal);
+    logf("GameCube: __OSUnhandledException 0x%08x\n", unhandled);
     logf("GameCube: PADRead 0x%08x%s, ARStartDMA 0x%08x\n", pad_read, test_presses ? " (test presses)" : "", ar_dma);
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
          ai_dma ? "" : " (not found: no disc audio streaming)");

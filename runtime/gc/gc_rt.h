@@ -68,6 +68,7 @@ struct gc_rt_header {
     uint32_t replay_ar_dma;
     uint32_t continue_ar_dma;
     uint32_t trace_now;       /* trace(where): a record from the loader, just before the jump */
+    uint32_t hook_fatal;      /* __OSUnhandledException(exception, context, dsisr, dar): shown, never returns */
 };
 
 /* The trace: a ring of 512-byte records in sd:/riftwii/gc/trace.bin
@@ -80,7 +81,7 @@ enum gc_trace_word {
     GC_TR_SD_REQUESTS, GC_TR_FAILURES, GC_TR_LAST_ERROR, GC_TR_LAST_OFFSET, GC_TR_PAD_READS, GC_TR_STREAM_PLAYING,
     GC_TR_STREAM_MIXES, GC_TR_STREAM_REFILLS, GC_TR_AI_DMAS, GC_TR_AR_DMAS, GC_TR_LAST_AR_TYPE, GC_TR_LAST_AR_MAIN,
     GC_TR_LAST_AR_ARAM, GC_TR_LAST_AR_LENGTH, GC_TR_PENDING_CB, GC_TR_ALARMS, GC_TR_BEATS, GC_TR_BEAT_PC,
-    GC_TR_BEAT_LR, GC_TR_BEAT_MSR, GC_TR_WORDS
+    GC_TR_BEAT_LR, GC_TR_BEAT_MSR, GC_TR_EXCEPTION, GC_TR_DSISR, GC_TR_DAR, GC_TR_WORDS
 };
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
@@ -89,6 +90,7 @@ enum gc_trace_word {
 #define GC_TRACE_AR 4u
 #define GC_TRACE_JUMP 5u
 #define GC_TRACE_BEAT 6u
+#define GC_TRACE_FATAL 7u   /* the game crashed: beat_pc/lr/msr are the crash's SRR0, LR, SRR1 */
 /* The first records stay (how the game started); the rest go round. */
 #define GC_TRACE_KEPT 16u
 
@@ -102,6 +104,7 @@ enum gc_trace_word {
 #define GC_COLOUR_MAGENTA 0x69D469EAu  /* the game's first disc read through the blob */
 #define GC_COLOUR_ORANGE 0xAD1EADC9u   /* the record was taken but does not read back */
 #define GC_COLOUR_GREY 0x80808080u     /* it reads back, but the game image's first bytes do not */
+#define GC_COLOUR_WHITE 0xEB80EB80u    /* the game crashed (numbers on it: gc_on_fatal) */
 
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
@@ -181,6 +184,9 @@ struct gc_rt_context {
     uint32_t beat_pc;
     uint32_t beat_lr;
     uint32_t beat_msr;
+    uint32_t exception;       /* set by gc_on_fatal */
+    uint32_t dsisr;
+    uint32_t dar;
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
@@ -204,6 +210,7 @@ void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint3
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context);
+void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_context, uint32_t dsisr, uint32_t dar);
 #endif
 
 #endif

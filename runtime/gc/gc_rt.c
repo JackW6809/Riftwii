@@ -264,6 +264,15 @@ static void gc_led(int on) {
     gc_write32(GC_GPIO_OUT, on ? (out | GC_GPIO_SLOT_LED) : (out & ~GC_GPIO_SLOT_LED));
 }
 static void gc_led_toggle(void) { gc_write32(GC_GPIO_OUT, gc_read32(GC_GPIO_OUT) ^ GC_GPIO_SLOT_LED); }
+/* After a crash: the light flashing fast, a few times a second. */
+static void gc_led_toggle_slowly(void) {
+    uint32_t start, now;
+    __asm__ volatile("mftb %0" : "=r"(start));
+    do {
+        __asm__ volatile("mftb %0" : "=r"(now));
+    } while (now - start < 10000000u);
+    gc_led_toggle();
+}
 
 /* A filled box on the frame, in YUYV words (two pixels) across and lines
  * down; the frame is 640 pixels wide. */
@@ -367,6 +376,9 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_BEAT_PC] = ctx->beat_pc;
     w[GC_TR_BEAT_LR] = ctx->beat_lr;
     w[GC_TR_BEAT_MSR] = ctx->beat_msr;
+    w[GC_TR_EXCEPTION] = ctx->exception;
+    w[GC_TR_DSISR] = ctx->dsisr;
+    w[GC_TR_DAR] = ctx->dar;
     sector = gc_trace_slot(ctx, ctx->trace_seq);
     /* CMD25, one block; then CMD13 until the card has written it. */
     q[0] = 0x19u;
@@ -733,4 +745,30 @@ void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
     gc_show_hex(ctx, 3, (uint32_t)readback);
     gc_show_hex(ctx, 4, matches);
     gc_show_hex(ctx, 5, image_ok);
+}
+
+/* The game crashed: the GameCube OS's last stop for an exception nothing
+ * handles, which would halt with a blank screen on a retail console. The
+ * crash goes to the trace and onto the frame, a row each: the exception
+ * (2 DSI, 3 ISI, 5 alignment, 6 program, 7 FPU unavailable...), SRR0
+ * (where), LR, SRR1, DSISR and DAR (the address a DSI touched). */
+void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_context, uint32_t dsisr, uint32_t dar) {
+    ctx->exception = exception;
+    ctx->dsisr = dsisr;
+    ctx->dar = dar;
+    if (os_context != 0) {
+        ctx->beat_pc = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR0);
+        ctx->beat_lr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_LR);
+        ctx->beat_msr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR1);
+    }
+    ctx->busy = 0;  /* a crash inside a read leaves it set; nothing else runs now */
+    gc_trace(ctx, GC_TRACE_FATAL);
+    gc_paint(ctx, GC_COLOUR_WHITE);
+    gc_show_hex(ctx, 0, exception);
+    gc_show_hex(ctx, 1, ctx->beat_pc);
+    gc_show_hex(ctx, 2, ctx->beat_lr);
+    gc_show_hex(ctx, 3, ctx->beat_msr);
+    gc_show_hex(ctx, 4, dsisr);
+    gc_show_hex(ctx, 5, dar);
+    for (;;) gc_led_toggle_slowly();
 }

@@ -16,6 +16,7 @@ _gc_blob_start:
     .long gc_hook_pad_read - _gc_blob_start, gc_replay_pad_read - _gc_blob_start, gc_continue_pad_read - _gc_blob_start
     .long gc_hook_ar_dma - _gc_blob_start, gc_replay_ar_dma - _gc_blob_start, gc_continue_ar_dma - _gc_blob_start
     .long gc_trace_now - _gc_blob_start
+    .long gc_hook_fatal - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -44,6 +45,7 @@ gc_hook_\name:
     GC_HOOK inquiry, gc_on_inquiry
     GC_HOOK audio_status, gc_on_audio_status
     GC_HOOK audio_stream, gc_on_audio_stream
+    GC_HOOK fatal, gc_on_fatal
 
 /* AIInitDMA(start, length): gc_on_ai_dma(ctx, start, length) mixes the
  * disc stream into the buffer, then the original runs from the replay
