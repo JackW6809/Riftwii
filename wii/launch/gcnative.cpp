@@ -603,6 +603,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     if (stat("sd:/riftwii/gc/keep-si", &st_press) == 0) moved_blocks &= ~1u;
     if (stat("sd:/riftwii/gc/keep-exi", &st_press) == 0) moved_blocks &= ~2u;
     if (stat("sd:/riftwii/gc/keep-ai", &st_press) == 0) moved_blocks &= ~4u;
+    const bool no_ai_rate = stat("sd:/riftwii/gc/no-ai-rate", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     std::vector<PlacedRun> placed;
@@ -788,6 +789,9 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     if (pad_read != 0) {
         replay_hook(pad_read, h.hook_pad_read, h.replay_pad_read, h.continue_pad_read);
         if (test_presses) ctx->flags |= GC_FLAG_PRESS;
+    }
+    if (no_ai_rate) {
+        ctx->flags |= GC_FLAG_NO_AI_RATE;
     }
     const std::uint32_t ar_dma = find_dsp_stores(code, {0xCC005020, 0xCC005022, 0xCC005024, 0xCC005026,
                                                          0xCC005028, 0xCC00502A});

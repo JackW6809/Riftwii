@@ -123,6 +123,7 @@ enum gc_trace_word {
 
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
+#define GC_FLAG_NO_AI_RATE 2u  /* trial: the blob leaves the AI's 32 kHz bit to the game */
 
 /* Disc audio streaming (the drive's own ADPCM, 48 kHz stereo): what the
  * drive would have played into the AI is decoded here and mixed into the

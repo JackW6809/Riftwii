@@ -703,7 +703,7 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
      * unless this bit is set (Wii only), which played the game's sound
      * 1.5 times too fast on a Wii. */
     if (ctx->ai_dmas == 0) ctx->probe[3] = cr;  /* the game's own setting, for the trace */
-    if ((cr & GC_AI_32K) == 0) {
+    if ((cr & GC_AI_32K) == 0 && (ctx->flags & GC_FLAG_NO_AI_RATE) == 0) {
         gc_write32(GC_AI_CR, (cr & ~(GC_AI_AIINT | GC_AI_SCRESET)) | GC_AI_32K);
         cr |= GC_AI_32K;
     }
