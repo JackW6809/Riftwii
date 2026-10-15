@@ -508,6 +508,45 @@ unsigned patch_dsp_programs(Dol& dol) {
 
 std::uint32_t branch(std::uint32_t from, std::uint32_t to) { return 0x48000000 | ((to - from) & 0x03FFFFFC); }
 
+// IOS keeps live globals in 0x80003100-0x800031ff on a Wii and rewrites
+// a counter at 0x800031a0 several times a second, but a GameCube game has
+// code there (Eclipse: memset's fill loop). The function holding that
+// word runs from a copy instead: up to 0x100 bytes from its start, with
+// the relative branches that leave the copy aimed back where they went;
+// the original's first word becomes a branch to the copy. The blob's
+// guard still puts IOS's writes back, for anything else in the area.
+constexpr std::uint32_t kIosCounter = 0x800031A0;
+constexpr std::uint32_t kMovedBytes = 0x100;
+
+bool move_out_of_ios(Code& code, std::uint32_t moved_addr, std::vector<std::uint32_t>& moved) {
+    if (!code.has(kIosCounter)) return false;
+    const std::uint32_t start = function_start(code, kIosCounter);
+    if (start == 0 || start == kIosCounter) return false;
+    std::uint32_t length = 0;
+    while (length < kMovedBytes && code.has(start + length)) length += 4;
+    moved.clear();
+    for (std::uint32_t at = 0; at < length; at += 4) {
+        std::uint32_t w = code.at(start + at);
+        const std::uint32_t op = w >> 26;
+        const bool absolute = (w & 2) != 0;
+        if (op == 18 && !absolute) {  // b / bl
+            std::int32_t d = static_cast<std::int32_t>(w & 0x03FFFFFC);
+            if (d & 0x02000000) d -= 0x04000000;
+            const std::uint32_t target = start + at + d;
+            if (target < start || target >= start + length)
+                w = (w & 0xFC000003) | ((target - (moved_addr + at)) & 0x03FFFFFC);
+        } else if (op == 16 && !absolute) {  // bc
+            const std::int32_t d = static_cast<std::int16_t>(w & 0xFFFC);
+            const std::uint32_t target = start + at + d;
+            if (target < start || target >= start + length) return false;  // out of a bc's reach from the copy
+        }
+        moved.push_back(w);
+    }
+    code.put(start, branch(start, moved_addr));
+    return true;
+}
+
+
 void store32(std::uint32_t a, std::uint32_t v) { *reinterpret_cast<volatile std::uint32_t*>(a) = v; }
 std::uint32_t load32(std::uint32_t a) { return *reinterpret_cast<volatile std::uint32_t*>(a); }
 
@@ -571,7 +610,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const std::uint32_t stream_addr = (adp_addr - sizeof(gc_rt_stream)) & ~31u;
     const std::uint32_t trace_addr = (stream_addr - 512) & ~31u;
     const std::uint32_t runs_addr = (trace_addr - runs_bytes) & ~31u;
-    const std::uint32_t blob_addr = (runs_addr - h.size) & ~31u;
+    const std::uint32_t moved_addr = (runs_addr - kMovedBytes) & ~31u;
+    const std::uint32_t blob_addr = (moved_addr - h.size) & ~31u;
     // The DI registers' stand-in: its address must end in 0x6000, as the
     // game adds that to the upper half it loads.
     const std::uint32_t di_regs = ((blob_addr - 0x40 - 0x6000) & ~0xFFFFu) + 0x6000;
@@ -717,6 +757,13 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     // blank halt.
     const std::uint32_t unhandled = find_unhandled_exception(code, dol);
     hook(unhandled, h.hook_fatal);
+    std::vector<std::uint32_t> moved;
+    const bool moved_out = move_out_of_ios(code, moved_addr, moved);
+    for (std::size_t i = 0; i < moved.size(); ++i) store32(moved_addr + 4 * i, moved[i]);
+    DCFlushRange(reinterpret_cast<void*>(moved_addr), kMovedBytes);
+    ICInvalidateRange(reinterpret_cast<void*>(moved_addr), kMovedBytes);
+    logf("GameCube: the code at IOS's counter (0x%08x) %s\n", kIosCounter,
+         moved_out ? "runs from a copy" : "left where it is");
     logf("GameCube: __OSUnhandledException 0x%08x\n", unhandled);
     logf("GameCube: PADRead 0x%08x%s, ARStartDMA 0x%08x\n", pad_read, test_presses ? " (test presses)" : "", ar_dma);
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
