@@ -692,12 +692,6 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     ctx->trace_count = trace_count;
     ctx->trace_buf = trace_addr;
     ctx->card_rca = card.rca;
-    // The guard (gc_rt.h): the game's own bytes for IOS's globals area.
-    for (const Section& s : dol.text)
-        if (s.address <= 0x80003100 && s.address + s.bytes.size() >= 0x80003200) {
-            ctx->guard_addr = 0x80003100;
-            for (std::uint32_t i = 0; i < 64; ++i) ctx->guard_copy[i] = be32(&s.bytes[0x80003100 - s.address + 4 * i]);
-        }
 
     // The hooks, in the staged code.
     auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
@@ -764,6 +758,14 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     ICInvalidateRange(reinterpret_cast<void*>(moved_addr), kMovedBytes);
     logf("GameCube: the code at IOS's counter (0x%08x) %s\n", kIosCounter,
          moved_out ? "runs from a copy" : "left where it is");
+    // The guard (gc_rt.h): the game's bytes for IOS's globals area, taken
+    // after every patch above (the branch to the moved code is one), or the
+    // guard would put the unpatched words back.
+    for (const Section& s : dol.text)
+        if (s.address <= 0x80003100 && s.address + s.bytes.size() >= 0x80003200) {
+            ctx->guard_addr = 0x80003100;
+            for (std::uint32_t i = 0; i < 64; ++i) ctx->guard_copy[i] = be32(&s.bytes[0x80003100 - s.address + 4 * i]);
+        }
     logf("GameCube: __OSUnhandledException 0x%08x\n", unhandled);
     logf("GameCube: PADRead 0x%08x%s, ARStartDMA 0x%08x\n", pad_read, test_presses ? " (test presses)" : "", ar_dma);
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
