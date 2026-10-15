@@ -104,8 +104,8 @@ enum gc_trace_word {
 #define GC_TRACE_BEAT 6u
 #define GC_TRACE_COMMAND 8u /* a DVDLow command that is not a read */
 #define GC_TRACE_FATAL 7u   /* the game crashed: beat_pc/lr/msr are the crash's SRR0, LR, SRR1 */
-/* The first records stay (how the game started); the rest go round. */
-#define GC_TRACE_KEPT 16u
+/* The last records of the trace go round; the others stay. */
+#define GC_TRACE_RING 16u
 
 /* Whole-screen colours (YUYV pairs) a run on a Wii shows until the game
  * sets up its own video: how far it got when nothing else can say. */

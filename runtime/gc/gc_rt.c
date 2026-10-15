@@ -348,12 +348,13 @@ static void gc_show_hex(const struct gc_rt_context* ctx, uint32_t row, uint32_t 
 
 /* One record of the trace (gc_rt.h), with interrupts held off so it
  * cannot meet a read on the card; skipped while a read is going on. */
-/* Record `seq`'s sector: the first GC_TRACE_KEPT stay, the rest go round. */
+/* Record `seq`'s sector: the first records stay (how the game started),
+ * the last GC_TRACE_RING go round. */
 static uint32_t gc_trace_slot(const struct gc_rt_context* ctx, uint32_t seq) {
-    const uint32_t ring = ctx->trace_count - GC_TRACE_KEPT;
-    if (ctx->trace_count <= GC_TRACE_KEPT) return ctx->trace_sector + (seq - 1) % ctx->trace_count;
-    if (seq <= GC_TRACE_KEPT) return ctx->trace_sector + seq - 1;
-    return ctx->trace_sector + GC_TRACE_KEPT + (seq - GC_TRACE_KEPT - 1) % ring;
+    const uint32_t kept = ctx->trace_count > 2 * GC_TRACE_RING ? ctx->trace_count - GC_TRACE_RING : ctx->trace_count / 2;
+    const uint32_t ring = ctx->trace_count - kept;
+    if (seq <= kept) return ctx->trace_sector + seq - 1;
+    return ctx->trace_sector + kept + (seq - kept - 1) % ring;
 }
 
 #define GC_TRACE_SKIPPED (-3000)  /* no trace, or the IPC buffers were in use */

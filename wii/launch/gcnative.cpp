@@ -343,6 +343,30 @@ bool skip_aram_size_check(Code& code) {
     return true;
 }
 
+// __AI_SRC_INIT times the audio interface by switching its disc-stream
+// playback on and waiting for the stream's sample counter (0xCC006C08)
+// to move: `lwz r0,0(rC)`, `cmplw r3,r0`, `beq` back, twice, with
+// interrupts off. On a GameCube the drive's streaming ticks it; on a Wii
+// in Wii mode nothing does, and Super Mario Eclipse hung there for good
+// (Dolphin ticks it anyway). The waits become nops: the calibration sees
+// no time pass and keeps its first, normal answer.
+unsigned skip_ai_stream_waits(Code& code) {
+    unsigned patched = 0;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if ((w & 0xFFE0FFFF) != 0x80000000) return;  // lwz r0,0(rC)
+        if (code.at(a + 4) != 0x7C030040 || code.at(a + 8) != 0x4182FFF8) return;  // cmplw r3,r0; beq- -8
+        // Only in a function that drives the AI's control register (0x6C00).
+        const std::uint32_t f = function_start(code, a);
+        bool ai = false;
+        for (std::uint32_t b = f; f != 0 && b < a; b += 4)
+            if ((code.at(b) & 0xFFFF) == 0x6C00 && (code.at(b) >> 26) == 32) ai = true;  // lwz rX,0x6C00(rY)
+        if (!ai) return;
+        code.put(a + 8, 0x60000000);  // nop
+        ++patched;
+    });
+    return patched;
+}
+
 // The function that stores to each of `addresses` (DSP registers, built
 // from "lis rX,0xCC00" and adds, which a walk through each function
 // follows):
@@ -528,7 +552,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     std::uint32_t trace_sector = 0, trace_count = 0;
     {
         static const char kTrace[] = "sd:/riftwii/gc/trace.bin";
-        std::vector<std::uint8_t> zeros(16 << 10);
+        std::vector<std::uint8_t> zeros(128 << 10);
         std::FILE* t = std::fopen(kTrace, "wb");
         const bool written = t && std::fwrite(zeros.data(), 1, zeros.size(), t) == zeros.size();
         if (t) std::fclose(t);
@@ -537,7 +561,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
         std::string why;
         if (written && resolve_sd_file(kTrace, tf, why) && !tf.fragments.empty()) {
             trace_sector = static_cast<std::uint32_t>(tf.fragments[0].sector);
-            trace_count = static_cast<std::uint32_t>(std::min<std::uint64_t>(32, tf.fragments[0].sector_count));
+            trace_count = static_cast<std::uint32_t>(std::min<std::uint64_t>(256, tf.fragments[0].sector_count));
         }
         logf("GameCube: trace %s (sector %u, %u records)%s%s\n", trace_count ? "on" : "off", trace_sector, trace_count,
              why.empty() ? "" : ": ", why.c_str());
@@ -636,6 +660,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const unsigned aram_moved = ar_dma != 0 ? move_aram_to_mem2(code, ar_dma) : 0;
     if (ar_dma != 0) replay_hook(ar_dma, h.hook_ar_dma, h.replay_ar_dma, h.continue_ar_dma);
     const bool aram_check_skipped = skip_aram_size_check(code);
+    const unsigned ai_waits = skip_ai_stream_waits(code);
+    logf("GameCube: %u wait(s) for the AI stream counter skipped\n", ai_waits);
     logf("GameCube: ARAM moved to MEM2 in ARStartDMA (%u place(s)), size check %s\n", aram_moved,
          aram_check_skipped ? "skipped" : "not found");
     // A crash shows itself on the screen and in the trace instead of a
