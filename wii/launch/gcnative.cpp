@@ -849,7 +849,17 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
         volatile std::uint32_t* p = reinterpret_cast<volatile std::uint32_t*>((xfb & 0x3FFFFFFF) | 0xC0000000);
         for (std::uint32_t i = 0; i < xfb_bytes / 4; ++i) p[i] = colour;
     };
+    // The Wii's video encoder in the game's region. It has its own region
+    // setting (NTSC, PAL...) that libogc writes from its retrace handler
+    // when the video mode changes; once the game runs that handler is
+    // gone, so a US game on a PAL Wii ran its NTSC picture through an
+    // encoder still set for PAL: red came out blue, yellow cyan. The
+    // game's own mode, two retraces for the handler to apply it, and the
+    // frame kept on screen for the colours below.
+    VIDEO_Configure(tv_mode == 1 ? &TVPal528IntDf : &TVNtsc480IntDf);
+    VIDEO_SetNextFramebuffer(reinterpret_cast<void*>(xfb));
     VIDEO_Flush();
+    VIDEO_WaitVSync();
     VIDEO_WaitVSync();
     SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
     u32 level;
