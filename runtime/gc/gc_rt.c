@@ -240,6 +240,16 @@ static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, 
     return (int32_t)rq[1];
 }
 
+/* The whole frame in one colour, through the uncached mirror so the VI
+ * shows it at once. */
+static void gc_paint(const struct gc_rt_context* ctx, uint32_t colour) {
+    volatile uint32_t* p;
+    uint32_t i;
+    if (ctx->xfb == 0) return;
+    p = (volatile uint32_t*)(uintptr_t)(gc_physical(ctx->xfb) | 0xC0000000u);
+    for (i = 0; i < ctx->xfb_bytes / 4; ++i) p[i] = colour;
+}
+
 /* One record of the trace (gc_rt.h), with interrupts held off so it
  * cannot meet a read on the card; skipped while a read is going on. */
 static void gc_trace(struct gc_rt_context* ctx, uint32_t where) {
@@ -300,7 +310,9 @@ static void gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     gc_flush((uint32_t)(uintptr_t)q, 36);
     gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
     gc_flush(ctx->trace_buf, GC_SECTOR);
-    if (gc_ioctlv(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, 2, 1) >= 0 && ctx->card_rca != 0) {
+    i = gc_ioctlv(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, 2, 1) >= 0;
+    if (where == GC_TRACE_JUMP) gc_paint(ctx, i ? GC_COLOUR_CYAN : GC_COLOUR_RED);
+    if (i && ctx->card_rca != 0) {
         for (i = 0; i < 8192; ++i) {
             uint32_t state;
             q[0] = 0x0Du;
@@ -341,6 +353,7 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
     ctx->read_bytes += length;
     ctx->last_offset = offset;
     gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset) ? GC_DI_TC : GC_DI_DE);
+    if (ctx->reads == 1) gc_paint(ctx, GC_COLOUR_MAGENTA);
     if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
 }

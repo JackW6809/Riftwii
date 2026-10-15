@@ -88,6 +88,15 @@ enum gc_trace_word {
 #define GC_TRACE_AR 4u
 #define GC_TRACE_JUMP 5u
 
+/* Whole-screen colours (YUYV pairs) a run on a Wii shows until the game
+ * sets up its own video: how far it got when nothing else can say. */
+#define GC_COLOUR_BLUE 0x1DFF1D6Bu     /* RiftWii shut down */
+#define GC_COLOUR_GREEN 0x952B9515u    /* the game's code in place */
+#define GC_COLOUR_YELLOW 0xE100E194u   /* the first trace record about to go */
+#define GC_COLOUR_CYAN 0xB3ABB300u     /* it went: the card and the polled IPC work */
+#define GC_COLOUR_RED 0x4C544CFFu      /* it did not: IOS did not answer */
+#define GC_COLOUR_MAGENTA 0x69D469EAu  /* the game's first disc read through the blob */
+
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
 
@@ -156,6 +165,8 @@ struct gc_rt_context {
     uint32_t alarms;
     uint32_t last_ar[4];
     uint32_t busy;            /* the IPC buffers are in use (a read or a trace write) */
+    uint32_t xfb;             /* the frame on screen at the jump (YUYV), painted as steps pass; 0: none */
+    uint32_t xfb_bytes;
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
     uint32_t vec[8] __attribute__((aligned(32)));       /* three vectors */

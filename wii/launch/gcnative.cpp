@@ -537,13 +537,24 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     ICInvalidateRange(reinterpret_cast<void*>(blob_addr), h.size);
 
     LogClose();
-    VIDEO_SetBlack(true);
+    // The frame stays on screen, painted at each step below (gc_rt.h's
+    // colours) until the game sets up its own video.
+    const std::uint32_t xfb = reinterpret_cast<std::uint32_t>(VIDEO_GetCurrentFramebuffer());
+    const std::uint32_t xfb_bytes = 640 * 480 * 2;
+    ctx->xfb = xfb;
+    ctx->xfb_bytes = xfb_bytes;
+    DCFlushRange(ctx, sizeof(*ctx));
+    auto paint = [&](std::uint32_t colour) {
+        volatile std::uint32_t* p = reinterpret_cast<volatile std::uint32_t*>((xfb & 0x3FFFFFFF) | 0xC0000000);
+        for (std::uint32_t i = 0; i < xfb_bytes / 4; ++i) p[i] = colour;
+    };
     VIDEO_Flush();
     VIDEO_WaitVSync();
     SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
     u32 level;
     _CPU_ISR_Disable(level);
     (void)level;
+    paint(GC_COLOUR_BLUE);
 
     // Low memory as a GameCube's start-up leaves it for the game.
     std::memset(reinterpret_cast<void*>(0x80000000), 0, kGameFloor - 0x80000000);
@@ -560,6 +571,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
             if (!inside) *reinterpret_cast<volatile std::uint8_t*>(a) = 0;
         }
     }
+    paint(GC_COLOUR_GREEN);
     std::memcpy(reinterpret_cast<void*>(0x80000000), boot.data(), 0x20);
     store32(0x80000020, 0x0D15EA5E);
     store32(0x80000024, 1);
@@ -579,6 +591,7 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     store32(0xCD000004, 0);
     // A first trace record through the blob's own IPC, as the game will
     // use it: written here, the card and the polling work on this console.
+    paint(GC_COLOUR_YELLOW);
     reinterpret_cast<void (*)(std::uint32_t)>(blob_addr + h.trace_now)(GC_TRACE_JUMP);
     DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
