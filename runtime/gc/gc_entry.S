@@ -258,4 +258,4 @@ gc_dsi_entry:
     .globl gc_context_data
 gc_context_data:
     .long 0x52574743
-    .fill 135, 4, 0
+    .fill 143, 4, 0

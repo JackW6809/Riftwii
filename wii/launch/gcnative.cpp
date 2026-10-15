@@ -438,6 +438,7 @@ unsigned redirect_di_registers(Code& code, std::uint32_t base) {
 std::uint32_t branch(std::uint32_t from, std::uint32_t to) { return 0x48000000 | ((to - from) & 0x03FFFFFC); }
 
 void store32(std::uint32_t a, std::uint32_t v) { *reinterpret_cast<volatile std::uint32_t*>(a) = v; }
+std::uint32_t load32(std::uint32_t a) { return *reinterpret_cast<volatile std::uint32_t*>(a); }
 
 }  // namespace
 
@@ -713,34 +714,26 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     // use it: written here, the card and the polling work on this console.
     paint(GC_COLOUR_YELLOW);
     reinterpret_cast<void (*)(std::uint32_t)>(blob_addr + h.trace_now)(GC_TRACE_JUMP);
-    // Trial: a write watch (DABR, translated stores) on 0x800031a0, where a
-    // Wii run finds a halfword (0xffc1) stored over memset's code. Until
-    // the game's OS installs its own handlers, a DSI comes to this stub at
-    // 0x300: r3, SRR0 and SRR1 to SPRG0-2, then an rfi to the blob's
-    // dsi_entry with translation on (the crash screen and trace).
-    {
-        const std::uint32_t entry = blob_addr + h.dsi_entry;
-        const std::uint32_t stub[] = {
-            0x7C7043A6,                    // mtsprg 0,r3
-            0x7C7A02A6,                    // mfsrr0 r3
-            0x7C7143A6,                    // mtsprg 1,r3
-            0x7C7B02A6,                    // mfsrr1 r3
-            0x7C7243A6,                    // mtsprg 2,r3
-            0x3C600000 | (entry >> 16),    // lis r3,entry@h
-            0x60630000 | (entry & 0xFFFF), // ori r3,r3,entry@l
-            0x7C7A03A6,                    // mtsrr0 r3
-            0x7C6000A6,                    // mfmsr r3
-            0x60630030,                    // ori r3,r3,0x30 (IR, DR)
-            0x7C7B03A6,                    // mtsrr1 r3
-            0x4C000064,                    // rfi
-        };
-        for (std::size_t i = 0; i < sizeof(stub) / sizeof(stub[0]); ++i) store32(0x80000300 + 4 * i, stub[i]);
-    }
+    // Trial: the word at 0x800031a0 (Eclipse's memset), which a Wii run
+    // finds overwritten (0xffc1 in its top half) after Kuribo loads its
+    // first module, goes into every trace record to show when it changes.
+    ctx->watch_addr = 0x800031A0;
+    ctx->watch_was = load32(0x800031A0);
     DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
+    // The CPU as a GameCube's leaves it: Broadway's second set of BATs off
+    // (HID4's SBE, which libogc turns on) and the two it set there (MEM2 at
+    // 0x90000000 and 0xd0000000) cleared. No GameCube game expects them.
     {
-        const std::uint32_t watch = 0x800031A0 | 0x4 | 0x2;  // BT | DW
-        asm volatile("mtspr 1013, %0" : : "r"(watch) : "memory");
+        std::uint32_t hid4;
+        asm volatile("mfspr %0, 1011" : "=r"(hid4));
+        asm volatile("li 0, 0\n"
+                     "mtspr 560, 0\n"   // IBAT4U
+                     "mtspr 568, 0\n"   // DBAT4U
+                     "mtspr 570, 0\n"   // DBAT5U
+                     "isync" : : : "r0", "memory");
+        hid4 &= ~0x02000000u;  // SBE
+        asm volatile("mtspr 1011, %0\nisync" : : "r"(hid4) : "memory");
     }
     reinterpret_cast<void (*)()>(dol.entry)();
     return false;

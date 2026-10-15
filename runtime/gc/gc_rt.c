@@ -382,6 +382,11 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     for (i = 0; i < 5; ++i) w[GC_TR_CRASH_R1 + i] = ctx->crash_gpr[i];
     for (i = 0; i < 4; ++i) w[GC_TR_CRASH_CHAIN + i] = ctx->crash_chain[i];
     w[GC_TR_CRASH_WORD] = ctx->crash_word;
+    if (ctx->watch_addr != 0) {
+        w[GC_TR_WATCH_ADDR] = ctx->watch_addr;
+        w[GC_TR_WATCH_NOW] = gc_read32(gc_physical(ctx->watch_addr) | 0xC0000000u);
+        w[GC_TR_WATCH_WAS] = ctx->watch_was;
+    }
     /* Interrupts: the PI's cause and mask, and Hollywood's lines to the
      * CPU (Wii-only; a GameCube game cannot clear them). */
     w[GC_TR_PI_CAUSE] = gc_read32(0xCC003000u);
