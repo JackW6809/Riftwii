@@ -757,20 +757,6 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     ctx->watch_was = load32(0x800031A0);
     DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
-    // The CPU as a GameCube's leaves it: Broadway's second set of BATs off
-    // (HID4's SBE, which libogc turns on) and the two it set there (MEM2 at
-    // 0x90000000 and 0xd0000000) cleared. No GameCube game expects them.
-    {
-        std::uint32_t hid4;
-        asm volatile("mfspr %0, 1011" : "=r"(hid4));
-        asm volatile("li 0, 0\n"
-                     "mtspr 560, 0\n"   // IBAT4U
-                     "mtspr 568, 0\n"   // DBAT4U
-                     "mtspr 570, 0\n"   // DBAT5U
-                     "isync" : : : "r0", "memory");
-        hid4 &= ~0x02000000u;  // SBE
-        asm volatile("mtspr 1011, %0\nisync" : : "r"(hid4) : "memory");
-    }
     reinterpret_cast<void (*)()>(dol.entry)();
     return false;
 }

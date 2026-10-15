@@ -692,6 +692,7 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
     struct gc_rt_stream* st = (struct gc_rt_stream*)(uintptr_t)ctx->stream;
     const uint32_t cr = gc_read32(GC_AI_CR);
     const uint32_t vr = gc_read32(GC_AI_VR);
+    gc_guard(ctx);
     const int32_t vol_l = (int32_t)(vr & 0xFFu);
     const int32_t vol_r = (int32_t)((vr >> 8) & 0xFFu);
     const uint32_t addr = 0x80000000u | (start & 0x01FFFFE0u);
@@ -731,6 +732,7 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
  * 0x1000). */
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
     const uint32_t n = ctx->pad_reads++;
+    gc_guard(ctx);  /* once a frame: IOS rewrites its counter there all the time */
     if (n % 300 == 0) gc_trace(ctx, GC_TRACE_PAD);
     if ((ctx->flags & GC_FLAG_PRESS) && status != 0 && (n % 240) < 10) {
         uint8_t* p = (uint8_t*)(uintptr_t)status;
