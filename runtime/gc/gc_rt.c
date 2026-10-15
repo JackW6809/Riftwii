@@ -411,6 +411,7 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_GUARD_FIRST_REQUEST] = ctx->guard_first_request;
     w[GC_TR_GUARD_FIRST_OFFSET] = ctx->guard_first_offset;
     w[GC_TR_GUARD_FIRST_VALUE] = ctx->guard_first_value;
+    for (i = 0; i < 4; ++i) w[GC_TR_PROBE + i] = ctx->probe[i];
     if (ctx->watch_addr != 0) {
         w[GC_TR_WATCH_ADDR] = ctx->watch_addr;
         w[GC_TR_WATCH_NOW] = gc_read32(gc_physical(ctx->watch_addr) | 0xC0000000u);
@@ -756,6 +757,58 @@ void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint3
     if (ctx->ar_dmas <= 16 || (ctx->ar_dmas & 255) == 0) gc_trace(ctx, GC_TRACE_AR);
 }
 
+/* Trial: where ARAM is on a Wii. Three 32-byte ARAM DMAs through the
+ * DSP's registers, before the game owns them:
+ *   probe[0]: MRAM -> ARAM 0x10f00000, then the first word at MEM2
+ *             0x10f00000 (the pattern if ARAM addresses are physical);
+ *   probe[1]: MRAM -> ARAM at the bounce buffer's own physical address
+ *             + 0x2000, then the first word there (the pattern if ARAM
+ *             below 0x10000000 is MEM1);
+ *   probe[2]: ARAM 0x10f00000 -> MRAM, the first word read back;
+ *   probe[3]: polls left after each DMA (a byte each, 0: it timed out). */
+#define GC_DSP_CSR 0xCC00500Au
+#define GC_DSP_AR_MODE 0xCC005012u
+#define GC_DSP_CSR_DMA_BUSY 0x0200u
+static void gc_write16(uint32_t address, uint32_t value) { *(volatile uint16_t*)(uintptr_t)address = (uint16_t)value; }
+static uint32_t gc_read16(uint32_t address) { return *(volatile uint16_t*)(uintptr_t)address; }
+static uint32_t gc_aram_dma(uint32_t to_mram, uint32_t mram, uint32_t aram, uint32_t length) {
+    uint32_t polls;
+    gc_write16(0xCC005020u, mram >> 16);
+    gc_write16(0xCC005022u, mram & 0xFFFFu);
+    gc_write16(0xCC005024u, aram >> 16);
+    gc_write16(0xCC005026u, aram & 0xFFFFu);
+    gc_write16(0xCC005028u, to_mram ? 0x8000u : 0);
+    gc_write16(0xCC00502Au, length);
+    for (polls = 255; polls != 0; --polls) {
+        uint32_t spin;
+        if ((gc_read16(GC_DSP_CSR) & GC_DSP_CSR_DMA_BUSY) == 0) break;
+        for (spin = 0; spin < 2000; ++spin) __asm__ volatile("nop");
+    }
+    /* Its interrupt acknowledged (ARINT), the DSP's and the AI's left alone. */
+    gc_write16(GC_DSP_CSR, (gc_read16(GC_DSP_CSR) & ~0x88u) | 0x20u);
+    return polls;
+}
+static void gc_aram_probe(struct gc_rt_context* ctx) {
+    uint32_t* src = (uint32_t*)(uintptr_t)(ctx->bounce + 0x1000);
+    const uint32_t mem1_target = ctx->bounce + 0x2000;
+    const uint32_t back = ctx->bounce + 0x3000;
+    uint32_t i, p0, p1, p2;
+    gc_write16(GC_DSP_AR_MODE, (gc_read16(GC_DSP_AR_MODE) & ~0x3Fu) | 0x23u);  /* 16 MB, as ARInit sets it */
+    for (i = 0; i < 8; ++i) src[i] = 0xA5A50000u + i;
+    gc_flush((uint32_t)(uintptr_t)src, 32);
+    gc_write32(0xD0F00000u, 0);
+    gc_write32(gc_physical(mem1_target) | 0xC0000000u, 0);
+    gc_write32(gc_physical(back) | 0xC0000000u, 0);
+    p0 = gc_aram_dma(0, gc_physical((uint32_t)(uintptr_t)src), 0x10F00000u, 32);
+    ctx->probe[0] = gc_read32(0xD0F00000u);
+    p1 = gc_aram_dma(0, gc_physical((uint32_t)(uintptr_t)src), gc_physical(mem1_target), 32);
+    ctx->probe[1] = gc_read32(gc_physical(mem1_target) | 0xC0000000u);
+    p2 = gc_aram_dma(1, gc_physical(back), 0x10F00000u, 32);
+    ctx->probe[2] = gc_read32(gc_physical(back) | 0xC0000000u);
+    ctx->probe[3] = (p0 << 16) | (p1 << 8) | p2;
+    gc_trace(ctx, GC_TRACE_PROBE);
+}
+
 /* Before the jump, every step tried whatever the one before gave, and
  * its result shown as a number on the frame (a line each, top down):
  *   1. IOS's answer to the trace record's write (CMD25)
@@ -797,6 +850,7 @@ void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
     gc_show_hex(ctx, 3, (uint32_t)readback);
     gc_show_hex(ctx, 4, matches);
     gc_show_hex(ctx, 5, image_ok);
+    gc_aram_probe(ctx);
 }
 
 /* A crashed context's registers and the LRs saved up its stack (each

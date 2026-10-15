@@ -93,7 +93,8 @@ enum gc_trace_word {
     GC_TR_CRASH_WORD = GC_TR_CRASH_CHAIN + 4, /* the word in memory (uncached) at SRR0 */
     GC_TR_WATCH_ADDR, GC_TR_WATCH_NOW, GC_TR_WATCH_WAS, /* a word watched for being overwritten */
     GC_TR_GUARD_HITS, GC_TR_GUARD_FIRST_REQUEST, GC_TR_GUARD_FIRST_OFFSET, GC_TR_GUARD_FIRST_VALUE,
-    GC_TR_WORDS
+    GC_TR_PROBE, /* 4 words: gc_aram_probe */
+    GC_TR_WORDS = GC_TR_PROBE + 4
 };
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
@@ -102,7 +103,8 @@ enum gc_trace_word {
 #define GC_TRACE_AR 4u
 #define GC_TRACE_JUMP 5u
 #define GC_TRACE_BEAT 6u
-#define GC_TRACE_COMMAND 8u /* a DVDLow command that is not a read */
+#define GC_TRACE_COMMAND 8u
+#define GC_TRACE_PROBE 9u   /* after gc_aram_probe, before the jump */ /* a DVDLow command that is not a read */
 #define GC_TRACE_FATAL 7u   /* the game crashed: beat_pc/lr/msr are the crash's SRR0, LR, SRR1 */
 /* The last records of the trace go round; the others stay. */
 #define GC_TRACE_RING 16u
@@ -215,6 +217,7 @@ struct gc_rt_context {
     uint32_t guard_first_offset;
     uint32_t guard_first_value;
     uint32_t guard_copy[64];
+    uint32_t probe[4];        /* gc_aram_probe's findings */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
@@ -223,7 +226,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x340u
+#define GC_RT_CONTEXT_BYTES 0x360u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
