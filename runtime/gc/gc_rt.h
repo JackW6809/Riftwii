@@ -82,7 +82,9 @@ enum gc_trace_word {
     GC_TR_STREAM_MIXES, GC_TR_STREAM_REFILLS, GC_TR_AI_DMAS, GC_TR_AR_DMAS, GC_TR_LAST_AR_TYPE, GC_TR_LAST_AR_MAIN,
     GC_TR_LAST_AR_ARAM, GC_TR_LAST_AR_LENGTH, GC_TR_PENDING_CB, GC_TR_ALARMS, GC_TR_BEATS, GC_TR_BEAT_PC,
     GC_TR_BEAT_LR, GC_TR_BEAT_MSR, GC_TR_EXCEPTION, GC_TR_DSISR, GC_TR_DAR,
-    GC_TR_PI_CAUSE, GC_TR_PI_MASK, GC_TR_HW_IRQ_FLAG, GC_TR_HW_IRQ_MASK, GC_TR_WORDS
+    GC_TR_PI_CAUSE, GC_TR_PI_MASK, GC_TR_HW_IRQ_FLAG, GC_TR_HW_IRQ_MASK,
+    GC_TR_CRASH_R1, GC_TR_CRASH_R3, GC_TR_CRASH_R4, GC_TR_CRASH_R5, GC_TR_CRASH_R31, GC_TR_CRASH_CHAIN, /* 4 words */
+    GC_TR_WORDS = GC_TR_CRASH_CHAIN + 4
 };
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
@@ -189,6 +191,8 @@ struct gc_rt_context {
     uint32_t exception;       /* set by gc_on_fatal */
     uint32_t dsisr;
     uint32_t dar;
+    uint32_t crash_gpr[5];    /* r1, r3, r4, r5, r31 */
+    uint32_t crash_chain[4];  /* the saved LRs up the stack: who called whom */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
@@ -197,7 +201,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x200u
+#define GC_RT_CONTEXT_BYTES 0x220u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC

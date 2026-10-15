@@ -379,6 +379,8 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_EXCEPTION] = ctx->exception;
     w[GC_TR_DSISR] = ctx->dsisr;
     w[GC_TR_DAR] = ctx->dar;
+    for (i = 0; i < 5; ++i) w[GC_TR_CRASH_R1 + i] = ctx->crash_gpr[i];
+    for (i = 0; i < 4; ++i) w[GC_TR_CRASH_CHAIN + i] = ctx->crash_chain[i];
     /* Interrupts: the PI's cause and mask, and Hollywood's lines to the
      * CPU (Wii-only; a GameCube game cannot clear them). */
     w[GC_TR_PI_CAUSE] = gc_read32(0xCC003000u);
@@ -759,11 +761,34 @@ void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
     gc_show_hex(ctx, 5, image_ok);
 }
 
+/* A crashed context's registers and the LRs saved up its stack (each
+ * frame's back chain at 0, its caller's LR at 4 of the frame above),
+ * while the frames stay in MEM1. */
+static int gc_in_mem1(uint32_t a) { return a >= 0x80000000u && a < 0x81800000u && (a & 3u) == 0; }
+static void gc_crash_stack(struct gc_rt_context* ctx, const uint32_t* gpr) {
+    uint32_t frame = gpr[1];
+    uint32_t i;
+    ctx->crash_gpr[0] = gpr[1];
+    ctx->crash_gpr[1] = gpr[3];
+    ctx->crash_gpr[2] = gpr[4];
+    ctx->crash_gpr[3] = gpr[5];
+    ctx->crash_gpr[4] = gpr[31];
+    for (i = 0; i < 4; ++i) {
+        if (!gc_in_mem1(frame)) break;
+        frame = *(const uint32_t*)(uintptr_t)frame;  /* the caller's frame */
+        if (!gc_in_mem1(frame)) break;
+        ctx->crash_chain[i] = *(const uint32_t*)(uintptr_t)(frame + 4);
+    }
+}
+
 /* The game crashed: the GameCube OS's last stop for an exception nothing
  * handles, which would halt with a blank screen on a retail console. The
- * crash goes to the trace and onto the frame, a row each: the exception
- * (2 DSI, 3 ISI, 5 alignment, 6 program, 7 FPU unavailable...), SRR0
- * (where), LR, SRR1, DSISR and DAR (the address a DSI touched). */
+ * crash goes to the trace (all of it) and onto the frame, a row each:
+ *   1. the exception (2 DSI, 3 ISI, 5 alignment, 6 program...) in the top
+ *      byte, SRR1's reason bits, DSISR's top half
+ *   2. SRR0, where it happened
+ *   3. and 4. the two callers up the stack
+ *   5. r31 and 6. r5 (for memset: where it started and how much). */
 void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_context, uint32_t dsisr, uint32_t dar) {
     ctx->exception = exception;
     ctx->dsisr = dsisr;
@@ -772,15 +797,16 @@ void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_cont
         ctx->beat_pc = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR0);
         ctx->beat_lr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_LR);
         ctx->beat_msr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR1);
+        gc_crash_stack(ctx, (const uint32_t*)(uintptr_t)os_context);
     }
     ctx->busy = 0;  /* a crash inside a read leaves it set; nothing else runs now */
     gc_trace(ctx, GC_TRACE_FATAL);
     gc_paint(ctx, GC_COLOUR_WHITE);
-    gc_show_hex(ctx, 0, exception);
+    gc_show_hex(ctx, 0, (exception << 24) | (ctx->beat_msr & 0x00FF0000u) | (dsisr >> 16));
     gc_show_hex(ctx, 1, ctx->beat_pc);
-    gc_show_hex(ctx, 2, ctx->beat_lr);
-    gc_show_hex(ctx, 3, ctx->beat_msr);
-    gc_show_hex(ctx, 4, dsisr);
-    gc_show_hex(ctx, 5, dar);
+    gc_show_hex(ctx, 2, ctx->crash_chain[0]);
+    gc_show_hex(ctx, 3, ctx->crash_chain[1]);
+    gc_show_hex(ctx, 4, ctx->crash_gpr[4]);
+    gc_show_hex(ctx, 5, ctx->crash_gpr[3]);
     for (;;) gc_led_toggle_slowly();
 }
