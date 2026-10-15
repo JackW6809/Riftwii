@@ -300,88 +300,6 @@ static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, 
     return (int32_t)rq[1];
 }
 
-/* The whole frame in one colour, through the uncached mirror so the VI
- * shows it at once. */
-static void gc_paint(const struct gc_rt_context* ctx, uint32_t colour) {
-    volatile uint32_t* p;
-    uint32_t i;
-    if (ctx->xfb == 0) return;
-    p = (volatile uint32_t*)(uintptr_t)(gc_physical(ctx->xfb) | 0xC0000000u);
-    for (i = 0; i < ctx->xfb_bytes / 4; ++i) p[i] = colour;
-}
-
-/* The disc slot's blue light (Hollywood GPIO, Broadway's bank, bit 5):
- * a second signal beside the screen, since a game that set up its own
- * video hides the colours. */
-#define GC_GPIO_OUT 0xCD0000C0u
-#define GC_GPIO_SLOT_LED 0x20u
-static void gc_led(int on) {
-    const uint32_t out = gc_read32(GC_GPIO_OUT);
-    gc_write32(GC_GPIO_OUT, on ? (out | GC_GPIO_SLOT_LED) : (out & ~GC_GPIO_SLOT_LED));
-}
-static void gc_led_toggle(void) { gc_write32(GC_GPIO_OUT, gc_read32(GC_GPIO_OUT) ^ GC_GPIO_SLOT_LED); }
-/* After a crash: the light flashing fast, a few times a second. */
-static void gc_led_toggle_slowly(void) {
-    uint32_t start, now;
-    __asm__ volatile("mftb %0" : "=r"(start));
-    do {
-        __asm__ volatile("mftb %0" : "=r"(now));
-    } while (now - start < 10000000u);
-    gc_led_toggle();
-}
-
-/* A filled box on the frame, in YUYV words (two pixels) across and lines
- * down; the frame is 640 pixels wide. */
-#define GC_XFB_WORDS_PER_LINE 320u
-static void gc_box(const struct gc_rt_context* ctx, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t colour) {
-    volatile uint32_t* p = (volatile uint32_t*)(uintptr_t)(gc_physical(ctx->xfb) | 0xC0000000u);
-    const uint32_t lines = ctx->xfb_bytes / (GC_XFB_WORDS_PER_LINE * 4);
-    uint32_t row, col;
-    for (row = y; row < y + h && row < lines; ++row)
-        for (col = x; col < x + w && col < GC_XFB_WORDS_PER_LINE; ++col) p[row * GC_XFB_WORDS_PER_LINE + col] = colour;
-}
-
-/* `value` as eight hex digits, seven-segment style, on line `row` of the
- * frame: the numbers a test on a Wii needs when nothing else can show
- * them. Segments a-g are bits 0-6; the codes are in immediates because
- * the blob keeps no constant data. */
-#define GC_WHITE 0xEB80EB80u
-#define GC_BLACK 0x10801080u
-static uint32_t gc_segments(uint32_t digit) {
-    /* Four digits a word, 0 first (a switch becomes a table in .rodata). */
-    uint32_t four;
-    if (digit < 4)
-        four = 0x3F065B4Fu;
-    else if (digit < 8)
-        four = 0x666D7D07u;
-    else if (digit < 12)
-        four = 0x7F6F777Cu;
-    else
-        four = 0x395E7971u;
-    return (four >> (24 - 8 * (digit & 3u))) & 0x7Fu;
-}
-static void gc_show_hex(const struct gc_rt_context* ctx, uint32_t row, uint32_t value) {
-    const uint32_t top = 30 + row * 75;
-    uint32_t n;
-    if (ctx->xfb == 0) return;
-    gc_box(ctx, 30, top - 8, 8 * 24 + 8, 56 + 16, GC_BLACK);
-    for (n = 0; n < 8; ++n) {
-        const uint32_t seg = gc_segments((value >> (28 - 4 * n)) & 0xFu);
-        const uint32_t x = 38 + n * 24;
-        if (seg & 0x01) gc_box(ctx, x, top, 16, 6, GC_WHITE);
-        if (seg & 0x02) gc_box(ctx, x + 13, top, 3, 28, GC_WHITE);
-        if (seg & 0x04) gc_box(ctx, x + 13, top + 28, 3, 28, GC_WHITE);
-        if (seg & 0x08) gc_box(ctx, x, top + 50, 16, 6, GC_WHITE);
-        if (seg & 0x10) gc_box(ctx, x, top + 28, 3, 28, GC_WHITE);
-        if (seg & 0x20) gc_box(ctx, x, top, 3, 28, GC_WHITE);
-        if (seg & 0x40) gc_box(ctx, x, top + 25, 16, 6, GC_WHITE);
-    }
-}
-
-/* One record of the trace (gc_rt.h), with interrupts held off so it
- * cannot meet a read on the card; skipped while a read is going on. */
-/* Record `seq`'s sector: the first records stay (how the game started),
- * the last GC_TRACE_RING go round. */
 /* `count` sectors (at most 16) from `buf` (32-byte aligned) to the card
  * at `sector`: CMD25, then CMD13 until the card has written them. The
  * caller holds ctx->busy. */
@@ -442,6 +360,8 @@ int32_t gc_sd_write(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, 
     return result;
 }
 
+/* Record `seq`'s sector: the first records stay (how the game started),
+ * the last GC_TRACE_RING go round. */
 static uint32_t gc_trace_slot(const struct gc_rt_context* ctx, uint32_t seq) {
     const uint32_t kept = ctx->trace_count > 2 * GC_TRACE_RING ? ctx->trace_count - GC_TRACE_RING : ctx->trace_count / 2;
     const uint32_t ring = ctx->trace_count - kept;
@@ -449,6 +369,8 @@ static uint32_t gc_trace_slot(const struct gc_rt_context* ctx, uint32_t seq) {
     return ctx->trace_sector + kept + (seq - kept - 1) % ring;
 }
 
+/* One record of the trace (gc_rt.h), with interrupts held off so it
+ * cannot meet a read on the card; skipped while a read is going on. */
 static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     int32_t result;
     uint32_t* w = (uint32_t*)(uintptr_t)ctx->trace_buf;
@@ -499,7 +421,7 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
         w[GC_TR_BT_EVENT_LENGTHS] = bt->event_lengths;
         gc_copy((uint8_t*)&w[GC_TR_BT_EVENT_LOG], &bt->event_log[0][0], 32);
     }
-if (ctx->card) {
+    if (ctx->card) {
         const struct gc_card* card = (const struct gc_card*)(uintptr_t)ctx->card;
         w[GC_TR_CARD_READS] = card->reads;
         w[GC_TR_CARD_WRITES] = card->programs << 16 | (card->erases & 0xFFFFu);
@@ -508,7 +430,7 @@ if (ctx->card) {
         w[GC_TR_CARD_ERROR] = (uint32_t)card->flush_error;
         w[GC_TR_CARD_LAST] = card->last_cmd << 24 | (card->activity & 0xFFFFFFu);
     }
-        w[GC_TR_PENDING_CB] = ctx->pending_cb;
+    w[GC_TR_PENDING_CB] = ctx->pending_cb;
     w[GC_TR_ALARMS] = ctx->alarms;
     w[GC_TR_BEATS] = ctx->beats;
     w[GC_TR_BEAT_PC] = ctx->beat_pc;
@@ -524,12 +446,6 @@ if (ctx->card) {
     w[GC_TR_GUARD_FIRST_REQUEST] = ctx->guard_first_request;
     w[GC_TR_GUARD_FIRST_OFFSET] = ctx->guard_first_offset;
     w[GC_TR_GUARD_FIRST_VALUE] = ctx->guard_first_value;
-    for (i = 0; i < 4; ++i) w[GC_TR_PROBE + i] = ctx->probe[i];
-    if (ctx->watch_addr != 0) {
-        w[GC_TR_WATCH_ADDR] = ctx->watch_addr;
-        w[GC_TR_WATCH_NOW] = gc_read32(gc_physical(ctx->watch_addr) | 0xC0000000u);
-        w[GC_TR_WATCH_WAS] = ctx->watch_was;
-    }
     /* Interrupts: the PI's cause and mask, and Hollywood's lines to the
      * CPU (Wii-only; a GameCube game cannot clear them). */
     w[GC_TR_PI_CAUSE] = gc_read32(0xCC003000u);
@@ -538,7 +454,6 @@ if (ctx->card) {
     w[GC_TR_HW_IRQ_MASK] = gc_read32(0xCD000034u);
     sector = gc_trace_slot(ctx, ctx->trace_seq);
     result = gc_sd_write_locked(ctx, sector, 1, ctx->trace_buf);
-    if (result >= 0) gc_led(1);
     ctx->busy = 0;
     gc_irq_restore(msr);
     return result;
@@ -580,8 +495,6 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
     ctx->read_bytes += length;
     ctx->last_offset = offset;
     gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset) ? GC_DI_TC : GC_DI_DE);
-    if (ctx->reads == 1) gc_paint(ctx, GC_COLOUR_MAGENTA);
-    if ((ctx->reads & 7) == 0) gc_led_toggle();
     if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
 }
@@ -649,9 +562,7 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
 #define GC_AI_CR 0xCD006C00u
 #define GC_AI_VR 0xCD006C04u
 #define GC_AI_PSTAT 0x01u   /* the stream plays */
-#define GC_AI_32K 0x40u     /* the DMA (the game's own audio) runs at 32 kHz */
-#define GC_AI_AIINT 0x08u   /* write 1 to clear: kept out of our writes */
-#define GC_AI_SCRESET 0x20u /* write 1 to reset the sample counter: likewise */
+#define GC_AI_32K 0x40u     /* the DMA (the game's own audio) runs at 32 kHz, as the game sets it */
 #define GC_ADP_BLOCK 32u    /* 28 stereo samples */
 
 static void gc_stream_reset(struct gc_rt_stream* st) {
@@ -779,17 +690,9 @@ static int gc_stream_next(struct gc_rt_context* ctx, struct gc_rt_stream* st, in
  * the stream goes into it at the AI's stream volume. */
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
     struct gc_rt_stream* st = (struct gc_rt_stream*)(uintptr_t)ctx->stream;
-    uint32_t cr = gc_read32(GC_AI_CR);
+    const uint32_t cr = gc_read32(GC_AI_CR);
     const uint32_t vr = gc_read32(GC_AI_VR);
     gc_guard(ctx);
-    /* A GameCube's audio DMA always runs at 32 kHz; a Wii's runs at 48 kHz
-     * unless this bit is set (Wii only), which played the game's sound
-     * 1.5 times too fast on a Wii. */
-    if (ctx->ai_dmas == 0) ctx->probe[3] = cr;  /* the game's own setting, for the trace */
-    if ((cr & GC_AI_32K) == 0 && (ctx->flags & GC_FLAG_NO_AI_RATE) == 0) {
-        gc_write32(GC_AI_CR, (cr & ~(GC_AI_AIINT | GC_AI_SCRESET)) | GC_AI_32K);
-        cr |= GC_AI_32K;
-    }
     const int32_t vol_l = (int32_t)(vr & 0xFFu);
     const int32_t vol_r = (int32_t)((vr >> 8) & 0xFFu);
     const uint32_t addr = 0x80000000u | (start & 0x01FFFFE0u);
@@ -850,11 +753,12 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
 
 /* ARAM on a Wii. In Wii mode the ARAM DMA engine reports each transfer
  * done (its interrupt still comes) but moves nothing: there is no ARAM
- * behind it (measured on a Wii with gc_aram_probe; Dolphin emulates one).
+ * behind it (measured on a Wii with test transfers; Dolphin emulates one).
  * So ARAM lives in MEM2 at physical 0x10000000 + the ARAM address, where
  * the DSP finds it too once its microcode is pointed there, and every
  * ARStartDMA is done here by the CPU before the game's own call runs, on
- * a scratch buffer, for the interrupt. Main memory comes as an address the hardware masks. */
+ * a scratch buffer, for the interrupt. Main memory comes as an address
+ * the hardware masks. */
 #define GC_ARAM_BASE 0x90000000u  /* MEM2, cached (Broadway's BAT4, left on) */
 #define GC_ARAM_SIZE 0x01000000u
 static void gc_aram_copy(uint32_t to_main, uint32_t main, uint32_t aram, uint32_t length) {
@@ -886,101 +790,9 @@ uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, u
     return gc_physical((uint32_t)(uintptr_t)ctx->aram_scratch);
 }
 
-/* Trial: where ARAM is on a Wii. Three 32-byte ARAM DMAs through the
- * DSP's registers, before the game owns them:
- *   probe[0]: MRAM -> ARAM 0x10f00000, then the first word at MEM2
- *             0x10f00000 (the pattern if ARAM addresses are physical);
- *   probe[1]: MRAM -> ARAM at the bounce buffer's own physical address
- *             + 0x2000, then the first word there (the pattern if ARAM
- *             below 0x10000000 is MEM1);
- *   probe[2]: ARAM 0x10f00000 -> MRAM, the first word read back;
- *   probe[3]: polls left after each DMA (a byte each, 0: it timed out). */
-#define GC_DSP_CSR 0xCC00500Au
-#define GC_DSP_AR_MODE 0xCC005012u
-#define GC_DSP_CSR_DMA_BUSY 0x0200u
-static void gc_write16(uint32_t address, uint32_t value) { *(volatile uint16_t*)(uintptr_t)address = (uint16_t)value; }
-static uint32_t gc_read16(uint32_t address) { return *(volatile uint16_t*)(uintptr_t)address; }
-static uint32_t gc_aram_dma(uint32_t to_mram, uint32_t mram, uint32_t aram, uint32_t length) {
-    uint32_t polls;
-    gc_write16(0xCC005020u, mram >> 16);
-    gc_write16(0xCC005022u, mram & 0xFFFFu);
-    gc_write16(0xCC005024u, aram >> 16);
-    gc_write16(0xCC005026u, aram & 0xFFFFu);
-    gc_write16(0xCC005028u, to_mram ? 0x8000u : 0);
-    gc_write16(0xCC00502Au, length);
-    for (polls = 255; polls != 0; --polls) {
-        uint32_t spin;
-        if ((gc_read16(GC_DSP_CSR) & GC_DSP_CSR_DMA_BUSY) == 0) break;
-        for (spin = 0; spin < 2000; ++spin) __asm__ volatile("nop");
-    }
-    /* Its interrupt acknowledged (ARINT), the DSP's and the AI's left alone. */
-    gc_write16(GC_DSP_CSR, (gc_read16(GC_DSP_CSR) & ~0x88u) | 0x20u);
-    return polls;
-}
-static void gc_aram_probe(struct gc_rt_context* ctx) {
-    uint32_t* src = (uint32_t*)(uintptr_t)(ctx->bounce + 0x1000);
-    const uint32_t mem1_target = ctx->bounce + 0x2000;
-    const uint32_t back = ctx->bounce + 0x3000;
-    uint32_t i, p0, p1, p2;
-    gc_write16(GC_DSP_AR_MODE, (gc_read16(GC_DSP_AR_MODE) & ~0x3Fu) | 0x23u);  /* 16 MB, as ARInit sets it */
-    for (i = 0; i < 8; ++i) src[i] = 0xA5A50000u + i;
-    gc_flush((uint32_t)(uintptr_t)src, 32);
-    gc_write32(0xD0F00000u, 0);
-    gc_write32(gc_physical(mem1_target) | 0xC0000000u, 0);
-    gc_write32(gc_physical(back) | 0xC0000000u, 0);
-    p0 = gc_aram_dma(0, gc_physical((uint32_t)(uintptr_t)src), 0x10F00000u, 32);
-    ctx->probe[0] = gc_read32(0xD0F00000u);
-    p1 = gc_aram_dma(0, gc_physical((uint32_t)(uintptr_t)src), gc_physical(mem1_target), 32);
-    ctx->probe[1] = gc_read32(gc_physical(mem1_target) | 0xC0000000u);
-    p2 = gc_aram_dma(1, gc_physical(back), 0x10F00000u, 32);
-    ctx->probe[2] = gc_read32(gc_physical(back) | 0xC0000000u);
-    ctx->probe[3] = (p0 << 16) | (p1 << 8) | p2;
-    gc_trace(ctx, GC_TRACE_PROBE);
-}
-
-/* Before the jump, every step tried whatever the one before gave, and
- * its result shown as a number on the frame (a line each, top down):
- *   1. IOS's answer to the trace record's write (CMD25)
- *   2. IOS's answer to GETSTATUS, a plain ioctl, and the status word
- *   3. IOS's answer to reading the record back (CMD18), then 1 if it matches
- *   4. the image's first bytes read through the runs: 1 if they are the ID
- * -1000 (FFFFFC18) is "IOS never answered". The background is the old
- * colour: cyan when all passed, red when the write failed, orange when it
- * does not read back, grey when the image does not. */
-#define GC_SDIO_GETSTATUS 0x0Bu
-void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
-    const uint8_t* id = (const uint8_t*)(uintptr_t)0x80000000u;
-    uint8_t* back = (uint8_t*)(uintptr_t)ctx->bounce;
-    const uint32_t* w = (const uint32_t*)(uintptr_t)ctx->trace_buf;
-    const uint32_t seq = ctx->trace_seq + 1;
-    int32_t written, status, readback;
-    uint32_t matches, image_ok, i;
-    uint32_t colour = GC_COLOUR_CYAN;
-    written = gc_trace(ctx, where);
-    ctx->response[0] = 0;
-    status = gc_ioctl(ctx, ctx->sdio_fd, GC_SDIO_GETSTATUS, 0, 0, (uint32_t)(uintptr_t)ctx->response, 4);
-    for (i = 0; i < GC_SECTOR; ++i) back[i] = 0;
-    readback = gc_sd_read(ctx, gc_trace_slot(ctx, seq), 1, ctx->bounce) ? 0 : ctx->last_error;
-    matches = ((const uint32_t*)back)[0] == w[0] && ((const uint32_t*)back)[1] == seq;
-    for (i = 0; i < 0x20; ++i) back[i] = 0;
-    image_ok = (uint32_t)gc_read_disc(ctx, back, 0x20, 0);
-    for (i = 0; i < 6; ++i)
-        if (back[i] != id[i]) image_ok = 0;
-    if (written < 0)
-        colour = GC_COLOUR_RED;
-    else if (!matches)
-        colour = GC_COLOUR_ORANGE;
-    else if (!image_ok)
-        colour = GC_COLOUR_GREY;
-    gc_paint(ctx, colour);
-    gc_show_hex(ctx, 0, (uint32_t)written);
-    gc_show_hex(ctx, 1, (uint32_t)status);
-    gc_show_hex(ctx, 2, ctx->response[0]);
-    gc_show_hex(ctx, 3, (uint32_t)readback);
-    gc_show_hex(ctx, 4, matches);
-    gc_show_hex(ctx, 5, image_ok);
-    gc_aram_probe(ctx);
-}
+/* The loader's record just before the jump: the first one written through
+ * the blob's own IPC, as the game will use it. */
+void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) { gc_trace(ctx, where); }
 
 /* A crashed context's registers and the LRs saved up its stack (each
  * frame's back chain at 0, its caller's LR at 4 of the frame above),
@@ -1002,14 +814,35 @@ static void gc_crash_stack(struct gc_rt_context* ctx, const uint32_t* gpr) {
     }
 }
 
+/* After a crash: the frame on screen white (through the uncached mirror,
+ * so the VI shows it at once) and the disc slot's blue light flashing
+ * (Hollywood GPIO, Broadway's bank, bit 5), since the game's own picture
+ * may hide the frame. */
+#define GC_CRASH_WHITE 0xEB80EB80u
+#define GC_GPIO_OUT 0xCD0000C0u
+#define GC_GPIO_SLOT_LED 0x20u
+static void gc_crash_screen(const struct gc_rt_context* ctx) {
+    volatile uint32_t* p;
+    uint32_t i;
+    if (ctx->xfb == 0) return;
+    p = (volatile uint32_t*)(uintptr_t)(gc_physical(ctx->xfb) | 0xC0000000u);
+    for (i = 0; i < ctx->xfb_bytes / 4; ++i) p[i] = GC_CRASH_WHITE;
+}
+static void gc_crash_flash_forever(void) {
+    for (;;) {
+        uint32_t start, now;
+        __asm__ volatile("mftb %0" : "=r"(start));
+        do {
+            __asm__ volatile("mftb %0" : "=r"(now));
+        } while (now - start < 10000000u);
+        gc_write32(GC_GPIO_OUT, gc_read32(GC_GPIO_OUT) ^ GC_GPIO_SLOT_LED);
+    }
+}
+
 /* The game crashed: the GameCube OS's last stop for an exception nothing
  * handles, which would halt with a blank screen on a retail console. The
- * crash goes to the trace (all of it) and onto the frame, a row each:
- *   1. the exception (2 DSI, 3 ISI, 5 alignment, 6 program...) in the top
- *      byte, SRR1's reason bits, DSISR's top half
- *   2. SRR0, where it happened
- *   3. and 4. the two callers up the stack
- *   5. r31 and 6. r5 (for memset: where it started and how much). */
+ * crash goes to the trace (the exception, SRR0/LR/SRR1, DSISR, DAR, some
+ * registers and the callers up the stack), then the screen turns white. */
 void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_context, uint32_t dsisr, uint32_t dar) {
     ctx->exception = exception;
     ctx->dsisr = dsisr;
@@ -1022,15 +855,8 @@ void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_cont
         if (gc_in_mem1(ctx->beat_pc))
             ctx->crash_word = gc_read32(gc_physical(ctx->beat_pc) | 0xC0000000u);
     }
-    __asm__ volatile("mtspr 1013, %0" : : "r"(0) : "memory");  /* the loader's write watch off (DABR) */
     ctx->busy = 0;  /* a crash inside a read leaves it set; nothing else runs now */
     gc_trace(ctx, GC_TRACE_FATAL);
-    gc_paint(ctx, GC_COLOUR_WHITE);
-    gc_show_hex(ctx, 0, (exception << 24) | (ctx->beat_msr & 0x00FF0000u) | (dsisr >> 16));
-    gc_show_hex(ctx, 1, ctx->beat_pc);
-    gc_show_hex(ctx, 2, ctx->crash_chain[0]);
-    gc_show_hex(ctx, 3, ctx->crash_chain[1]);
-    gc_show_hex(ctx, 4, ctx->crash_gpr[4]);
-    gc_show_hex(ctx, 5, ctx->crash_gpr[3]);
-    for (;;) gc_led_toggle_slowly();
+    gc_crash_screen(ctx);
+    gc_crash_flash_forever();
 }

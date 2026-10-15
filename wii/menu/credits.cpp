@@ -54,7 +54,8 @@ const char* const kCredits[] = {
     "",
     "wup-028-bslug by Alex Chadwick (MIT): the GameCube controller adapter.",
     "",
-    "Nintendont by FIX94 and contributors: the USB HID driver, used with its developers' permission.",
+    "Nintendont by FIX94 and contributors: the USB HID driver and the GameCube sound program patches, used "
+    "with its developers' permission.",
     "",
     "WiiDRC by FIX94 (MIT): the Wii U GamePad.",
     "",

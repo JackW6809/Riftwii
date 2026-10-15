@@ -105,9 +105,9 @@ contains theirs names them in its file header, and
 - **Brainslug** by Alex Chadwick and Florian Bach (MIT): the boot
   sequence. **wup-028-bslug** by Alex Chadwick (MIT): the GameCube
   controller adapter.
-- **Nintendont** by FIX94 and contributors: the USB HID driver, used
-  with its developers' permission. **WiiDRC** by FIX94: the Wii U
-  GamePad.
+- **Nintendont** by FIX94 and contributors: the USB HID driver and the
+  GameCube sound program patches, used with its developers' permission.
+  **WiiDRC** by FIX94: the Wii U GamePad.
 - **libwiigui** by Tantric, **FreeTypeGX** by Armin Tamzarian,
   **oggplayer** by Hermes: the menu's toolkit, text and music player.
 - **WiiLink WFC** (wfc-patcher-wii): WiiLink online play.

@@ -64,7 +64,7 @@ struct gc_rt_header {
     uint32_t hook_pad_read;   /* PADRead(status): the original, then the test presses (GC_FLAG_PRESS) */
     uint32_t replay_pad_read;
     uint32_t continue_pad_read;
-    uint32_t hook_ar_dma;     /* ARStartDMA(type, main, aram, length): counted, then the original */
+    uint32_t hook_ar_dma;     /* ARStartDMA(type, main, aram, length): copied by the CPU, then the original */
     uint32_t replay_ar_dma;
     uint32_t continue_ar_dma;
     uint32_t trace_now;       /* trace(where): a record from the loader, just before the jump */
@@ -92,10 +92,8 @@ enum gc_trace_word {
     GC_TR_PI_CAUSE, GC_TR_PI_MASK, GC_TR_HW_IRQ_FLAG, GC_TR_HW_IRQ_MASK,
     GC_TR_CRASH_R1, GC_TR_CRASH_R3, GC_TR_CRASH_R4, GC_TR_CRASH_R5, GC_TR_CRASH_R31, GC_TR_CRASH_CHAIN, /* 4 words */
     GC_TR_CRASH_WORD = GC_TR_CRASH_CHAIN + 4, /* the word in memory (uncached) at SRR0 */
-    GC_TR_WATCH_ADDR, GC_TR_WATCH_NOW, GC_TR_WATCH_WAS, /* a word watched for being overwritten */
     GC_TR_GUARD_HITS, GC_TR_GUARD_FIRST_REQUEST, GC_TR_GUARD_FIRST_OFFSET, GC_TR_GUARD_FIRST_VALUE,
-    GC_TR_PROBE, /* 4 words: gc_aram_probe */
-    GC_TR_BT_STAGE = GC_TR_PROBE + 4, GC_TR_BT_ERROR, GC_TR_BT_EVENTS, GC_TR_BT_ACL, GC_TR_BT_LAST_EVENT,
+    GC_TR_BT_STAGE, GC_TR_BT_ERROR, GC_TR_BT_EVENTS, GC_TR_BT_ACL, GC_TR_BT_LAST_EVENT,
     GC_TR_BT_KEYS, /* stored link keys << 16 | connections */
     GC_TR_BT_REMOTES, /* the first remote: chans << 24 | ready << 16 | ext_step << 8 | ext_kind */
     GC_TR_BT_BUTTONS,
@@ -114,27 +112,13 @@ enum gc_trace_word {
 #define GC_TRACE_AR 4u
 #define GC_TRACE_JUMP 5u
 #define GC_TRACE_BEAT 6u
-#define GC_TRACE_COMMAND 8u
-#define GC_TRACE_PROBE 9u   /* after gc_aram_probe, before the jump */ /* a DVDLow command that is not a read */
 #define GC_TRACE_FATAL 7u   /* the game crashed: beat_pc/lr/msr are the crash's SRR0, LR, SRR1 */
+#define GC_TRACE_COMMAND 8u /* a DVDLow command that is not a read */
 /* The last records of the trace go round; the others stay. */
 #define GC_TRACE_RING 16u
 
-/* Whole-screen colours (YUYV pairs) a run on a Wii shows until the game
- * sets up its own video: how far it got when nothing else can say. */
-#define GC_COLOUR_BLUE 0x1DFF1D6Bu     /* RiftWii shut down */
-#define GC_COLOUR_GREEN 0x952B9515u    /* the game's code in place */
-#define GC_COLOUR_YELLOW 0xE100E194u   /* the first trace record about to go */
-#define GC_COLOUR_CYAN 0xB3ABB300u     /* it went: the card and the polled IPC work */
-#define GC_COLOUR_RED 0x4C544CFFu      /* it did not: IOS did not answer */
-#define GC_COLOUR_MAGENTA 0x69D469EAu  /* the game's first disc read through the blob */
-#define GC_COLOUR_ORANGE 0xAD1EADC9u   /* the record was taken but does not read back */
-#define GC_COLOUR_GREY 0x80808080u     /* it reads back, but the game image's first bytes do not */
-#define GC_COLOUR_WHITE 0xEB80EB80u    /* the game crashed (numbers on it: gc_on_fatal) */
-
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
-#define GC_FLAG_NO_AI_RATE 2u  /* trial: the blob leaves the AI's 32 kHz bit to the game */
 
 /* Disc audio streaming (the drive's own ADPCM, 48 kHz stereo): what the
  * drive would have played into the AI is decoded here and mixed into the
@@ -201,7 +185,7 @@ struct gc_rt_context {
     uint32_t alarms;
     uint32_t last_ar[4];
     uint32_t busy;            /* the IPC buffers are in use (a read or a trace write) */
-    uint32_t xfb;             /* the frame on screen at the jump (YUYV), painted as steps pass; 0: none */
+    uint32_t xfb;             /* the frame on screen at the jump (YUYV), turned white by a crash; 0: none */
     uint32_t xfb_bytes;
     /* The heartbeat: an OSAlarm of its own every half second once the
      * game reads, noting where the game was when it went off (the
@@ -217,8 +201,6 @@ struct gc_rt_context {
     uint32_t crash_gpr[5];    /* r1, r3, r4, r5, r31 */
     uint32_t crash_chain[4];  /* the saved LRs up the stack: who called whom */
     uint32_t crash_word;
-    uint32_t watch_addr;      /* loader-filled, 0: none: a word of the game's that a Wii finds overwritten */
-    uint32_t watch_was;       /* its value at the jump */
     /* The guard: IOS keeps live globals at 0x80003100-0x800031ff on a Wii
      * and writes them while it works (a counter at 0x800031a0 at least),
      * but a GameCube game has code there. The loader's copy of the game's
@@ -229,7 +211,6 @@ struct gc_rt_context {
     uint32_t guard_first_offset;
     uint32_t guard_first_value;
     uint32_t guard_copy[64];
-    uint32_t probe[4];        /* gc_aram_probe's findings */
     uint32_t bt;              /* struct gc_bt (loader-placed), 0: no Wii Remotes */
     uint32_t card;            /* struct gc_card (loader-placed), 0: the real slot A */
     uint8_t aram_scratch[32] __attribute__((aligned(32)));  /* the hardware's own ARAM DMA goes here */
@@ -241,7 +222,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x380u
+#define GC_RT_CONTEXT_BYTES 0x360u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
