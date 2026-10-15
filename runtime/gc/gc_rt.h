@@ -81,7 +81,8 @@ enum gc_trace_word {
     GC_TR_SD_REQUESTS, GC_TR_FAILURES, GC_TR_LAST_ERROR, GC_TR_LAST_OFFSET, GC_TR_PAD_READS, GC_TR_STREAM_PLAYING,
     GC_TR_STREAM_MIXES, GC_TR_STREAM_REFILLS, GC_TR_AI_DMAS, GC_TR_AR_DMAS, GC_TR_LAST_AR_TYPE, GC_TR_LAST_AR_MAIN,
     GC_TR_LAST_AR_ARAM, GC_TR_LAST_AR_LENGTH, GC_TR_PENDING_CB, GC_TR_ALARMS, GC_TR_BEATS, GC_TR_BEAT_PC,
-    GC_TR_BEAT_LR, GC_TR_BEAT_MSR, GC_TR_EXCEPTION, GC_TR_DSISR, GC_TR_DAR, GC_TR_WORDS
+    GC_TR_BEAT_LR, GC_TR_BEAT_MSR, GC_TR_EXCEPTION, GC_TR_DSISR, GC_TR_DAR,
+    GC_TR_PI_CAUSE, GC_TR_PI_MASK, GC_TR_HW_IRQ_FLAG, GC_TR_HW_IRQ_MASK, GC_TR_WORDS
 };
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
@@ -90,6 +91,7 @@ enum gc_trace_word {
 #define GC_TRACE_AR 4u
 #define GC_TRACE_JUMP 5u
 #define GC_TRACE_BEAT 6u
+#define GC_TRACE_COMMAND 8u /* a DVDLow command that is not a read */
 #define GC_TRACE_FATAL 7u   /* the game crashed: beat_pc/lr/msr are the crash's SRR0, LR, SRR1 */
 /* The first records stay (how the game started); the rest go round. */
 #define GC_TRACE_KEPT 16u

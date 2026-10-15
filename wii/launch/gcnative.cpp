@@ -637,6 +637,10 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     store32(0x800000FC, kWiiCpuClock);
     // IOS's replies stay polled: no IPC interrupt reaches the game.
     store32(0xCD000004, 0);
+    // Nor any other of Hollywood's interrupts: the game's OS knows none of
+    // them and could not clear one (HW_PPCIRQMASK, then the flags acked).
+    store32(0xCD000034, 0);
+    store32(0xCD000030, 0xFFFFFFFF);
     // A first trace record through the blob's own IPC, as the game will
     // use it: written here, the card and the polling work on this console.
     paint(GC_COLOUR_YELLOW);

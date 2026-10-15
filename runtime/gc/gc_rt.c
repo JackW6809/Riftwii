@@ -379,6 +379,12 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_EXCEPTION] = ctx->exception;
     w[GC_TR_DSISR] = ctx->dsisr;
     w[GC_TR_DAR] = ctx->dar;
+    /* Interrupts: the PI's cause and mask, and Hollywood's lines to the
+     * CPU (Wii-only; a GameCube game cannot clear them). */
+    w[GC_TR_PI_CAUSE] = gc_read32(0xCC003000u);
+    w[GC_TR_PI_MASK] = gc_read32(0xCC003004u);
+    w[GC_TR_HW_IRQ_FLAG] = gc_read32(0xCD000030u);
+    w[GC_TR_HW_IRQ_MASK] = gc_read32(0xCD000034u);
     sector = gc_trace_slot(ctx, ctx->trace_seq);
     /* CMD25, one block; then CMD13 until the card has written it. */
     q[0] = 0x19u;
@@ -443,23 +449,29 @@ static void gc_beat_arm(struct gc_rt_context* ctx) {
     set_alarm(ctx->beat_alarm, ctx->beat_ticks, ctx->alarm_entry);
 }
 
-uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, uint32_t offset, uint32_t cb) {
+/* Every DVDLow command: the first starts the heartbeat (the game's OS is
+ * up by then, its alarms work), and the first few that are not reads get
+ * a trace record too (reads write their own). */
+static void gc_command_seen(struct gc_rt_context* ctx, int traced) {
     ctx->commands++;
+    if (ctx->commands == 1 && ctx->beat_ticks != 0) gc_beat_arm(ctx);
+    if (traced && ctx->commands <= 32) gc_trace(ctx, GC_TRACE_COMMAND);
+}
+
+uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, uint32_t offset, uint32_t cb) {
+    gc_command_seen(ctx, 0);
     ctx->reads++;
     ctx->read_bytes += length;
     ctx->last_offset = offset;
     gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset) ? GC_DI_TC : GC_DI_DE);
-    if (ctx->reads == 1) {
-        gc_paint(ctx, GC_COLOUR_MAGENTA);
-        if (ctx->beat_ticks != 0) gc_beat_arm(ctx);
-    }
+    if (ctx->reads == 1) gc_paint(ctx, GC_COLOUR_MAGENTA);
     if ((ctx->reads & 7) == 0) gc_led_toggle();
     if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
 }
 
 uint32_t gc_on_disk_id(struct gc_rt_context* ctx, uint32_t id, uint32_t cb) {
-    ctx->commands++;
+    gc_command_seen(ctx, 1);
     gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)id, 0x20, 0) ? GC_DI_TC : GC_DI_DE);
     return 1;
 }
@@ -468,7 +480,7 @@ uint32_t gc_on_disk_id(struct gc_rt_context* ctx, uint32_t id, uint32_t cb) {
 uint32_t gc_on_inquiry(struct gc_rt_context* ctx, uint32_t info, uint32_t cb) {
     uint32_t* words = (uint32_t*)(uintptr_t)info;
     uint32_t i;
-    ctx->commands++;
+    gc_command_seen(ctx, 1);
     for (i = 0; i < 8; ++i) words[i] = 0;
     words[0] = 0x00020201u;
     words[1] = 0x20020402u;
@@ -478,7 +490,7 @@ uint32_t gc_on_inquiry(struct gc_rt_context* ctx, uint32_t info, uint32_t cb) {
 }
 
 uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb) {
-    ctx->commands++;
+    gc_command_seen(ctx, 1);
     gc_set_imm(ctx, 0);  /* RequestError: no error */
     gc_complete(ctx, cb, GC_DI_TC);
     return 1;
@@ -527,7 +539,7 @@ static void gc_stream_reset(struct gc_rt_stream* st) {
 /* E1: set the stream (or the next one), or cancel it. */
 uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t length, uint32_t offset, uint32_t cb) {
     struct gc_rt_stream* st = (struct gc_rt_stream*)(uintptr_t)ctx->stream;
-    ctx->commands++;
+    gc_command_seen(ctx, 1);
     if (st != 0) {
         if (sub & 0x00010000u) {
             st->playing = 0;  /* cancel at once */
@@ -555,7 +567,7 @@ uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t le
 uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb) {
     const struct gc_rt_stream* st = (const struct gc_rt_stream*)(uintptr_t)ctx->stream;
     uint32_t value = 0;
-    ctx->commands++;
+    gc_command_seen(ctx, 1);
     if (st != 0) {
         const uint32_t which = (sub >> 16) & 0xFFu;
         const uint32_t played = st->pos - (st->buf_valid - st->buf_at);
