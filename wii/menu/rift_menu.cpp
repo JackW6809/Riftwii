@@ -4029,7 +4029,7 @@ static bool PrepareGcGameInMenu(FrontendState& state)
 
 	bool ok;
 	{
-		PopupBox box(tr("Making {1}", {game.id}), "", "", tr("Stop"));
+		PopupBox box(tr("Making {1}", {name}), "", "", tr("Stop"));
 		ProgressBar bar(56, 280, 528);
 		box.Add(&bar, 528);
 		const u64 start = gettime();
@@ -4050,6 +4050,9 @@ static bool PrepareGcGameInMenu(FrontendState& state)
 						: tr("{1} seconds left", {std::to_string(left)}));
 			}
 			HaltGui();
+			// Minutes of work with no button pressed: not idle, so the
+			// screen does not dim over the bar.
+			lastActive = now;
 			bar.Set(fraction);
 			box.SetBody(text);
 			const bool stop = box.Pressed();

@@ -14,6 +14,7 @@
 #include <memory>
 
 #include "log.hpp"
+#include "memlimits.hpp"
 #include "progress.hpp"
 #include "riftwii/vcdiff.hpp"
 
@@ -21,14 +22,17 @@ namespace riftwii::wii {
 
 namespace {
 
-// The Wii's share of memory for preparing: an 8 MB window, its copy
-// window read at once up to 8 MB, larger ones through 8 MB of cache.
+// The Wii's share of memory for preparing, sized for the menu, which has
+// about 30 MB free with its covers and music loaded: a window (8 MB in
+// xdelta3's patches) and its data, its copy window read at once up to
+// 4 MB, larger ones through 2 MB of cache. With 8 MB each, Super Mario
+// Eclipse ran the menu out of memory in its third window.
 VcdiffLimits wii_limits() {
     VcdiffLimits l;
     l.max_window = 32u << 20;
-    l.whole_copy_window = 8u << 20;
+    l.whole_copy_window = 4u << 20;
     l.cache_block = 64u << 10;
-    l.cache_blocks = 128;
+    l.cache_blocks = 32;
     return l;
 }
 
@@ -195,7 +199,7 @@ bool PrepareGcPatch(GcImage& image, std::string& error, const GcPrepareProgress&
         const u64 start = gettime();
         u64 last_label = 0;
         if (!caller_progress) ProgressStage("Preparing the game from its patch (once)", 0);
-        ok = apply_vcdiff(
+        ok = mem::OutOfMemoryAsError(error, [&] { return apply_vcdiff(
             patch.reader(), patch.size, original.reader(), original.size,
             [&](const std::uint8_t* d, std::size_t n) {
                 if (std::fwrite(d, 1, n, out.f) != n) return false;
@@ -220,7 +224,7 @@ bool PrepareGcPatch(GcImage& image, std::string& error, const GcPrepareProgress&
                 }
                 return !caller_progress || caller_progress(done, total);
             },
-            error, wii_limits(), &stats);
+            error, wii_limits(), &stats); });
         if (ok && std::fflush(out.f) != 0) {
             ok = false;
             error = "cannot write " + part;

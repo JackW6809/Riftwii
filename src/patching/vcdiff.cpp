@@ -15,6 +15,17 @@ namespace riftwii {
 
 namespace {
 
+// Sizes `v` to `n` bytes for new contents (the old ones are not kept): a
+// buffer that has to grow is freed first, so a larger window never needs
+// the old block and the new one at once. The Wii's menu has about 30 MB
+// to prepare a game in, and a buffer grown in place briefly took twice
+// its size (Super Mario Eclipse's third window found no 8 MB block).
+void fresh_size(std::vector<std::uint8_t>& v, std::uint64_t n) {
+    if (n > v.capacity()) std::vector<std::uint8_t>().swap(v);
+    v.resize(static_cast<std::size_t>(n));
+}
+
+
 constexpr std::uint8_t kSource = 0x01;   // Win_Indicator: the copy window is in the original
 constexpr std::uint8_t kTarget = 0x02;   // ...or in the patched image made so far
 constexpr std::uint8_t kAdler32 = 0x04;  // xdelta3: the window's checksum follows
@@ -189,11 +200,11 @@ public:
             if (seg_len > limits_.max_window) return fail("a patch window is larger than RiftWii takes");
         }
         if (seg_whole_) {
-            seg_.resize(static_cast<std::size_t>(seg_len));
+            fresh_size(seg_, seg_len);
             if (seg_len && !read_seg(seg_pos, seg_.data(), seg_.size())) return false;
         }
 
-        out.resize(static_cast<std::size_t>(window_len));
+        fresh_size(out, window_len);
         window_len_ = window_len;
         seg_len_ = seg_len;
         if (!seg_whole_ && seg_len != 0) {
@@ -209,7 +220,7 @@ public:
                     return true;
                 }))
                 return false;
-            if (cache_.size() < region) cache_.resize(static_cast<std::size_t>(region));
+            if (cache_.size() < region) fresh_size(cache_, region);
             for (std::uint64_t lo = 0; lo < seg_len; lo += region) {
                 const std::uint64_t hi = std::min(seg_len, lo + region);
                 bool any = false;
@@ -336,7 +347,7 @@ private:
         return read_integer([this](std::uint8_t& b) { return byte(b); }, out);
     }
     bool section(std::vector<std::uint8_t>& out, std::uint64_t n) {
-        out.resize(static_cast<std::size_t>(n));
+        fresh_size(out, n);
         return n == 0 || take(out.data(), out.size());
     }
 
