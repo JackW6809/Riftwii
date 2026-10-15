@@ -18,6 +18,7 @@ _gc_blob_start:
     .long gc_trace_now - _gc_blob_start
     .long gc_hook_fatal - _gc_blob_start
     .long gc_dsi_entry - _gc_blob_start
+    .long gc_exi_table - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -256,6 +257,91 @@ gc_dsi_entry:
     addi 3, 3, gc_context_data - 4b
     bl gc_on_fatal
 5:  b 5b
+
+/* The EXI functions (gc_card.h): gc_on_exi(ctx, which, the game's r3..r7,
+ * &pass) answers for the emulated card; when it sets pass, the original
+ * runs from its replay slot with the game's arguments.
+ * Frame: 8..0x18 r3..r7, 0x1C pass. */
+    .macro GC_EXI_HOOK idx
+gc_exi_hook_\idx:
+    stwu 1, -0x30(1)
+    mflr 0
+    stw 0, 0x34(1)
+    stw 3, 0x08(1)
+    stw 4, 0x0C(1)
+    stw 5, 0x10(1)
+    stw 6, 0x14(1)
+    stw 7, 0x18(1)
+    li 0, 0
+    stw 0, 0x1C(1)
+    addi 10, 1, 0x1C
+    mr 9, 7
+    mr 8, 6
+    mr 7, 5
+    mr 6, 4
+    mr 5, 3
+    li 4, \idx
+    bl 1f
+1:  mflr 3
+    addi 3, 3, gc_context_data - 1b
+    bl gc_on_exi
+    lwz 0, 0x1C(1)
+    cmpwi 0, 0
+    bne 2f
+    lwz 0, 0x34(1)
+    mtlr 0
+    addi 1, 1, 0x30
+    blr
+2:  lwz 3, 0x08(1)
+    lwz 4, 0x0C(1)
+    lwz 5, 0x10(1)
+    lwz 6, 0x14(1)
+    lwz 7, 0x18(1)
+    lwz 0, 0x34(1)
+    mtlr 0
+    addi 1, 1, 0x30
+    b gc_exi_replay_\idx
+    .balign 16
+gc_exi_replay_\idx:
+    nop
+    nop
+    nop
+    nop
+gc_exi_continue_\idx:
+    lis 12, 0
+    ori 12, 12, 0
+    mtctr 12
+    bctr
+    .endm
+
+    GC_EXI_HOOK 0
+    GC_EXI_HOOK 1
+    GC_EXI_HOOK 2
+    GC_EXI_HOOK 3
+    GC_EXI_HOOK 4
+    GC_EXI_HOOK 5
+    GC_EXI_HOOK 6
+    GC_EXI_HOOK 7
+    GC_EXI_HOOK 8
+    GC_EXI_HOOK 9
+    GC_EXI_HOOK 10
+
+    .macro GC_EXI_ENTRY idx
+    .long gc_exi_hook_\idx - _gc_blob_start, gc_exi_replay_\idx - _gc_blob_start, gc_exi_continue_\idx - _gc_blob_start
+    .endm
+    .balign 4
+gc_exi_table:
+    GC_EXI_ENTRY 0
+    GC_EXI_ENTRY 1
+    GC_EXI_ENTRY 2
+    GC_EXI_ENTRY 3
+    GC_EXI_ENTRY 4
+    GC_EXI_ENTRY 5
+    GC_EXI_ENTRY 6
+    GC_EXI_ENTRY 7
+    GC_EXI_ENTRY 8
+    GC_EXI_ENTRY 9
+    GC_EXI_ENTRY 10
 
     .balign 32
     .globl gc_context_data

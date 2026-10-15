@@ -5,6 +5,7 @@
  * calls; all state is in the context the trampolines hand over. */
 #include "gc_rt.h"
 #include "gc_bt.h"
+#include "gc_card.h"
 
 /* Hollywood's IPC registers, uncached (wiibrew "Hardware/IPC"): the
  * request's physical address, the control bits, IOS's reply. */
@@ -26,6 +27,7 @@
  * auto-CMD12 one). IOS on a Wii refuses any other length with -4;
  * Dolphin does not check. */
 #define GC_SD_RESPONSE_BYTES 16u
+#define GC_TRACE_SKIPPED (-3000)  /* no trace, or the IPC buffers were in use */
 
 static uint32_t gc_read32(uint32_t address) { return *(volatile uint32_t*)(uintptr_t)address; }
 static void gc_write32(uint32_t address, uint32_t value) { *(volatile uint32_t*)(uintptr_t)address = value; }
@@ -380,6 +382,66 @@ static void gc_show_hex(const struct gc_rt_context* ctx, uint32_t row, uint32_t 
  * cannot meet a read on the card; skipped while a read is going on. */
 /* Record `seq`'s sector: the first records stay (how the game started),
  * the last GC_TRACE_RING go round. */
+/* `count` sectors (at most 16) from `buf` (32-byte aligned) to the card
+ * at `sector`: CMD25, then CMD13 until the card has written them. The
+ * caller holds ctx->busy. */
+static int32_t gc_sd_write_locked(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t buf) {
+    uint32_t* q = ctx->request;
+    int32_t result;
+    uint32_t i;
+    q[0] = 0x19u;
+    q[1] = GC_SD_CMDTYPE_AC;
+    q[2] = GC_SD_RESPONSE_R1;
+    q[3] = ctx->sdhc ? sector : sector * GC_SECTOR;
+    q[4] = count;
+    q[5] = GC_SECTOR;
+    q[6] = buf;
+    q[7] = 1;
+    q[8] = 0;
+    ctx->vec[0] = gc_physical((uint32_t)(uintptr_t)q);
+    ctx->vec[1] = 36;
+    ctx->vec[2] = gc_physical(buf);
+    ctx->vec[3] = count * GC_SECTOR;
+    ctx->vec[4] = gc_physical((uint32_t)(uintptr_t)ctx->response);
+    ctx->vec[5] = GC_SD_RESPONSE_BYTES;
+    gc_flush((uint32_t)(uintptr_t)q, 36);
+    gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
+    gc_flush(buf, count * GC_SECTOR);
+    ctx->sd_requests++;
+    result = gc_ioctlv(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, 2, 1);
+    if (result >= 0 && ctx->card_rca != 0) {
+        for (i = 0; i < 8192; ++i) {
+            uint32_t state;
+            q[0] = 0x0Du;
+            q[1] = GC_SD_CMDTYPE_AC;
+            q[2] = GC_SD_RESPONSE_R1;
+            q[3] = ctx->card_rca << 16;
+            q[4] = q[5] = q[6] = q[7] = q[8] = 0;
+            ctx->response[0] = 0;
+            if (gc_ioctl(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, (uint32_t)(uintptr_t)q, 36,
+                         (uint32_t)(uintptr_t)ctx->response, 16) < 0)
+                break;
+            state = (ctx->response[0] >> 9) & 0xFu;
+            if (state != 6 && state != 7) break;  /* left receive-data and programming */
+        }
+    }
+    return result;
+}
+
+int32_t gc_sd_write(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t buf) {
+    int32_t result;
+    const uint32_t msr = gc_irq_off();
+    if (ctx->busy) {
+        gc_irq_restore(msr);
+        return GC_TRACE_SKIPPED;
+    }
+    ctx->busy = 1;
+    result = gc_sd_write_locked(ctx, sector, count, buf);
+    ctx->busy = 0;
+    gc_irq_restore(msr);
+    return result;
+}
+
 static uint32_t gc_trace_slot(const struct gc_rt_context* ctx, uint32_t seq) {
     const uint32_t kept = ctx->trace_count > 2 * GC_TRACE_RING ? ctx->trace_count - GC_TRACE_RING : ctx->trace_count / 2;
     const uint32_t ring = ctx->trace_count - kept;
@@ -387,12 +449,10 @@ static uint32_t gc_trace_slot(const struct gc_rt_context* ctx, uint32_t seq) {
     return ctx->trace_sector + kept + (seq - kept - 1) % ring;
 }
 
-#define GC_TRACE_SKIPPED (-3000)  /* no trace, or the IPC buffers were in use */
 static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     int32_t result;
     uint32_t* w = (uint32_t*)(uintptr_t)ctx->trace_buf;
     const struct gc_rt_stream* st = (const struct gc_rt_stream*)(uintptr_t)ctx->stream;
-    uint32_t* q = ctx->request;
     uint32_t msr, tbu, tbl, i, sector;
     if (ctx->trace_sector == 0 || ctx->trace_count == 0 || w == 0) return GC_TRACE_SKIPPED;
     msr = gc_irq_off();
@@ -439,7 +499,16 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
         w[GC_TR_BT_EVENT_LENGTHS] = bt->event_lengths;
         gc_copy((uint8_t*)&w[GC_TR_BT_EVENT_LOG], &bt->event_log[0][0], 32);
     }
-    w[GC_TR_PENDING_CB] = ctx->pending_cb;
+if (ctx->card) {
+        const struct gc_card* card = (const struct gc_card*)(uintptr_t)ctx->card;
+        w[GC_TR_CARD_READS] = card->reads;
+        w[GC_TR_CARD_WRITES] = card->programs << 16 | (card->erases & 0xFFFFu);
+        w[GC_TR_CARD_FLUSHES] = card->flushes;
+        w[GC_TR_CARD_DIRTY] = card->dirty_count;
+        w[GC_TR_CARD_ERROR] = (uint32_t)card->flush_error;
+        w[GC_TR_CARD_LAST] = card->last_cmd << 24 | (card->activity & 0xFFFFFFu);
+    }
+        w[GC_TR_PENDING_CB] = ctx->pending_cb;
     w[GC_TR_ALARMS] = ctx->alarms;
     w[GC_TR_BEATS] = ctx->beats;
     w[GC_TR_BEAT_PC] = ctx->beat_pc;
@@ -468,43 +537,8 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_HW_IRQ_FLAG] = gc_read32(0xCD000030u);
     w[GC_TR_HW_IRQ_MASK] = gc_read32(0xCD000034u);
     sector = gc_trace_slot(ctx, ctx->trace_seq);
-    /* CMD25, one block; then CMD13 until the card has written it. */
-    q[0] = 0x19u;
-    q[1] = GC_SD_CMDTYPE_AC;
-    q[2] = GC_SD_RESPONSE_R1;
-    q[3] = ctx->sdhc ? sector : sector * GC_SECTOR;
-    q[4] = 1;
-    q[5] = GC_SECTOR;
-    q[6] = ctx->trace_buf;
-    q[7] = 1;
-    q[8] = 0;
-    ctx->vec[0] = gc_physical((uint32_t)(uintptr_t)q);
-    ctx->vec[1] = 36;
-    ctx->vec[2] = gc_physical(ctx->trace_buf);
-    ctx->vec[3] = GC_SECTOR;
-    ctx->vec[4] = gc_physical((uint32_t)(uintptr_t)ctx->response);
-    ctx->vec[5] = GC_SD_RESPONSE_BYTES;
-    gc_flush((uint32_t)(uintptr_t)q, 36);
-    gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
-    gc_flush(ctx->trace_buf, GC_SECTOR);
-    result = gc_ioctlv(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, 2, 1);
+    result = gc_sd_write_locked(ctx, sector, 1, ctx->trace_buf);
     if (result >= 0) gc_led(1);
-    if (result >= 0 && ctx->card_rca != 0) {
-        for (i = 0; i < 8192; ++i) {
-            uint32_t state;
-            q[0] = 0x0Du;
-            q[1] = GC_SD_CMDTYPE_AC;
-            q[2] = GC_SD_RESPONSE_R1;
-            q[3] = ctx->card_rca << 16;
-            q[4] = q[5] = q[6] = q[7] = q[8] = 0;
-            ctx->response[0] = 0;
-            if (gc_ioctl(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, (uint32_t)(uintptr_t)q, 36,
-                         (uint32_t)(uintptr_t)ctx->response, 16) < 0)
-                break;
-            state = (ctx->response[0] >> 9) & 0xFu;
-            if (state != 6 && state != 7) break;  /* left receive-data and programming */
-        }
-    }
     ctx->busy = 0;
     gc_irq_restore(msr);
     return result;
@@ -594,8 +628,13 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
             ctx->beat_msr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR1);
         }
         gc_guard(ctx);
+        if (ctx->card) gc_card_flush(ctx, (struct gc_card*)(uintptr_t)ctx->card);
         gc_trace(ctx, GC_TRACE_BEAT);
         gc_beat_arm(ctx);
+        return;
+    }
+    if (ctx->card && alarm == (uint32_t)(uintptr_t)((struct gc_card*)(uintptr_t)ctx->card)->alarm) {
+        gc_card_on_alarm(ctx, (struct gc_card*)(uintptr_t)ctx->card, os_context);
         return;
     }
     ctx->alarms++;

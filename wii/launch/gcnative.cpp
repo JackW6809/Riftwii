@@ -5,6 +5,7 @@
 #include <gccore.h>
 #include <malloc.h>
 #include <sys/stat.h>
+#include <ogc/lwp_watchdog.h>
 #include <ogc/machine/processor.h>
 
 #include <algorithm>
@@ -17,6 +18,7 @@
 
 #include "d2xsd.hpp"
 #include "gc_bt.h"
+#include "gc_card.h"
 #include "gc_rt.h"
 #include "log.hpp"
 #include "riftwii/fat32.hpp"
@@ -27,6 +29,14 @@
 #include "sdio.hpp"
 
 namespace riftwii::wii {
+
+// libogc's SRAM copies (libogc/system.c), not in its headers.
+extern "C" {
+syssram* __SYS_LockSram(void);
+u32 __SYS_UnlockSram(u32 write);
+syssramex* __SYS_LockSramEx(void);
+u32 __SYS_UnlockSramEx(u32 write);
+}
 
 namespace {
 
@@ -591,6 +601,208 @@ bool move_out_of_ios(Code& code, std::uint32_t moved_addr, std::vector<std::uint
 void store32(std::uint32_t a, std::uint32_t v) { *reinterpret_cast<volatile std::uint32_t*>(a) = v; }
 std::uint32_t load32(std::uint32_t a) { return *reinterpret_cast<volatile std::uint32_t*>(a); }
 
+// A formatted, empty 251-block card (gc_card.h), as the SDK's CARDFormat
+// leaves one: the header with its serial made from this console's SRAM
+// (the card's flash ID for slot A, the clock bias, the language) and the
+// format time, two empty directories and two block tables, each with its
+// pair of 16-bit checksums. Some games (Eclipse) never offer to format a
+// blank card and use it as if it were. Layout and checksum as libogc's
+// card.c writes them; the SDK reads the same card.
+void card_checksum(const std::uint8_t* p, std::uint32_t bytes, std::uint8_t* out) {
+    std::uint16_t sum = 0, inverse = 0;
+    for (std::uint32_t i = 0; i + 1 < bytes; i += 2) {
+        const std::uint16_t word = static_cast<std::uint16_t>(p[i] << 8 | p[i + 1]);
+        sum = static_cast<std::uint16_t>(sum + word);
+        inverse = static_cast<std::uint16_t>(inverse + (word ^ 0xFFFF));
+    }
+    if (sum == 0xFFFF) sum = 0;
+    if (inverse == 0xFFFF) inverse = 0;
+    out[0] = sum >> 8;
+    out[1] = sum;
+    out[2] = inverse >> 8;
+    out[3] = inverse;
+}
+
+void put_be16(std::uint8_t* p, std::uint32_t v) {
+    p[0] = static_cast<std::uint8_t>(v >> 8);
+    p[1] = static_cast<std::uint8_t>(v);
+}
+
+void format_card(std::vector<std::uint8_t>& card, bool shift_jis) {
+    constexpr std::uint32_t kBlock = GC_CARD_SECTOR;
+    constexpr std::uint32_t kBlocks = GC_CARD_BYTES / GC_CARD_SECTOR;
+    std::fill(card.begin(), card.end(), 0xFF);
+    std::uint8_t* header = card.data();
+    syssram* sram = __SYS_LockSram();
+    const std::uint32_t bias = sram->counter_bias;
+    const std::uint32_t language = sram->lang;
+    __SYS_UnlockSram(0);
+    const std::uint64_t now = gettime();
+    std::uint64_t rand = now;
+    syssramex* sramex = __SYS_LockSramEx();
+    for (unsigned i = 0; i < 12; ++i) {
+        rand = (rand * 0x41C64E6Dull + 0x3039ull) >> 16;
+        header[i] = static_cast<std::uint8_t>(sramex->flash_id[0][i] + static_cast<std::uint32_t>(rand));
+        rand = ((rand * 0x41C64E6Dull + 0x3039ull) >> 16) & 0x7FFF;
+    }
+    __SYS_UnlockSramEx(0);
+    for (unsigned i = 0; i < 8; ++i) header[12 + i] = static_cast<std::uint8_t>(now >> (56 - 8 * i));
+    for (unsigned i = 0; i < 4; ++i) {
+        header[20 + i] = static_cast<std::uint8_t>(bias >> (24 - 8 * i));
+        header[24 + i] = static_cast<std::uint8_t>(language >> (24 - 8 * i));
+    }
+    const std::uint32_t dtv = *reinterpret_cast<volatile std::uint16_t*>(0xCC00206E);
+    for (unsigned i = 0; i < 4; ++i) header[28 + i] = static_cast<std::uint8_t>(dtv >> (24 - 8 * i));
+    put_be16(header + 0x20, 0);                  // device ID
+    put_be16(header + 0x22, GC_CARD_ID & 0xFC);  // size, megabits
+    put_be16(header + 0x24, shift_jis ? 1 : 0);  // the font encoding
+    card_checksum(header, 0x1FC, header + 0x1FC);
+    for (unsigned d = 0; d < 2; ++d) {
+        std::uint8_t* dir = card.data() + (d + 1) * kBlock;
+        card_checksum(dir, 0x1FFC, dir + 0x1FFC);
+    }
+    for (unsigned b = 0; b < 2; ++b) {
+        std::uint8_t* bat = card.data() + (b + 3) * kBlock;
+        std::fill(bat, bat + kBlock, 0);
+        put_be16(bat + 4, b);              // updated
+        put_be16(bat + 6, kBlocks - 5);    // free blocks
+        put_be16(bat + 8, 4);              // last allocated
+        card_checksum(bat + 4, 0x1FFC, bat);
+    }
+}
+
+// The SDK's EXI functions (gc_card.h's order), found through the EXI
+// control blocks they all index (an array of 0x40-byte blocks, one per
+// channel, its state word at 12) and what each does to that state word:
+// select sets 4 and deselect clears it, lock sets 16 and unlock clears
+// it, attach sets 8 (and probes). EXIImm keeps its buffer and length at 16 and 20;
+// EXIDma calls the same interrupt clear as EXIImm without storing them;
+// EXIGetID reads the probe times at 0x800030C0 and calls lock, select,
+// EXIImm, then EXISync; EXIProbe and EXIProbeEx call the probe select
+// uses and EXIGetID, EXIProbeEx returning -1 too. Returns the control
+// blocks' address, 0 when anything is missing or doubtful.
+std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_HOOKS]) {
+    std::fill(std::begin(out), std::end(out), 0);
+    // The control blocks: lis/addi pairs near a "slwi rX,rY,6" at a
+    // function's start.
+    std::map<std::uint32_t, unsigned> bases;
+    std::map<std::uint32_t, std::uint32_t> base_of;  // function -> its base
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if ((w & 0xFC00FFFF) != 0x54003032) return;  // slwi rA,rS,6
+        const std::uint32_t f = function_start(code, a);
+        if (f == 0 || a - f > 0x40) return;
+        std::uint32_t hi[32] = {};
+        bool known[32] = {};
+        for (std::uint32_t b = f; b < f + 0x50; b += 4) {
+            const std::uint32_t x = code.at(b);
+            const unsigned op = x >> 26, d = (x >> 21) & 31, ra = (x >> 16) & 31;
+            if (op == 15 && ra == 0) {
+                hi[d] = (x & 0xFFFF) << 16;
+                known[d] = true;
+            } else if (op == 14 && ra != 0 && known[ra]) {
+                const std::uint32_t value = hi[ra] + static_cast<std::uint32_t>(static_cast<std::int16_t>(x & 0xFFFF));
+                if (value >= 0x80000000 && value < 0x81800000) {
+                    bases[value]++;
+                    base_of[f] = value;
+                    return;
+                }
+            }
+        }
+    });
+    std::uint32_t ecb = 0;
+    unsigned most = 7;
+    for (auto& [b, n] : bases)
+        if (n > most) {
+            most = n;
+            ecb = b;
+        }
+    if (ecb == 0) return 0;
+    struct Fn {
+        std::uint32_t start = 0, size = 0;
+        bool sets[32] = {}, clears[32] = {}, stores_16_20 = false, minus_one = false, probe_times = false;
+        bool dma_start = false;  // ori rX,rX,3: a DMA transfer's control word
+        std::vector<std::uint32_t> calls;
+    };
+    std::vector<Fn> fns;
+    for (auto& [f, b] : base_of) {
+        if (b != ecb) continue;
+        Fn fn;
+        fn.start = f;
+        bool st16 = false, st20 = false;
+        for (std::uint32_t a = f; code.has(a) && a < f + 0x800; a += 4) {
+            const std::uint32_t x = code.at(a);
+            const unsigned op = x >> 26;
+            if (op == 24 && ((x >> 21) & 31) == ((x >> 16) & 31) && (x & 0xFFFF) < 32 && (x & 0xFFFF) != 0)
+                for (unsigned bit = 0; bit < 5; ++bit)
+                    if ((x & 0xFFFF) == (1u << bit)) fn.sets[bit] = true;  // ori rX,rX,1<<bit
+            if (op == 24 && ((x >> 21) & 31) == ((x >> 16) & 31) && (x & 0xFFFF) == 3) fn.dma_start = true;
+            if (op == 21 && ((x >> 11) & 31) == 0) {  // rlwinm rA,rS,0,MB,ME clearing one bit
+                const unsigned mb = (x >> 6) & 31, me = (x >> 1) & 31;
+                if (mb == (me + 2) % 32) fn.clears[31 - ((me + 1) % 32)] = true;
+            }
+            if (op == 36 && (x & 0xFFFF) == 16) st16 = true;
+            if (op == 36 && (x & 0xFFFF) == 20) st20 = true;
+            if (x == 0x3860FFFF) fn.minus_one = true;  // li r3,-1
+            if (op == 14 && (x & 0xFFFF) == 0x30C0) fn.probe_times = true;
+            if (std::uint32_t t = bl_target(a, x)) fn.calls.push_back(t);
+            if (x == 0x4E800020) {
+                fn.size = a + 4 - f;
+                break;
+            }
+        }
+        fn.stores_16_20 = st16 && st20;
+        fns.push_back(fn);
+    }
+    auto only = [&](auto test) -> std::uint32_t {
+        std::uint32_t found = 0;
+        for (const Fn& fn : fns)
+            if (test(fn)) {
+                if (found) return 0;  // two: doubtful
+                found = fn.start;
+            }
+        return found;
+    };
+    auto calls = [](const Fn& fn, std::uint32_t target) {
+        return target != 0 && std::find(fn.calls.begin(), fn.calls.end(), target) != fn.calls.end();
+    };
+    out[GC_EXI_SELECT] = only([](const Fn& fn) { return fn.sets[2] && !fn.sets[4]; });
+    out[GC_EXI_DESELECT] = only([](const Fn& fn) { return fn.clears[2]; });
+    out[GC_EXI_LOCK] = only([](const Fn& fn) { return fn.sets[4]; });
+    out[GC_EXI_UNLOCK] = only([](const Fn& fn) { return fn.clears[4] && !fn.probe_times; });
+    out[GC_EXI_IMM] = only([](const Fn& fn) { return fn.stores_16_20 && fn.sets[1]; });
+    out[GC_EXI_GET_ID] = only([&](const Fn& fn) {
+        return fn.probe_times && calls(fn, out[GC_EXI_LOCK]) && calls(fn, out[GC_EXI_SELECT]);
+    });
+    // The probe select calls (in the control blocks' functions).
+    std::uint32_t probe = 0;
+    for (const Fn& fn : fns)
+        if (fn.start == out[GC_EXI_SELECT])
+            for (std::uint32_t t : fn.calls)
+                for (const Fn& g : fns)
+                    if (g.start == t && probe == 0) probe = t;
+    out[GC_EXI_ATTACH] = only([&](const Fn& fn) { return fn.sets[3] && calls(fn, probe) && !fn.probe_times; });
+    out[GC_EXI_PROBE] = only([&](const Fn& fn) {
+        return calls(fn, probe) && calls(fn, out[GC_EXI_GET_ID]) && !fn.minus_one && !fn.sets[3] && fn.size < 0x100;
+    });
+    out[GC_EXI_PROBE_EX] = only([&](const Fn& fn) {
+        return calls(fn, probe) && calls(fn, out[GC_EXI_GET_ID]) && fn.minus_one && !fn.sets[3];
+    });
+    // EXIDma: the other one that starts a transfer, with DMA and start
+    // set in the control word.
+    out[GC_EXI_DMA] = only([&](const Fn& fn) { return fn.dma_start && fn.start != out[GC_EXI_IMM]; });
+    // EXISync: what EXIGetID calls right after its first EXIImm.
+    for (const Fn& fn : fns)
+        if (fn.start == out[GC_EXI_GET_ID])
+            for (std::size_t i = 0; i + 1 < fn.calls.size(); ++i)
+                if (fn.calls[i] == out[GC_EXI_IMM]) {
+                    out[GC_EXI_SYNC] = fn.calls[i + 1];
+                    break;
+                }
+    for (std::uint32_t f : out)
+        if (f == 0) return 0;
+    return ecb;
+}
+
 }  // namespace
 
 bool LaunchGcNative(const GcImage& image, std::string& error) {
@@ -607,6 +819,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const bool no_ai_rate = stat("sd:/riftwii/gc/no-ai-rate", &st_press) == 0;
     // Trial switch: the Wii Remote driver left out (sd:/riftwii/gc/no-remotes).
     const bool no_remotes = stat("sd:/riftwii/gc/no-remotes", &st_press) == 0;
+    // Trial switch: slot A left to the hardware (sd:/riftwii/gc/no-card).
+    const bool no_card = stat("sd:/riftwii/gc/no-card", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     std::vector<PlacedRun> placed;
@@ -660,7 +874,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const std::uint32_t stream_addr = (adp_addr - sizeof(gc_rt_stream)) & ~31u;
     const std::uint32_t trace_addr = (stream_addr - 512) & ~31u;
     const std::uint32_t bt_addr = (trace_addr - sizeof(gc_bt)) & ~31u;
-    const std::uint32_t runs_addr = (bt_addr - runs_bytes) & ~31u;
+    const std::uint32_t card_addr = (bt_addr - sizeof(gc_card)) & ~31u;
+    const std::uint32_t runs_addr = (card_addr - runs_bytes) & ~31u;
     const std::uint32_t moved_addr = (runs_addr - kMovedBytes) & ~31u;
     const std::uint32_t blob_addr = (moved_addr - h.size) & ~31u;
     // The DI registers' stand-in: its address must end in 0x6000, as the
@@ -708,6 +923,62 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
              why.empty() ? "" : ": ", why.c_str());
     }
 
+    // The memory card in slot A (gc_card.h): one file per game,
+    // sd:/riftwii/gc/cards/<ID>.raw, made and formatted the first time. Its whole image goes to MEM2 at the
+    // jump, and the blob writes what the game saves back to its sectors.
+    std::vector<std::uint8_t> card_image;
+    std::vector<gc_card_run> card_runs;
+    if (!no_card) {
+        std::string id;
+        for (char c : image.id)
+            if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) id += c;
+        const std::string path = "sd:/riftwii/gc/cards/" + id + ".raw";
+        mkdir("sd:/riftwii/gc/cards", 0777);
+        card_image.assign(GC_CARD_BYTES, 0xFF);
+        bool ready = false;
+        if (std::FILE* f = std::fopen(path.c_str(), "rb")) {
+            ready = std::fread(card_image.data(), 1, card_image.size(), f) == card_image.size();
+            std::fclose(f);
+        }
+        // New, short, or never formatted (its header still erased): formatted here.
+        const bool blank = !ready || std::all_of(card_image.begin(), card_image.begin() + 0x200,
+                                                 [](std::uint8_t b) { return b == 0xFF; });
+        if (blank) {
+            const bool shift_jis = image.id.size() > 3 && image.id[3] == 'J';
+            format_card(card_image, shift_jis);
+            logf("GameCube: a newly formatted memory card, %s (%u KB)\n", path.c_str(), GC_CARD_BYTES / 1024);
+            std::FILE* f = std::fopen(path.c_str(), "wb");
+            ready = f && std::fwrite(card_image.data(), 1, card_image.size(), f) == card_image.size();
+            if (f) std::fclose(f);
+            forget_sd_layout();
+        }
+        Fat32File cf;
+        std::string why;
+        if (ready && resolve_sd_file(path.c_str(), cf, why)) {
+            std::uint32_t at = 0;
+            for (const auto& fr : cf.fragments) {
+                if (at >= GC_CARD_FILE_SECTORS) break;
+                gc_card_run run{};
+                run.card_sector = at;
+                run.sd_sector = static_cast<std::uint32_t>(fr.sector);
+                run.count = static_cast<std::uint32_t>(
+                    std::min<std::uint64_t>(fr.sector_count, GC_CARD_FILE_SECTORS - at));
+                at += run.count;
+                card_runs.push_back(run);
+            }
+            if (at < GC_CARD_FILE_SECTORS || card_runs.size() > GC_CARD_RUNS) {
+                why = "the file is in too many pieces or too short";
+                card_runs.clear();
+            }
+        }
+        if (card_runs.empty()) {
+            logf("GameCube: no memory card (%s): %s\n", path.c_str(), why.empty() ? "it could not be made" : why.c_str());
+            card_image.clear();
+        } else {
+            logf("GameCube: memory card %s, %u piece(s)\n", path.c_str(), static_cast<unsigned>(card_runs.size()));
+        }
+    }
+
     // The card, opened and selected; the blob reads it after the jump.
     // IOS lets one owner have the slot: the file system lets go first (as
     // a Wii game's launch does), and the log goes on on screen only.
@@ -747,6 +1018,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     // controller at the game's first PADRead.
     std::memset(reinterpret_cast<void*>(bt_addr), 0, sizeof(gc_bt));
     ctx->bt = no_remotes ? 0 : bt_addr;
+    auto* memcard = reinterpret_cast<gc_card*>(card_addr);
+    std::memset(memcard, 0, sizeof(*memcard));
 
     // The hooks, in the staged code.
     auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
@@ -800,6 +1073,29 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     }
     if (no_ai_rate) {
         ctx->flags |= GC_FLAG_NO_AI_RATE;
+    }
+    // The memory card: the EXI functions to the blob (gc_card.h).
+    if (!card_image.empty()) {
+        std::uint32_t exi[GC_EXI_HOOKS];
+        const std::uint32_t ecb = find_exi_functions(code, exi);
+        bool branches = false;
+        for (std::uint32_t f : exi)
+            if (f != 0 && ((code.at(f) >> 26) == 18 || (code.at(f) >> 26) == 16)) branches = true;
+        if (ecb != 0 && !branches) {
+            for (unsigned i = 0; i < GC_EXI_HOOKS; ++i) {
+                const std::uint32_t entry = h.exi_hooks + 12 * i;
+                replay_hook(exi[i], load32(blob_addr + entry), load32(blob_addr + entry + 4),
+                            load32(blob_addr + entry + 8));
+            }
+            memcard->image = GC_CARD_IMAGE;
+            memcard->ecb = ecb;
+            memcard->run_count = static_cast<std::uint32_t>(card_runs.size());
+            std::copy(card_runs.begin(), card_runs.end(), memcard->runs);
+            ctx->card = card_addr;
+        }
+        logf("GameCube: memory card %s (EXI blocks 0x%08x, EXIImm 0x%08x, EXIGetID 0x%08x)\n",
+             ctx->card ? "in slot A" : "off: the EXI functions were not all found", ecb, exi[GC_EXI_IMM],
+             exi[GC_EXI_GET_ID]);
     }
     const std::uint32_t ar_dma = find_dsp_stores(code, {0xCC005020, 0xCC005022, 0xCC005024, 0xCC005026,
                                                          0xCC005028, 0xCC00502A});
@@ -952,6 +1248,12 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     // first module, goes into every trace record to show when it changes.
     ctx->watch_addr = 0x800031A0;
     ctx->watch_was = load32(0x800031A0);
+    // The card's image into MEM2 last: the heap it comes from may be
+    // where it goes (memmove copes), and nothing reads the heap after.
+    if (ctx->card) {
+        std::memmove(reinterpret_cast<void*>(GC_CARD_IMAGE), card_image.data(), GC_CARD_BYTES);
+        DCFlushRange(reinterpret_cast<void*>(GC_CARD_IMAGE), GC_CARD_BYTES);
+    }
     DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     reinterpret_cast<void (*)()>(dol.entry)();

@@ -70,6 +70,7 @@ struct gc_rt_header {
     uint32_t trace_now;       /* trace(where): a record from the loader, just before the jump */
     uint32_t hook_fatal;      /* __OSUnhandledException(exception, context, dsisr, dar): shown, never returns */
     uint32_t dsi_entry;       /* an exception before the game's OS has its handlers (the loader's vector stubs) */
+    uint32_t exi_hooks;       /* GC_EXI_HOOKS entries (gc_card.h) of three words: hook, replay, continue */
 };
 
 /* gc_on_fatal's exception number for one caught by the loader's own
@@ -100,7 +101,11 @@ enum gc_trace_word {
     GC_TR_BT_BUTTONS,
     GC_TR_BT_EVENT_LENGTHS,
     GC_TR_BT_EVENT_LOG, /* 8 words: the first four events' first 8 bytes */
-    GC_TR_WORDS = GC_TR_BT_EVENT_LOG + 8
+    GC_TR_CARD_READS = GC_TR_BT_EVENT_LOG + 8,
+    GC_TR_CARD_WRITES, /* page programs << 16 | sector erases */
+    GC_TR_CARD_FLUSHES, GC_TR_CARD_DIRTY, GC_TR_CARD_ERROR,
+    GC_TR_CARD_LAST, /* the last command << 24 | accesses */
+    GC_TR_WORDS
 };
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
@@ -226,6 +231,7 @@ struct gc_rt_context {
     uint32_t guard_copy[64];
     uint32_t probe[4];        /* gc_aram_probe's findings */
     uint32_t bt;              /* struct gc_bt (loader-placed), 0: no Wii Remotes */
+    uint32_t card;            /* struct gc_card (loader-placed), 0: the real slot A */
     uint8_t aram_scratch[32] __attribute__((aligned(32)));  /* the hardware's own ARAM DMA goes here */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
@@ -258,6 +264,7 @@ void gc_guard(struct gc_rt_context* ctx);
 uint32_t gc_irq_off(void);
 void gc_irq_restore(uint32_t msr);
 int32_t gc_ipc_send(uint32_t phys);
+int32_t gc_sd_write(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t buf);
 uint32_t gc_ipc_take(void);
 #endif
 

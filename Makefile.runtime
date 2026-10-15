@@ -53,7 +53,7 @@ PADOBJS := $(PADOUT)/pad_entry.o $(PADOUT)/pad_hook.o $(PADOUT)/rtgcad.o
 GCSRC   := runtime/gc
 GCOUT   := $(OUT)/gc
 GCBLOB  := $(OUT)/riftwii_gc.bin
-GCOBJS  := $(GCOUT)/gc_entry.o $(GCOUT)/gc_rt.o $(GCOUT)/gc_bt.o
+GCOBJS  := $(GCOUT)/gc_entry.o $(GCOUT)/gc_rt.o $(GCOUT)/gc_bt.o $(GCOUT)/gc_card.o
 
 # The in-game screenshot blob (runtime/shot): IOS_IoctlvAsync and PADRead
 # hooks, installed only when the option is on.
@@ -180,10 +180,13 @@ $(GCOUT):
 $(GCOUT)/gc_entry.o: $(GCSRC)/gc_entry.S $(GCSRC)/gc_rt.h | $(GCOUT)
 	$(CC) $(CFLAGS) -I$(GCSRC) -c -o $@ $<
 
-$(GCOUT)/gc_rt.o: $(GCSRC)/gc_rt.c $(GCSRC)/gc_rt.h $(GCSRC)/gc_bt.h | $(GCOUT)
+$(GCOUT)/gc_rt.o: $(GCSRC)/gc_rt.c $(GCSRC)/gc_rt.h $(GCSRC)/gc_bt.h $(GCSRC)/gc_card.h | $(GCOUT)
 	$(CC) $(CFLAGS) -I$(GCSRC) -c -o $@ $<
 
 $(GCOUT)/gc_bt.o: $(GCSRC)/gc_bt.c $(GCSRC)/gc_bt.h $(GCSRC)/gc_rt.h | $(GCOUT)
+	$(CC) $(CFLAGS) -I$(GCSRC) -c -o $@ $<
+
+$(GCOUT)/gc_card.o: $(GCSRC)/gc_card.c $(GCSRC)/gc_card.h $(GCSRC)/gc_rt.h | $(GCOUT)
 	$(CC) $(CFLAGS) -I$(GCSRC) -c -o $@ $<
 
 $(GCOUT)/riftwii_gc.elf: $(GCOBJS) $(GCSRC)/gc.ld
