@@ -14,6 +14,7 @@
 #include <memory>
 
 #include "log.hpp"
+#include "progress.hpp"
 #include "riftwii/vcdiff.hpp"
 
 namespace riftwii::wii {
@@ -71,6 +72,30 @@ std::vector<std::string> list_patches() {
     }
     closedir(d);
     return out;
+}
+
+// The launch screen's bar (progress.hpp) while a patch is applied: 0 to
+// 99%, the label with the time left once there is enough to go by,
+// redrawn at most twice a second (each redraw costs the copy time).
+void show_progress(const std::string& id, std::uint64_t done, std::uint64_t total, u64 start, u64& last_label) {
+    const u64 now = gettime();
+    if (last_label != 0 && ticks_to_millisecs(now - last_label) < 500) return;
+    last_label = now;
+    const unsigned elapsed = static_cast<unsigned>(ticks_to_secs(now - start));
+    char label[64];
+    if (done == 0 || total == 0 || elapsed < 5) {
+        std::snprintf(label, sizeof(label), "Preparing %s from its patch (once)", id.c_str());
+    } else {
+        const std::uint64_t left = std::uint64_t(elapsed) * (total - done) / done;
+        if (left >= 60)
+            std::snprintf(label, sizeof(label), "Preparing %s (once): about %u min %02u s left", id.c_str(),
+                          static_cast<unsigned>(left / 60), static_cast<unsigned>(left % 60));
+        else
+            std::snprintf(label, sizeof(label), "Preparing %s (once): about %u s left", id.c_str(),
+                          static_cast<unsigned>(left));
+    }
+    const int percent = total ? static_cast<int>(done * 99 / total) : 0;
+    ProgressStage(label, percent);
 }
 
 }  // namespace
@@ -158,6 +183,8 @@ bool PrepareGcPatch(GcImage& image, std::string& error) {
         std::uint64_t written = 0;
         int shown = -1;
         const u64 start = gettime();
+        u64 last_label = 0;
+        ProgressStage("Preparing the game from its patch (once)", 0);
         ok = apply_vcdiff(
             patch.reader(), patch.size, original.reader(), original.size,
             [&](const std::uint8_t* d, std::size_t n) {
@@ -174,6 +201,7 @@ bool PrepareGcPatch(GcImage& image, std::string& error) {
             },
             [&](std::uint64_t done, std::uint64_t total) {
                 const int pct = static_cast<int>(done * 100 / (total ? total : 1));
+                show_progress(image.id, done, total, start, last_label);
                 if (pct / 5 != shown / 5) {
                     shown = pct;
                     logf("Preparing %s: %d%% (%llu MB, %u s)\n", image.id.c_str(), pct,
@@ -198,6 +226,7 @@ bool PrepareGcPatch(GcImage& image, std::string& error) {
         error = "cannot rename " + part;
         return false;
     }
+    ProgressStage("Starting the game", 100);
     logf("GameCube: %s prepared (the original read %llu times, %llu MB)\n", final_path.c_str(),
          static_cast<unsigned long long>(stats.source_reads), static_cast<unsigned long long>(stats.source_bytes >> 20));
     image.path = final_path;
