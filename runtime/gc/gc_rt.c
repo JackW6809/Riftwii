@@ -250,19 +250,79 @@ static void gc_paint(const struct gc_rt_context* ctx, uint32_t colour) {
     for (i = 0; i < ctx->xfb_bytes / 4; ++i) p[i] = colour;
 }
 
+/* The disc slot's blue light (Hollywood GPIO, Broadway's bank, bit 5):
+ * a second signal beside the screen, since a game that set up its own
+ * video hides the colours. */
+#define GC_GPIO_OUT 0xCD0000C0u
+#define GC_GPIO_SLOT_LED 0x20u
+static void gc_led(int on) {
+    const uint32_t out = gc_read32(GC_GPIO_OUT);
+    gc_write32(GC_GPIO_OUT, on ? (out | GC_GPIO_SLOT_LED) : (out & ~GC_GPIO_SLOT_LED));
+}
+static void gc_led_toggle(void) { gc_write32(GC_GPIO_OUT, gc_read32(GC_GPIO_OUT) ^ GC_GPIO_SLOT_LED); }
+
+/* A filled box on the frame, in YUYV words (two pixels) across and lines
+ * down; the frame is 640 pixels wide. */
+#define GC_XFB_WORDS_PER_LINE 320u
+static void gc_box(const struct gc_rt_context* ctx, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint32_t colour) {
+    volatile uint32_t* p = (volatile uint32_t*)(uintptr_t)(gc_physical(ctx->xfb) | 0xC0000000u);
+    const uint32_t lines = ctx->xfb_bytes / (GC_XFB_WORDS_PER_LINE * 4);
+    uint32_t row, col;
+    for (row = y; row < y + h && row < lines; ++row)
+        for (col = x; col < x + w && col < GC_XFB_WORDS_PER_LINE; ++col) p[row * GC_XFB_WORDS_PER_LINE + col] = colour;
+}
+
+/* `value` as eight hex digits, seven-segment style, on line `row` of the
+ * frame: the numbers a test on a Wii needs when nothing else can show
+ * them. Segments a-g are bits 0-6; the codes are in immediates because
+ * the blob keeps no constant data. */
+#define GC_WHITE 0xEB80EB80u
+#define GC_BLACK 0x10801080u
+static uint32_t gc_segments(uint32_t digit) {
+    /* Four digits a word, 0 first (a switch becomes a table in .rodata). */
+    uint32_t four;
+    if (digit < 4)
+        four = 0x3F065B4Fu;
+    else if (digit < 8)
+        four = 0x666D7D07u;
+    else if (digit < 12)
+        four = 0x7F6F777Cu;
+    else
+        four = 0x395E7971u;
+    return (four >> (24 - 8 * (digit & 3u))) & 0x7Fu;
+}
+static void gc_show_hex(const struct gc_rt_context* ctx, uint32_t row, uint32_t value) {
+    const uint32_t top = 30 + row * 75;
+    uint32_t n;
+    if (ctx->xfb == 0) return;
+    gc_box(ctx, 30, top - 8, 8 * 24 + 8, 56 + 16, GC_BLACK);
+    for (n = 0; n < 8; ++n) {
+        const uint32_t seg = gc_segments((value >> (28 - 4 * n)) & 0xFu);
+        const uint32_t x = 38 + n * 24;
+        if (seg & 0x01) gc_box(ctx, x, top, 16, 6, GC_WHITE);
+        if (seg & 0x02) gc_box(ctx, x + 13, top, 3, 28, GC_WHITE);
+        if (seg & 0x04) gc_box(ctx, x + 13, top + 28, 3, 28, GC_WHITE);
+        if (seg & 0x08) gc_box(ctx, x, top + 50, 16, 6, GC_WHITE);
+        if (seg & 0x10) gc_box(ctx, x, top + 28, 3, 28, GC_WHITE);
+        if (seg & 0x20) gc_box(ctx, x, top, 3, 28, GC_WHITE);
+        if (seg & 0x40) gc_box(ctx, x, top + 25, 16, 6, GC_WHITE);
+    }
+}
+
 /* One record of the trace (gc_rt.h), with interrupts held off so it
  * cannot meet a read on the card; skipped while a read is going on. */
-static int gc_trace(struct gc_rt_context* ctx, uint32_t where) {
-    int written = 0;
+#define GC_TRACE_SKIPPED (-3000)  /* no trace, or the IPC buffers were in use */
+static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
+    int32_t result;
     uint32_t* w = (uint32_t*)(uintptr_t)ctx->trace_buf;
     const struct gc_rt_stream* st = (const struct gc_rt_stream*)(uintptr_t)ctx->stream;
     uint32_t* q = ctx->request;
     uint32_t msr, tbu, tbl, i, sector;
-    if (ctx->trace_sector == 0 || ctx->trace_count == 0 || w == 0) return 0;
+    if (ctx->trace_sector == 0 || ctx->trace_count == 0 || w == 0) return GC_TRACE_SKIPPED;
     msr = gc_irq_off();
     if (ctx->busy) {
         gc_irq_restore(msr);
-        return 0;
+        return GC_TRACE_SKIPPED;
     }
     ctx->busy = 1;
     __asm__ volatile("mftbu %0" : "=r"(tbu));
@@ -311,10 +371,9 @@ static int gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     gc_flush((uint32_t)(uintptr_t)q, 36);
     gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
     gc_flush(ctx->trace_buf, GC_SECTOR);
-    i = gc_ioctlv(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, 2, 1) >= 0;
-    ctx->last_error = i ? ctx->last_error : -2000;
-    written = i;
-    if (i && ctx->card_rca != 0) {
+    result = gc_ioctlv(ctx, ctx->sdio_fd, GC_SDIO_SENDCMD, 2, 1);
+    if (result >= 0) gc_led(1);
+    if (result >= 0 && ctx->card_rca != 0) {
         for (i = 0; i < 8192; ++i) {
             uint32_t state;
             q[0] = 0x0Du;
@@ -332,7 +391,7 @@ static int gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     }
     ctx->busy = 0;
     gc_irq_restore(msr);
-    return written;
+    return result;
 }
 
 /* The DI's immediate register, where the SDK reads a status reply. */
@@ -357,6 +416,7 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
     ctx->last_offset = offset;
     gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset) ? GC_DI_TC : GC_DI_DE);
     if (ctx->reads == 1) gc_paint(ctx, GC_COLOUR_MAGENTA);
+    if ((ctx->reads & 7) == 0) gc_led_toggle();
     if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
 }
@@ -591,29 +651,45 @@ void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint3
     if (ctx->ar_dmas <= 16 || (ctx->ar_dmas & 255) == 0) gc_trace(ctx, GC_TRACE_AR);
 }
 
-/* Before the jump: a record written and read back, and the image's first
- * bytes read through the runs and checked against the ID the loader put
- * at 0x80000000; the screen says which of them failed. */
+/* Before the jump, every step tried whatever the one before gave, and
+ * its result shown as a number on the frame (a line each, top down):
+ *   1. IOS's answer to the trace record's write (CMD25)
+ *   2. IOS's answer to GETSTATUS, a plain ioctl, and the status word
+ *   3. IOS's answer to reading the record back (CMD18), then 1 if it matches
+ *   4. the image's first bytes read through the runs: 1 if they are the ID
+ * -1000 (FFFFFC18) is "IOS never answered". The background is the old
+ * colour: cyan when all passed, red when the write failed, orange when it
+ * does not read back, grey when the image does not. */
+#define GC_SDIO_GETSTATUS 0x0Bu
 void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
     const uint8_t* id = (const uint8_t*)(uintptr_t)0x80000000u;
     uint8_t* back = (uint8_t*)(uintptr_t)ctx->bounce;
     const uint32_t* w = (const uint32_t*)(uintptr_t)ctx->trace_buf;
     const uint32_t seq = ctx->trace_seq + 1;
-    uint32_t i;
+    int32_t written, status, readback;
+    uint32_t matches, image_ok, i;
     uint32_t colour = GC_COLOUR_CYAN;
-    if (!gc_trace(ctx, where)) {
-        gc_paint(ctx, GC_COLOUR_RED);
-        return;
-    }
+    written = gc_trace(ctx, where);
+    ctx->response[0] = 0;
+    status = gc_ioctl(ctx, ctx->sdio_fd, GC_SDIO_GETSTATUS, 0, 0, (uint32_t)(uintptr_t)ctx->response, 4);
     for (i = 0; i < GC_SECTOR; ++i) back[i] = 0;
-    if (!gc_sd_read(ctx, ctx->trace_sector + (seq - 1) % ctx->trace_count, 1, ctx->bounce) ||
-        ((const uint32_t*)back)[0] != w[0] || ((const uint32_t*)back)[1] != seq) {
-        gc_paint(ctx, GC_COLOUR_ORANGE);
-        return;
-    }
+    readback = gc_sd_read(ctx, ctx->trace_sector + (seq - 1) % ctx->trace_count, 1, ctx->bounce) ? 0 : ctx->last_error;
+    matches = ((const uint32_t*)back)[0] == w[0] && ((const uint32_t*)back)[1] == seq;
     for (i = 0; i < 0x20; ++i) back[i] = 0;
-    if (!gc_read_disc(ctx, back, 0x20, 0)) colour = GC_COLOUR_GREY;
+    image_ok = (uint32_t)gc_read_disc(ctx, back, 0x20, 0);
     for (i = 0; i < 6; ++i)
-        if (back[i] != id[i]) colour = GC_COLOUR_GREY;
+        if (back[i] != id[i]) image_ok = 0;
+    if (written < 0)
+        colour = GC_COLOUR_RED;
+    else if (!matches)
+        colour = GC_COLOUR_ORANGE;
+    else if (!image_ok)
+        colour = GC_COLOUR_GREY;
     gc_paint(ctx, colour);
+    gc_show_hex(ctx, 0, (uint32_t)written);
+    gc_show_hex(ctx, 1, (uint32_t)status);
+    gc_show_hex(ctx, 2, ctx->response[0]);
+    gc_show_hex(ctx, 3, (uint32_t)readback);
+    gc_show_hex(ctx, 4, matches);
+    gc_show_hex(ctx, 5, image_ok);
 }
