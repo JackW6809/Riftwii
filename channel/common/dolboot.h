@@ -25,10 +25,6 @@ bool dolboot_valid(const u8* dol, u32 size);
 // `argv0` as its argv[0]. The caller has closed its files first. Does
 // not return.
 void dolboot_run(const u8* dol, const char* argv0) __attribute__((noreturn));
-// The same, with `arg1_len` bytes of `arg1` (up to 1 KiB) right after
-// argv[0]'s NUL, as the Homebrew Channel passes a loader's binary
-// arguments (Nintendont takes its NIN_CFG this way).
-void dolboot_run_args(const u8* dol, const char* argv0, const void* arg1, u32 arg1_len) __attribute__((noreturn));
 
 // Puts at the system call vector (0x80000C00) the handler the Wii's system
 // software leaves for a program it starts: `sc` returns at once, after

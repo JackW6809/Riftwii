@@ -175,7 +175,8 @@ bool read_launch_lines(const std::string& path, std::vector<std::string>& args) 
 bool launch(const std::vector<std::string>& args, std::string& error) {
     HeadlessLaunch h;
     if (!parse_headless_launch(args, h, error)) return false;
-    // A GameCube game on the SD card goes to RiftWii's Nintendont.
+    // A GameCube game on the SD card goes to RiftWii's own loader, which
+    // refuses packs for now.
     GcImage gc;
     if ((h.from.empty() || h.from == "sd") && (!h.game.empty() || !h.path.empty()) &&
         FindGcImage(h.game, h.path, gc)) {

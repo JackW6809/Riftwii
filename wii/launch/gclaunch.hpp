@@ -8,12 +8,9 @@
 #include "riftwii/launch.hpp"
 #include "usbcatalog.hpp"
 
-// GameCube games, started through RiftWii's build of Nintendont
-// (sd:/apps/nintendont-riftwii/boot.dol). Packs are applied the way the
-// Wii games' are, without touching the image: the patched files are
-// served by Nintendont's kernel from /riftwii/gc/overlay.bin
-// (riftwii/gcoverlay.hpp). For now the game and its packs' files must be
-// on the SD card, the one device Nintendont reads them from.
+// GameCube games on the SD card, started in Wii mode by RiftWii's own
+// loader (gcnative.hpp). Patch-only mods (gcpatch.hpp) are listed as the
+// game they make. Packs are not supported for them yet.
 namespace riftwii::wii {
 
 struct GcImage {
@@ -30,9 +27,8 @@ bool FindGcImage(const std::string& game, const std::string& path, GcImage& out)
 // game list: opened (header read), never needing d2x.
 void ScanGcImages(std::vector<ImageGame>& out);
 
-// Builds the overlay for the packs (in order, each with the choices
-// picked over its defaults; none: the game as it is) and starts
-// Nintendont. Returns only on failure.
+// Starts the game (prepared from its patch first, when it is one).
+// Refuses any packs. Returns only on failure.
 bool LaunchGcGame(const GcImage& image, const std::vector<PackageChoices>& packages, std::string& error);
 
 }  // namespace riftwii::wii
