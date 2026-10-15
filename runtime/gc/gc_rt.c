@@ -748,7 +748,32 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
     return result;
 }
 
+/* ARAM on a Wii. In Wii mode the ARAM DMA engine reports each transfer
+ * done (its interrupt still comes) but moves nothing: there is no ARAM
+ * behind it (measured on a Wii with gc_aram_probe; Dolphin emulates one).
+ * So ARAM lives in MEM2 at physical 0x10000000 + the ARAM address, where
+ * the DSP finds it too once its microcode is pointed there, and every
+ * ARStartDMA is done here by the CPU before the game's own call runs for
+ * the interrupt. Main memory comes as an address the hardware masks. */
+#define GC_ARAM_BASE 0x90000000u  /* MEM2, cached (Broadway's BAT4, left on) */
+#define GC_ARAM_SIZE 0x01000000u
+static void gc_aram_copy(uint32_t to_main, uint32_t main, uint32_t aram, uint32_t length) {
+    const uint32_t m = 0x80000000u | (main & 0x01FFFFE0u);
+    const uint32_t a = GC_ARAM_BASE | (aram & (GC_ARAM_SIZE - 1) & ~31u);
+    const uint32_t* from = (const uint32_t*)(uintptr_t)(to_main ? a : m);
+    uint32_t* to = (uint32_t*)(uintptr_t)(to_main ? m : a);
+    uint32_t i;
+    length &= ~31u;
+    if ((aram & (GC_ARAM_SIZE - 1)) + length > GC_ARAM_SIZE) return;
+    /* What the game flushed for the DMA is in memory; what it will read is
+     * taken from memory after its DCInvalidate, so the copy goes there. */
+    gc_invalidate((uint32_t)(uintptr_t)from, length);
+    for (i = 0; i < length / 4; ++i) to[i] = from[i];
+    gc_flush((uint32_t)(uintptr_t)to, length);
+}
+
 void gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length) {
+    gc_aram_copy(type != 0, main, aram, length);
     ctx->ar_dmas++;
     ctx->last_ar[0] = type;
     ctx->last_ar[1] = main;

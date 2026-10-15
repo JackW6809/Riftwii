@@ -279,37 +279,10 @@ std::uint32_t find_unhandled_exception(const Code& code, const Dol& dol) {
     return found;
 }
 
-// ARAM in Wii mode. The DSP's ARAM addresses are physical addresses
-// there: below 0x10000000 they land in MEM1, the game's own memory, so a
-// GameCube game's ARAM DMA (at 0 up to 16 MB) overwrites its code and
-// data. On a Wii that crashed Super Mario Eclipse at random places once
-// the SDK's ARAM size check had run. Two changes move ARAM into MEM2,
-// where nothing else lives below 0x11000000:
-
-// ARStartDMA builds the ARAM address's high half from the register's old
-// value: `lhz rA,0x5024(..)`, `clrrwi rA,rA,10`, then `or`. The clrrwi
-// becomes `li rA,0x1000`, so every ARAM address gains 0x10000000.
-unsigned move_aram_to_mem2(Code& code, std::uint32_t ar_dma) {
-    unsigned patched = 0;
-    for (std::uint32_t a = ar_dma; code.has(a) && a < ar_dma + 0x200; a += 4) {
-        const std::uint32_t w = code.at(a);
-        if (w == 0x4E800020) break;  // blr
-        if ((w >> 26) != 40 || (w & 0xFFFF) != 0x5024) continue;  // lhz rA,0x5024(rB)
-        const std::uint32_t reg = (w >> 21) & 31;
-        const std::uint32_t clear_low = (21u << 26) | (reg << 21) | (reg << 16) | (21u << 1);  // clrrwi rA,rA,10
-        for (std::uint32_t b = a + 4; b <= a + 16; b += 4)
-            if (code.at(b) == clear_low) {
-                code.put(b, (14u << 26) | (reg << 21) | 0x1000);  // li rA,0x1000
-                ++patched;
-                break;
-            }
-    }
-    return patched;
-}
-
-// __ARChecksize (the function that writes 0xDEADBEEF test patterns into
-// ARAM to look for an expansion) DMAs to ARAM 0, 2 MB, 16 MB and more. It
-// is sent from where it records "no expansion" (`li r0,0`, then `stw
+// ARAM DMA moves nothing in Wii mode (the blob's gc_aram_copy does the
+// game's transfers instead), so __ARChecksize (the function that writes
+// 0xDEADBEEF test patterns into ARAM to look for an expansion) would read
+// back nonsense. It is sent from where it records "no expansion" (`li r0,0`, then `stw
 // r0,x(r13)`) to its last block, which writes the ARAM mode register and
 // the size: the 16 MB every console has, none of the test DMAs.
 bool skip_aram_size_check(Code& code) {
@@ -657,12 +630,11 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     }
     const std::uint32_t ar_dma = find_dsp_stores(code, {0xCC005020, 0xCC005022, 0xCC005024, 0xCC005026,
                                                          0xCC005028, 0xCC00502A});
-    const unsigned aram_moved = ar_dma != 0 ? move_aram_to_mem2(code, ar_dma) : 0;
     if (ar_dma != 0) replay_hook(ar_dma, h.hook_ar_dma, h.replay_ar_dma, h.continue_ar_dma);
     const bool aram_check_skipped = skip_aram_size_check(code);
     const unsigned ai_waits = skip_ai_stream_waits(code);
     logf("GameCube: %u wait(s) for the AI stream counter skipped\n", ai_waits);
-    logf("GameCube: ARAM moved to MEM2 in ARStartDMA (%u place(s)), size check %s\n", aram_moved,
+    logf("GameCube: ARAM in MEM2 through ARStartDMA 0x%08x, size check %s\n", ar_dma,
          aram_check_skipped ? "skipped" : "not found");
     // A crash shows itself on the screen and in the trace instead of a
     // blank halt.
