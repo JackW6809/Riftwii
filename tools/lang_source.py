@@ -1330,6 +1330,11 @@ T = {
     "{1} seconds left": ("Faltan {1} segundos", "残り{1}秒", "Faltam {1} segundos", "Mancano {1} secondi"),
     "Free space": ("Espacio libre", "空き容量", "Espaço livre", "Spazio libero"),
     "Stopped. Nothing was kept.": ("Detenido. No se guardó nada.", "中止しました。何も保存されませんでした。", "Interrompido. Nada foi guardado.", "Interrotto. Non è stato salvato nulla."),
+    "Game not made": ("Juego no creado", "ゲームを作成できませんでした", "Jogo não criado", "Gioco non creato"),
+    "Not enough space": ("Espacio insuficiente", "空き容量が足りません", "Espaço insuficiente", "Spazio insufficiente"),
+    "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again.": ("Crear {1} necesita {2} libres en la tarjeta SD y solo hay {3}. Libera espacio y pulsa Iniciar otra vez.", "{1}を作るにはSDカードに{2}の空きが必要ですが、空きは{3}だけです。空き容量を増やして、もう一度スタートを押してください。", "Criar {1} precisa de {2} livres no cartão SD e só há {3}. Liberte espaço e prima Iniciar outra vez.", "Per creare {1} servono {2} liberi sulla scheda SD e ce ne sono solo {3}. Libera dello spazio e premi di nuovo Avvia."),
+    "Make this game first?": ("¿Crear primero este juego?", "先にこのゲームを作りますか?", "Criar este jogo primeiro?", "Creare prima questo gioco?"),
+    "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate.": ("{1} es un parche de otro juego. RiftWii crea el juego a partir del original y del parche, una sola vez. Necesita unos {2} libres en la tarjeta SD y tarda unos minutos. Todos los inicios siguientes son inmediatos.", "{1}は別のゲームのパッチです。RiftWiiは元のゲームとパッチからゲームを一度だけ作ります。SDカードに約{2}の空きが必要で、数分かかります。次回からはすぐに始まります。", "{1} é um patch de outro jogo. O RiftWii cria o jogo a partir do original e do patch, uma só vez. Precisa de cerca de {2} livres no cartão SD e demora alguns minutos. Os arranques seguintes são imediatos.", "{1} è una patch per un altro gioco. RiftWii crea il gioco dall'originale e dalla patch, una volta sola. Servono circa {2} liberi sulla scheda SD e ci vogliono alcuni minuti. Gli avvii successivi sono immediati."),
     "{1} could not be made: {2}. Nothing was kept.": ("No se pudo crear {1}: {2}. No se guardó nada.", "{1}を作成できませんでした: {2}。何も保存されませんでした。", "Não foi possível criar {1}: {2}. Nada foi guardado.", "Impossibile creare {1}: {2}. Non è stato salvato nulla."),
     "SD image made": ("Imagen SD creada", "SDイメージを作成しました", "Imagem SD criada", "Immagine SD creata"),
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.": ("{1} está en sd:/riftwii y la build que contiene está activada: el juego usa la imagen como su tarjeta SD.", "{1}はsd:/riftwiiにあり、中のビルドはオンになっています: ゲームはこのイメージをSDカードとして使います。", "{1} está em sd:/riftwii e a build dentro dela está ativada: o jogo usa a imagem como seu cartão SD.", "{1} è in sd:/riftwii e la build al suo interno è attivata: il gioco usa l'immagine come sua scheda SD."),
@@ -2714,6 +2719,16 @@ KO = {
         "여유 공간",
     "Stopped. Nothing was kept.":
         "중단되었습니다. 아무것도 보관되지 않았습니다.",
+    "Game not made":
+        "게임을 만들지 못했습니다",
+    "Not enough space":
+        "공간이 부족합니다",
+    "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again.":
+        "{1}을(를) 만들려면 SD 카드에 {2}의 여유 공간이 필요하지만 {3}만 남아 있습니다. 공간을 확보한 뒤 시작을 다시 누르세요.",
+    "Make this game first?":
+        "먼저 이 게임을 만들까요?",
+    "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate.":
+        "{1}은(는) 다른 게임의 패치입니다. RiftWii가 원본과 패치로 게임을 한 번만 만듭니다. SD 카드에 약 {2}의 여유 공간이 필요하고 몇 분 걸립니다. 그 뒤로는 바로 시작됩니다.",
     "{1} could not be made: {2}. Nothing was kept.":
         "{1}을(를) 생성할 수 없습니다: {2}. 아무것도 보존되지 않았습니다.",
     "SD image made":
@@ -4235,6 +4250,16 @@ FR = {
         "Espace libre",
     "Stopped. Nothing was kept.":
         "Arrêté. Rien n'a été conservé.",
+    "Game not made":
+        "Jeu non créé",
+    "Not enough space":
+        "Pas assez de place",
+    "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again.":
+        "Créer {1} demande {2} de libre sur la carte SD, et il n'y a que {3}. Libérez de la place et appuyez de nouveau sur Démarrer.",
+    "Make this game first?":
+        "Créer d'abord ce jeu ?",
+    "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate.":
+        "{1} est un patch pour un autre jeu. RiftWii crée le jeu à partir de l'original et du patch, une seule fois. Il faut environ {2} de libre sur la carte SD et quelques minutes. Les lancements suivants sont immédiats.",
     "{1} could not be made: {2}. Nothing was kept.":
         "Impossible de créer {1} : {2}. Rien n'a été conservé.",
     "SD image made":

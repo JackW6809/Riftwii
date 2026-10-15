@@ -1380,6 +1380,21 @@ msgstr "空き容量"
 msgid "Stopped. Nothing was kept."
 msgstr "中止しました。何も保存されませんでした。"
 
+msgid "Game not made"
+msgstr "ゲームを作成できませんでした"
+
+msgid "Not enough space"
+msgstr "空き容量が足りません"
+
+msgid "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again."
+msgstr "{1}を作るにはSDカードに{2}の空きが必要ですが、空きは{3}だけです。空き容量を増やして、もう一度スタートを押してください。"
+
+msgid "Make this game first?"
+msgstr "先にこのゲームを作りますか?"
+
+msgid "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate."
+msgstr "{1}は別のゲームのパッチです。RiftWiiは元のゲームとパッチからゲームを一度だけ作ります。SDカードに約{2}の空きが必要で、数分かかります。次回からはすぐに始まります。"
+
 msgid "{1} could not be made: {2}. Nothing was kept."
 msgstr "{1}を作成できませんでした: {2}。何も保存されませんでした。"
 

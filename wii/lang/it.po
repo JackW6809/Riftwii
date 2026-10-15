@@ -1380,6 +1380,21 @@ msgstr "Spazio libero"
 msgid "Stopped. Nothing was kept."
 msgstr "Interrotto. Non è stato salvato nulla."
 
+msgid "Game not made"
+msgstr "Gioco non creato"
+
+msgid "Not enough space"
+msgstr "Spazio insufficiente"
+
+msgid "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again."
+msgstr "Per creare {1} servono {2} liberi sulla scheda SD e ce ne sono solo {3}. Libera dello spazio e premi di nuovo Avvia."
+
+msgid "Make this game first?"
+msgstr "Creare prima questo gioco?"
+
+msgid "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate."
+msgstr "{1} è una patch per un altro gioco. RiftWii crea il gioco dall'originale e dalla patch, una volta sola. Servono circa {2} liberi sulla scheda SD e ci vogliono alcuni minuti. Gli avvii successivi sono immediati."
+
 msgid "{1} could not be made: {2}. Nothing was kept."
 msgstr "Impossibile creare {1}: {2}. Non è stato salvato nulla."
 

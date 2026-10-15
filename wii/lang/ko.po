@@ -1380,6 +1380,21 @@ msgstr "여유 공간"
 msgid "Stopped. Nothing was kept."
 msgstr "중단되었습니다. 아무것도 보관되지 않았습니다."
 
+msgid "Game not made"
+msgstr "게임을 만들지 못했습니다"
+
+msgid "Not enough space"
+msgstr "공간이 부족합니다"
+
+msgid "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again."
+msgstr "{1}을(를) 만들려면 SD 카드에 {2}의 여유 공간이 필요하지만 {3}만 남아 있습니다. 공간을 확보한 뒤 시작을 다시 누르세요."
+
+msgid "Make this game first?"
+msgstr "먼저 이 게임을 만들까요?"
+
+msgid "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate."
+msgstr "{1}은(는) 다른 게임의 패치입니다. RiftWii가 원본과 패치로 게임을 한 번만 만듭니다. SD 카드에 약 {2}의 여유 공간이 필요하고 몇 분 걸립니다. 그 뒤로는 바로 시작됩니다."
+
 msgid "{1} could not be made: {2}. Nothing was kept."
 msgstr "{1}을(를) 생성할 수 없습니다: {2}. 아무것도 보존되지 않았습니다."
 

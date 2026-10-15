@@ -148,7 +148,17 @@ void ScanGcPatches(std::vector<ImageGame>& games) {
     for (ImageGame& x : found) games.push_back(std::move(x));
 }
 
-bool PrepareGcPatch(GcImage& image, std::string& error) {
+bool GcPatchSpace(const GcImage& image, std::uint64_t& need, std::uint64_t& have) {
+    File original(image.patch_source);
+    if (!original.f) return false;
+    need = original.size + (64u << 20);
+    have = 0;
+    struct statvfs vfs;
+    if (statvfs("sd:/", &vfs) == 0) have = std::uint64_t(vfs.f_bavail) * vfs.f_frsize;
+    return true;
+}
+
+bool PrepareGcPatch(GcImage& image, std::string& error, const GcPrepareProgress& caller_progress) {
     const std::string dir = "sd:/games/" + image.id;
     const std::string final_path = dir + "/game.iso";
     const std::string part = dir + "/game.iso.part";
@@ -184,7 +194,7 @@ bool PrepareGcPatch(GcImage& image, std::string& error) {
         int shown = -1;
         const u64 start = gettime();
         u64 last_label = 0;
-        ProgressStage("Preparing the game from its patch (once)", 0);
+        if (!caller_progress) ProgressStage("Preparing the game from its patch (once)", 0);
         ok = apply_vcdiff(
             patch.reader(), patch.size, original.reader(), original.size,
             [&](const std::uint8_t* d, std::size_t n) {
@@ -201,14 +211,14 @@ bool PrepareGcPatch(GcImage& image, std::string& error) {
             },
             [&](std::uint64_t done, std::uint64_t total) {
                 const int pct = static_cast<int>(done * 100 / (total ? total : 1));
-                show_progress(image.id, done, total, start, last_label);
+                if (!caller_progress) show_progress(image.id, done, total, start, last_label);
                 if (pct / 5 != shown / 5) {
                     shown = pct;
                     logf("Preparing %s: %d%% (%llu MB, %u s)\n", image.id.c_str(), pct,
                          static_cast<unsigned long long>(written >> 20),
                          static_cast<unsigned>(ticks_to_secs(gettime() - start)));
                 }
-                return true;
+                return !caller_progress || caller_progress(done, total);
             },
             error, wii_limits(), &stats);
         if (ok && std::fflush(out.f) != 0) {
@@ -218,6 +228,10 @@ bool PrepareGcPatch(GcImage& image, std::string& error) {
     }
     if (!ok) {
         std::remove(part.c_str());
+        if (error == "stopped") {
+            logf("GameCube: preparing %s was stopped; the partial file is deleted\n", image.id.c_str());
+            return false;
+        }
         error = "preparing " + image.id + ": " + error;
         return false;
     }
@@ -226,7 +240,7 @@ bool PrepareGcPatch(GcImage& image, std::string& error) {
         error = "cannot rename " + part;
         return false;
     }
-    ProgressStage("Starting the game", 100);
+    if (!caller_progress) ProgressStage("Starting the game", 100);
     logf("GameCube: %s prepared (the original read %llu times, %llu MB)\n", final_path.c_str(),
          static_cast<unsigned long long>(stats.source_reads), static_cast<unsigned long long>(stats.source_bytes >> 20));
     image.path = final_path;

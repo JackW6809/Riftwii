@@ -84,6 +84,7 @@
 #include "riftwii/apply.hpp"
 #include "riftwii/patch.hpp"
 #include "codebuilds.hpp"
+#include "gcpatch.hpp"
 #include "vsdmake.hpp"
 #include "gameextras.hpp"
 #include "gameinfo.hpp"
@@ -3988,6 +3989,89 @@ static bool MakeSdImage(const FrontendState& state, const riftwii::LaunchPackage
 	return true;
 }
 
+// A GameCube game that is still to be made from its patch (gcpatch.hpp)
+// is made here, with the menu's own box, before the launch screen (which
+// cannot show translations) takes over. True: the game is ready (or was
+// never a patch); false: the player stopped it or it failed, and the
+// popup said why.
+static bool PrepareGcGameInMenu(FrontendState& state)
+{
+	if (!state.use_sd || state.sd_index >= state.sd_catalog.games.size()) return true;
+	riftwii::wii::ImageGame& game = state.sd_catalog.games[state.sd_index];
+	if (!game.gamecube || game.gc_patch_source.empty()) return true;
+
+	riftwii::wii::GcImage image{game.path, game.id, game.gc_patch_source};
+	std::uint64_t need = 0, have = 0;
+	std::string error;
+	if (!riftwii::wii::GcPatchSpace(image, need, have)) {
+		logf("GameCube: %s cannot be made: the original %s cannot be opened\n", game.id.c_str(), image.patch_source.c_str());
+		ShowPopup(tr("Game not made"), tr("{1} could not be made: {2}. Nothing was kept.",
+			{game.id, FlatCapped("cannot open " + image.patch_source, 140)}), tr("OK"));
+		return false;
+	}
+	if (have != 0 && have < need) {
+		logf("GameCube: %s needs %llu MB free on the SD card, %llu MB are free\n", game.id.c_str(),
+			static_cast<unsigned long long>(need >> 20), static_cast<unsigned long long>(have >> 20));
+		ShowPopup(tr("Not enough space"),
+			tr("Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again.",
+				{game.id, SizeText(need), SizeText(have)}),
+			tr("OK"));
+		return false;
+	}
+	const std::string name = game.display.empty() ? game.title : game.display;
+	if (ShowPopup(tr("Make this game first?"),
+		    tr("{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate.",
+			    {name, SizeText(need)}),
+		    tr("Make it"), tr("Cancel")) != 0) {
+		logf("GameCube: the player did not want %s made now\n", game.id.c_str());
+		return false;
+	}
+
+	bool ok;
+	{
+		PopupBox box(tr("Making {1}", {game.id}), "", "", tr("Stop"));
+		ProgressBar bar(56, 280, 528);
+		box.Add(&bar, 528);
+		const u64 start = gettime();
+		u64 last_redraw = 0;
+		ResumeGui();
+		ok = riftwii::wii::PrepareGcPatch(image, error, [&](std::uint64_t done, std::uint64_t total) {
+			// A few redraws a second: each one halts the GUI, which costs copy time.
+			const u64 now = gettime();
+			if (last_redraw != 0 && diff_msec(last_redraw, now) < 400) return true;
+			last_redraw = now;
+			const double fraction = total ? static_cast<double>(done) / static_cast<double>(total) : 0;
+			std::string text = std::to_string(static_cast<int>(fraction * 100)) + "%";
+			// What is left at the rate so far, once there is a rate.
+			const u64 ms = diff_msec(start, now);
+			if (ms > 10000 && done > 0 && total > done) {
+				const std::uint64_t left = (total - done) * ms / done / 1000;
+				text += "  -  " + std::string(left >= 90 ? tr("{1} minutes left", {std::to_string((left + 59) / 60)})
+						: tr("{1} seconds left", {std::to_string(left)}));
+			}
+			HaltGui();
+			bar.Set(fraction);
+			box.SetBody(text);
+			const bool stop = box.Pressed();
+			ResumeGui();
+			return !stop;
+		});
+		HaltGui();
+	}
+	if (!ok) {
+		logf("GameCube: %s was not made: %s\n", game.id.c_str(), error.c_str());
+		ShowPopup(tr("Game not made"),
+			error == "stopped" ? std::string(tr("Stopped. Nothing was kept."))
+				: tr("{1} could not be made: {2}. Nothing was kept.", {game.id, FlatCapped(error, 140)}),
+			tr("OK"));
+		return false;
+	}
+	// The entry now is the prepared image, so the launch starts it as any other.
+	game.path = image.path;
+	game.gc_patch_source.clear();
+	return true;
+}
+
 // The Mods page: each pack made for the game as a switch, its options
 // under it once it is on.
 static void BuildModRows(const FrontendState& state, const std::string& scanStatus,
@@ -5994,6 +6078,8 @@ static int MenuHome(FrontendState& state)
 			} else if (std::string codes_error; !riftwii::wii::CheckCodeBuilds(state, codes_error)) {
 				// In a popup: what to do takes more than the status line's two rows.
 				ShowPopup(tr("This code mod can't start"), codes_error, tr("OK"));
+			} else if (!PrepareGcGameInMenu(state)) {
+				// stopped or failed: the popup said why; stays on the page
 			} else if (!LaunchNote(state).empty() && !state.warning_shown) {
 				state.warning_shown = true;
 				// In a popup: the status line holds two rows, which cut
