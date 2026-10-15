@@ -21,6 +21,10 @@
 #define GC_SD_CMDTYPE_AC 3u
 #define GC_SD_RESPONSE_R1 1u
 #define GC_SECTOR 512u
+/* SENDCMD's reply: exactly 16 bytes (three response words and the
+ * auto-CMD12 one). IOS on a Wii refuses any other length with -4;
+ * Dolphin does not check. */
+#define GC_SD_RESPONSE_BYTES 16u
 
 static uint32_t gc_read32(uint32_t address) { return *(volatile uint32_t*)(uintptr_t)address; }
 static void gc_write32(uint32_t address, uint32_t value) { *(volatile uint32_t*)(uintptr_t)address = value; }
@@ -103,7 +107,7 @@ static int gc_sd_read(struct gc_rt_context* ctx, uint32_t sector, uint32_t count
     ctx->vec[2] = gc_physical(target);
     ctx->vec[3] = count * GC_SECTOR;
     ctx->vec[4] = gc_physical((uint32_t)(uintptr_t)ctx->response);
-    ctx->vec[5] = sizeof(ctx->response);
+    ctx->vec[5] = GC_SD_RESPONSE_BYTES;
     gc_flush((uint32_t)(uintptr_t)q, 36);
     gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
     gc_flush(target, count * GC_SECTOR);  /* no dirty lines left to land on the DMA's bytes */
@@ -367,7 +371,7 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     ctx->vec[2] = gc_physical(ctx->trace_buf);
     ctx->vec[3] = GC_SECTOR;
     ctx->vec[4] = gc_physical((uint32_t)(uintptr_t)ctx->response);
-    ctx->vec[5] = sizeof(ctx->response);
+    ctx->vec[5] = GC_SD_RESPONSE_BYTES;
     gc_flush((uint32_t)(uintptr_t)q, 36);
     gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
     gc_flush(ctx->trace_buf, GC_SECTOR);
