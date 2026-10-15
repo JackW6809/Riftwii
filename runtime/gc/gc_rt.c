@@ -53,6 +53,28 @@ static void gc_zero(uint8_t* dst, uint32_t n) {
     while (n--) *dst++ = 0;
 }
 
+/* The guard (gc_rt.h): the game's bytes at guard_addr put back wherever
+ * IOS wrote over them, in memory and out of both caches. */
+#define GC_GUARD_WORDS 64u
+static void gc_guard(struct gc_rt_context* ctx) {
+    uint32_t i;
+    if (ctx->guard_addr == 0) return;
+    for (i = 0; i < GC_GUARD_WORDS; ++i) {
+        const uint32_t cached = ctx->guard_addr + 4 * i;
+        const uint32_t uncached = gc_physical(cached) | 0xC0000000u;
+        const uint32_t now = gc_read32(uncached);
+        if (now == ctx->guard_copy[i]) continue;
+        if (ctx->guard_hits == 0) {
+            ctx->guard_first_request = ctx->sd_requests;
+            ctx->guard_first_offset = 4 * i;
+            ctx->guard_first_value = now;
+        }
+        ctx->guard_hits++;
+        gc_write32(uncached, ctx->guard_copy[i]);
+        __asm__ volatile("dcbi 0,%0\n\tsync\n\ticbi 0,%0\n\tisync" : : "r"(cached) : "memory");
+    }
+}
+
 /* One ioctlv to IOS and its reply, by polling: the request is the only
  * one in flight (the menu's IPC ended with libogc). Returns IOS's result,
  * or -1000 when IOS does not answer. */
@@ -86,6 +108,7 @@ static int32_t gc_ioctlv(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl,
         }
     }
     gc_invalidate((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
+    gc_guard(ctx);
     return (int32_t)rq[1];
 }
 
@@ -241,6 +264,7 @@ static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, 
     }
     gc_invalidate((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
     gc_invalidate(out, out_len);
+    gc_guard(ctx);
     return (int32_t)rq[1];
 }
 
@@ -382,6 +406,10 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     for (i = 0; i < 5; ++i) w[GC_TR_CRASH_R1 + i] = ctx->crash_gpr[i];
     for (i = 0; i < 4; ++i) w[GC_TR_CRASH_CHAIN + i] = ctx->crash_chain[i];
     w[GC_TR_CRASH_WORD] = ctx->crash_word;
+    w[GC_TR_GUARD_HITS] = ctx->guard_hits;
+    w[GC_TR_GUARD_FIRST_REQUEST] = ctx->guard_first_request;
+    w[GC_TR_GUARD_FIRST_OFFSET] = ctx->guard_first_offset;
+    w[GC_TR_GUARD_FIRST_VALUE] = ctx->guard_first_value;
     if (ctx->watch_addr != 0) {
         w[GC_TR_WATCH_ADDR] = ctx->watch_addr;
         w[GC_TR_WATCH_NOW] = gc_read32(gc_physical(ctx->watch_addr) | 0xC0000000u);
@@ -519,6 +547,7 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
             ctx->beat_lr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_LR);
             ctx->beat_msr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR1);
         }
+        gc_guard(ctx);
         gc_trace(ctx, GC_TRACE_BEAT);
         gc_beat_arm(ctx);
         return;

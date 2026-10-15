@@ -92,6 +92,7 @@ enum gc_trace_word {
     GC_TR_CRASH_R1, GC_TR_CRASH_R3, GC_TR_CRASH_R4, GC_TR_CRASH_R5, GC_TR_CRASH_R31, GC_TR_CRASH_CHAIN, /* 4 words */
     GC_TR_CRASH_WORD = GC_TR_CRASH_CHAIN + 4, /* the word in memory (uncached) at SRR0 */
     GC_TR_WATCH_ADDR, GC_TR_WATCH_NOW, GC_TR_WATCH_WAS, /* a word watched for being overwritten */
+    GC_TR_GUARD_HITS, GC_TR_GUARD_FIRST_REQUEST, GC_TR_GUARD_FIRST_OFFSET, GC_TR_GUARD_FIRST_VALUE,
     GC_TR_WORDS
 };
 /* where: what wrote the record */
@@ -204,6 +205,16 @@ struct gc_rt_context {
     uint32_t crash_word;
     uint32_t watch_addr;      /* loader-filled, 0: none: a word of the game's that a Wii finds overwritten */
     uint32_t watch_was;       /* its value at the jump */
+    /* The guard: IOS keeps live globals at 0x80003100-0x800031ff on a Wii
+     * and writes them while it works (a counter at 0x800031a0 at least),
+     * but a GameCube game has code there. The loader's copy of the game's
+     * bytes is compared after every IOS request and written back. */
+    uint32_t guard_addr;      /* loader-filled, 0: none */
+    uint32_t guard_hits;      /* words found changed and put back */
+    uint32_t guard_first_request; /* sd_requests when the first was found */
+    uint32_t guard_first_offset;
+    uint32_t guard_first_value;
+    uint32_t guard_copy[64];
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint32_t ipc[16] __attribute__((aligned(32)));      /* the IPC request */
@@ -212,7 +223,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x240u
+#define GC_RT_CONTEXT_BYTES 0x340u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC

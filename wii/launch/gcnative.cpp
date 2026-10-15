@@ -578,6 +578,12 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     ctx->trace_count = trace_count;
     ctx->trace_buf = trace_addr;
     ctx->card_rca = card.rca;
+    // The guard (gc_rt.h): the game's own bytes for IOS's globals area.
+    for (const Section& s : dol.text)
+        if (s.address <= 0x80003100 && s.address + s.bytes.size() >= 0x80003200) {
+            ctx->guard_addr = 0x80003100;
+            for (std::uint32_t i = 0; i < 64; ++i) ctx->guard_copy[i] = be32(&s.bytes[0x80003100 - s.address + 4 * i]);
+        }
 
     // The hooks, in the staged code.
     auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
@@ -713,6 +719,8 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     // A first trace record through the blob's own IPC, as the game will
     // use it: written here, the card and the polling work on this console.
     paint(GC_COLOUR_YELLOW);
+    // The guarded bytes in memory before the checks' IOS requests compare them.
+    DCFlushRange(reinterpret_cast<void*>(0x80003100), 0x100);
     reinterpret_cast<void (*)(std::uint32_t)>(blob_addr + h.trace_now)(GC_TRACE_JUMP);
     // Until the game's OS installs its own exception handlers, every
     // vector goes to the blob's crash screen (gc_on_fatal), so a crash in
