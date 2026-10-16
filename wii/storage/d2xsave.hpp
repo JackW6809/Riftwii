@@ -1,4 +1,6 @@
 // SPDX-FileCopyrightText: 2026 RiftWii contributors
+// SPDX-FileCopyrightText: 2011 Dimok
+// SPDX-FileCopyrightText: USB Loader GX contributors <https://github.com/wiidev/usbloadergx>
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
@@ -26,6 +28,7 @@ std::string own_save_data_dir(const std::string& dir, std::uint64_t title_id);
 
 // Moves save files left in `dir` itself (before 2610-190) into
 // `data_dir`, creating it when there are any. The clone marker stays.
+// Nothing for a folder outside sd:/riftwii/saves (the shared emulated NAND).
 bool move_flat_saves(const std::string& dir, const std::string& data_dir, std::string& error);
 
 // Before the cIOS reload, under the menu's IOS: the emulated NAND's

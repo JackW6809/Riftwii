@@ -126,6 +126,9 @@ msgstr "SD, depuis sauvegarde Wii"
 msgid "SD, fresh start"
 msgstr "SD, sauvegarde vierge"
 
+msgid "SD, emulated NAND"
+msgstr "SD, NAND émulée"
+
 msgid "Kept by the pack"
 msgstr "Géré par le pack"
 
@@ -137,6 +140,9 @@ msgstr "Les sauvegardes vont sur la carte SD, en partant de la sauvegarde Wii."
 
 msgid "Saves go to the SD card, starting fresh."
 msgstr "Les sauvegardes vont sur la carte SD, sauvegarde vierge."
+
+msgid "Saves go to the SD card's emulated NAND, shared with other loaders."
+msgstr "Les sauvegardes vont dans la NAND émulée de la carte SD, partagée avec d'autres loaders."
 
 msgid "Saves stay on the Wii, as usual."
 msgstr "Les sauvegardes restent sur la Wii, comme d'habitude."

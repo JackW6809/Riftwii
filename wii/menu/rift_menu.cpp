@@ -3696,6 +3696,7 @@ static std::string SaveLabel(const std::string& mode)
 {
 	if (mode == "separate") return "SD, from Wii save";
 	if (mode == "fresh") return "SD, fresh start";
+	if (mode == "emunand") return "SD, emulated NAND";
 	return "On the Wii";
 }
 static std::string SaveNote(const riftwii::LaunchModel& model)
@@ -3706,6 +3707,7 @@ static std::string SaveNote(const riftwii::LaunchModel& model)
 	const std::string& mode = model.save_mode;
 	if (mode == "separate") return "Saves go to the SD card, starting from the Wii's save.";
 	if (mode == "fresh") return "Saves go to the SD card, starting fresh.";
+	if (mode == "emunand") return "Saves go to the SD card's emulated NAND, shared with other loaders.";
 	return "Saves stay on the Wii, as usual.";
 }
 
@@ -6030,10 +6032,11 @@ static int MenuHome(FrontendState& state)
 			} else if (tile == GameTile::Saves && !state.model.pack_save_owner().empty()) {
 				say(SaveNote(state.model));
 			} else if (tile == GameTile::Saves) {
-				static const char* const modes[] = {"nand", "separate", "fresh"};
+				static const char* const modes[] = {"nand", "separate", "fresh", "emunand"};
+				const int count = static_cast<int>(sizeof(modes) / sizeof(modes[0]));
 				int at = 0;
-				while (at < 3 && state.model.save_mode != modes[at]) ++at;
-				state.model.save_mode = modes[(at + 1) % 3];
+				while (at < count && state.model.save_mode != modes[at]) ++at;
+				state.model.save_mode = modes[(at + 1) % count];
 				saveOrSay();
 				rebuildTiles();
 				say(SaveNote(state.model));

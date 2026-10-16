@@ -1,4 +1,6 @@
 // SPDX-FileCopyrightText: 2026 RiftWii contributors
+// SPDX-FileCopyrightText: 2011 Dimok
+// SPDX-FileCopyrightText: USB Loader GX contributors <https://github.com/wiidev/usbloadergx>
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "d2xsave.hpp"
 
@@ -169,6 +171,10 @@ std::string own_save_data_dir(const std::string& dir, std::uint64_t title_id) {
 }
 
 bool move_flat_saves(const std::string& dir, const std::string& data_dir, std::string& error) {
+    // Only RiftWii's own save folders ever held flat saves. The shared
+    // emulated NAND (riftwii/sharednand.hpp) is another loader's: a file
+    // at its top is not a save of this game and stays where it is.
+    if (dir.compare(0, 18, "sd:/riftwii/saves/") != 0) return true;
     std::vector<std::string> flat;
     if (DIR* d = opendir(dir.c_str())) {
         while (dirent* e = readdir(d)) {
