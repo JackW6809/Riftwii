@@ -159,6 +159,8 @@ struct DvdLow {
 };
 
 // The start of the function holding `at`: the word after the previous blr.
+std::uint32_t branch(std::uint32_t from, std::uint32_t to) { return 0x48000000 | ((to - from) & 0x03FFFFFC); }
+
 std::uint32_t function_start(const Code& code, std::uint32_t at) {
     for (std::uint32_t a = at - 4; code.has(a) && at - a < 0x400; a -= 4)
         if (code.at(a) == 0x4E800020) return a + 4;
@@ -298,9 +300,9 @@ std::uint32_t find_unhandled_exception(const Code& code, const Dol& dol) {
 // back nonsense. It is sent from where it records "no expansion" (`li r0,0`, then `stw
 // r0,x(r13)`) to its last block, which writes the ARAM mode register and
 // the size: the 16 MB every console has, none of the test DMAs.
-bool skip_aram_size_check(Code& code) {
+std::uint32_t find_aram_check(const Code& code) {
     std::uint32_t check = 0;
-    // 0xDEADBEEF itself: `lis rX,0xDEAE`, then `addi rY,rX,0xBEEF` within a
+    // __ARChecksize, found by 0xDEADBEEF itself: `lis rX,0xDEAE`, then `addi rY,rX,0xBEEF` within a
     // few words. The OS's thread code builds 0xDEADBABE the same way, and
     // matching only the `lis` picked that function in Super Mario Eclipse,
     // so the real check ran (in Dolphin its test DMAs reach main memory).
@@ -315,6 +317,11 @@ bool skip_aram_size_check(Code& code) {
             }
         }
     });
+    return check;
+}
+
+bool skip_aram_size_check(Code& code) {
+    const std::uint32_t check = find_aram_check(code);
     if (check == 0) return false;
     std::uint32_t from = 0, to = 0, end = 0;
     for (std::uint32_t a = check; code.has(a) && a < check + 0x1000; a += 4)
@@ -339,6 +346,51 @@ bool skip_aram_size_check(Code& code) {
     if (from == 0 || to == 0 || to <= from) return false;
     code.put(from, 0x48000000 | ((to - from) & 0x03FFFFFC));  // b to
     return true;
+}
+
+// The game's ARAM addresses with bit 28 set (0x10004000 up instead of
+// 0x4000 up), so its sound program's reads of ARAM samples go to MEM2,
+// where the blob keeps ARAM (gc_aram_copy masks the bit off). On a Wii
+// in Wii mode the DSP's reads with bit 28 go to MEM2 and those without
+// it to MEM1; Dolphin's DSP does the same. This leaves the game's sound
+// program as it is, which Dolphin's fast HLE audio needs: it recognises
+// a program by its checksum and stopped on the patched ones.
+// ARInit (the function that calls __ARChecksize) starts the allocator at
+// `li rX,0x4000`, and returns that base again when called twice; each
+// such `li` becomes a branch to a stub of `lis rX,0x1000`, `ori
+// rX,rX,0x4000` and a branch back. ARGetBaseAddress (`li r3,0x4000`,
+// `blr`, beside ARInit) is changed the same way. Returns how many.
+constexpr std::uint32_t kStubBytes = 0x40;  // five stubs of three words
+unsigned raise_aram_base(Code& code, std::uint32_t check, std::uint32_t stubs, std::vector<std::uint32_t>& words) {
+    if (check == 0) return 0;
+    std::uint32_t init = 0;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (init == 0 && bl_target(a, w) == check) init = function_start(code, a);
+    });
+    if (init == 0) return 0;
+    std::vector<std::uint32_t> sites;
+    auto is_li_4000 = [](std::uint32_t w) { return (w & 0xFC1FFFFF) == 0x38004000; };  // li rX,0x4000
+    for (std::uint32_t a = init; code.has(a) && a < init + 0x400; a += 4) {
+        const std::uint32_t w = code.at(a);
+        if (w == 0x4E800020) break;
+        if (is_li_4000(w)) sites.push_back(a);
+    }
+    if (sites.empty()) return 0;
+    for (std::uint32_t a = init - 0x800; a < init + 0x800; a += 4)
+        if (code.has(a) && code.has(a + 4) && code.has(a - 4) && code.at(a) == 0x38604000 &&
+            code.at(a + 4) == 0x4E800020 && code.at(a - 4) == 0x4E800020)
+            sites.push_back(a);
+    words.clear();
+    for (std::uint32_t a : sites) {
+        if (words.size() + 3 > kStubBytes / 4) break;
+        const std::uint32_t reg = (code.at(a) >> 21) & 31;
+        const std::uint32_t stub = stubs + 4 * static_cast<std::uint32_t>(words.size());
+        words.push_back(0x3C001000 | (reg << 21));                // lis rX,0x1000
+        words.push_back(0x60004000 | (reg << 21) | (reg << 16));  // ori rX,rX,0x4000
+        words.push_back(branch(stub + 8, a + 4));
+        code.put(a, branch(a, stub));
+    }
+    return static_cast<unsigned>(words.size() / 3);
 }
 
 // __AI_SRC_INIT times the audio interface by switching its disc-stream
@@ -507,6 +559,8 @@ unsigned redirect_wii_blocks(Code& code, unsigned& mixed) {
 // programs, and where, follows Nintendont's DSP patches (kernel/Patch.c,
 // FIX94 and the Nintendont contributors, used with permission): the
 // program is recognised by its first words, its length and its SHA-1.
+// Only for a game whose ARInit is not found: raise_aram_base gets there
+// without changing the program, which Dolphin's HLE audio needs.
 struct DspFix {
     const char* name;
     std::uint32_t length;     // bytes
@@ -569,7 +623,6 @@ unsigned patch_dsp_programs(Dol& dol) {
     return patched;
 }
 
-std::uint32_t branch(std::uint32_t from, std::uint32_t to) { return 0x48000000 | ((to - from) & 0x03FFFFFC); }
 
 // IOS keeps live globals in 0x80003100-0x800031ff on a Wii and rewrites
 // a counter at 0x800031a0 several times a second, but a GameCube game has
@@ -856,8 +909,6 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     std::fclose(f);
     if (!ok) return false;
 
-    if (patch_dsp_programs(dol) == 0)
-        logf("GameCube: no known sound program found: the game's sound may play from the wrong memory\n");
 
     Code code(dol.text);
     DvdLow low;
@@ -886,7 +937,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const std::uint32_t bt_addr = (trace_addr - sizeof(gc_bt)) & ~31u;
     const std::uint32_t card_addr = (bt_addr - sizeof(gc_card)) & ~31u;
     const std::uint32_t runs_addr = (card_addr - runs_bytes) & ~31u;
-    const std::uint32_t moved_addr = (runs_addr - kMovedBytes) & ~31u;
+    const std::uint32_t stubs_addr = (runs_addr - kStubBytes) & ~31u;
+    const std::uint32_t moved_addr = (stubs_addr - kMovedBytes) & ~31u;
     const std::uint32_t blob_addr = (moved_addr - h.size) & ~31u;
     // The DI registers' stand-in: its address must end in 0x6000, as the
     // game adds that to the upper half it loads.
@@ -1113,6 +1165,16 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const std::uint32_t ar_dma = find_dsp_stores(code, {0xCC005020, 0xCC005022, 0xCC005024, 0xCC005026,
                                                          0xCC005028, 0xCC00502A});
     if (ar_dma != 0) replay_hook(ar_dma, h.hook_ar_dma, h.replay_ar_dma, h.continue_ar_dma);
+    // The sound program reads ARAM from MEM2: through the game's own ARAM
+    // addresses when ARInit is found, otherwise through a patched program.
+    std::vector<std::uint32_t> stub_words;
+    const unsigned aram_raised = raise_aram_base(code, find_aram_check(code), stubs_addr, stub_words);
+    for (std::size_t i = 0; i < stub_words.size(); ++i) store32(stubs_addr + 4 * i, stub_words[i]);
+    DCFlushRange(reinterpret_cast<void*>(stubs_addr), kStubBytes);
+    ICInvalidateRange(reinterpret_cast<void*>(stubs_addr), kStubBytes);
+    const unsigned dsp_patched = aram_raised ? 0 : patch_dsp_programs(dol);
+    logf("GameCube: ARAM addresses from 0x10004000 (%u place(s)); %u sound program(s) patched instead\n", aram_raised,
+         dsp_patched);
     const bool aram_check_skipped = skip_aram_size_check(code);
     const unsigned ai_waits = skip_ai_stream_waits(code);
     logf("GameCube: %u wait(s) for the AI stream counter skipped\n", ai_waits);
