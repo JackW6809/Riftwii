@@ -62,6 +62,7 @@
 #include "cover3d.hpp"
 #include "covers.hpp"
 #include "riftwii/coverart.hpp"
+#include "riftwii/gccard.hpp"
 #include "riftwii/qrcode.hpp"
 #include "riftwii/update.hpp"
 #include "gui_gamegrid.hpp"
@@ -4304,6 +4305,369 @@ static bool ShowGcControlsOnce(const FrontendState& state)
 	return true;
 }
 
+// ---------------------------------------------------------------------------
+// A GameCube game's memory card (riftwii/gccard.hpp): its saves, copied to
+// the SD card as .gci files (Dolphin's and Nintendont's), deleted, or
+// added from the SD card.
+
+static const char* const kGcSavesDir = "sd:/riftwii/gc/saves";
+
+static std::string GameTitle(const FrontendState& state);
+
+// sd:/riftwii/gc/cards/<ID>.raw, named as the loader names it (gcnative.cpp).
+static std::string GcCardPath(const std::string& id)
+{
+	std::string clean;
+	for (char c : id)
+		if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) clean += c;
+	return "sd:/riftwii/gc/cards/" + clean + ".raw";
+}
+
+// A whole file of at most `limit` bytes.
+static bool ReadSmallFile(const std::string& path, std::size_t limit, std::vector<std::uint8_t>& out)
+{
+	FILE* f = std::fopen(path.c_str(), "rb");
+	if (!f) return false;
+	std::fseek(f, 0, SEEK_END);
+	const long size = std::ftell(f);
+	std::fseek(f, 0, SEEK_SET);
+	bool ok = size >= 0 && static_cast<std::size_t>(size) <= limit;
+	if (ok) {
+		out.resize(static_cast<std::size_t>(size));
+		ok = out.empty() || std::fread(out.data(), 1, out.size(), f) == out.size();
+	}
+	std::fclose(f);
+	return ok;
+}
+
+// Writes back only the card's blocks that changed: the library writes an
+// update into the copies not in use, so a write cut off halfway leaves the
+// old directory and block table in charge, which rewriting the whole file
+// would not.
+static bool WriteChangedBlocks(const std::string& path, const std::vector<std::uint8_t>& before,
+			       const std::vector<std::uint8_t>& after)
+{
+	if (before.size() != after.size()) return false;
+	FILE* f = std::fopen(path.c_str(), "r+b");
+	if (!f) return false;
+	constexpr std::size_t kBlock = 0x2000;
+	bool ok = true;
+	for (std::size_t at = 0; ok && at < after.size(); at += kBlock) {
+		const std::size_t n = std::min(kBlock, after.size() - at);
+		if (memcmp(before.data() + at, after.data() + at, n) == 0) continue;
+		ok = std::fseek(f, static_cast<long>(at), SEEK_SET) == 0 && std::fwrite(after.data() + at, 1, n, f) == n;
+	}
+	ok = std::fflush(f) == 0 && ok;
+	fsync(fileno(f));
+	std::fclose(f);
+	return ok;
+}
+
+static std::string GcSaveName(const riftwii::GcSave& save)
+{
+	if (!save.comment_title.empty()) return save.comment_title;
+	return save.file_name.empty() ? save.game_code : save.file_name;
+}
+
+// "2026-10-16": a save's time, seconds since 2000-01-01.
+static std::string GcSaveDate(std::uint32_t seconds)
+{
+	// Whole years, then whole months, from 2000 (a leap year every fourth,
+	// enough until 2100).
+	std::uint32_t days = seconds / 86400;
+	unsigned year = 2000;
+	for (;;) {
+		const std::uint32_t inYear = year % 4 == 0 ? 366 : 365;
+		if (days < inYear) break;
+		days -= inYear;
+		++year;
+	}
+	static const unsigned kMonthDays[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+	unsigned month = 0;
+	for (; month < 11; ++month) {
+		const std::uint32_t inMonth = kMonthDays[month] + (month == 1 && year % 4 == 0 ? 1 : 0);
+		if (days < inMonth) break;
+		days -= inMonth;
+	}
+	const auto two = [](unsigned v) { return (v < 10 ? "0" : "") + std::to_string(v); };
+	return std::to_string(year) + "-" + two(month + 1) + "-" + two(static_cast<unsigned>(days) + 1);
+}
+
+// A save's own file name on the SD card: "GMSE01-Sunshine save.gci", with
+// only letters, digits and a few marks.
+static std::string GciFileName(const riftwii::GcSave& save)
+{
+	std::string name = save.game_code + save.maker + "-" + save.file_name;
+	std::string clean;
+	for (char c : name) {
+		const bool plain = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' ||
+				   c == '_' || c == '.' || c == ' ';
+		clean += plain ? c : '_';
+	}
+	if (clean.size() > 60) clean.resize(60);
+	return clean + ".gci";
+}
+
+// Two choices as tiles over a popup, with Back: 0 or 1, -1 for Back.
+static int ChooseTwo(const std::string& title, const std::string& body, const std::string& label0,
+		     const std::string& value0, const std::string& label1, const std::string& value1)
+{
+	PopupBox box(title, body, "", tr("Back"));
+	box.CenterCancel();
+	std::vector<TileSpec> tiles(2);
+	tiles[0].x = 56;
+	tiles[1].x = 332;
+	for (TileSpec& t : tiles) {
+		t.y = 238;
+		t.w = 252;
+		t.h = 64;
+	}
+	tiles[0].label = label0;
+	tiles[0].value = value0;
+	tiles[1].label = label1;
+	tiles[1].value = value1;
+	GuiTiles choices;
+	choices.SetTiles(&tiles);
+	choices.Select(0);
+	box.Append(&choices);
+	ResumeGui();
+	int picked = -1;
+	bool back = false;
+	while (picked < 0 && !back) {
+		usleep(20000);
+		HaltGui();
+		picked = choices.GetClicked();
+		back = picked < 0 && box.Pressed();  // Back, B or HOME
+		if (picked < 0 && !back) ResumeGui();
+	}
+	return back ? -1 : picked;
+}
+
+// A list of rows on its own page, with a note under it, until B: what
+// MenuGcCard and the .gci picker show. `act(row)` is called on A; it
+// returns true to leave.
+static void RunRowPage(const std::string& title, const std::string& subtitle, std::vector<FlowRow>& rows,
+		       const std::function<std::string(int)>& note, const std::function<bool(int)>& act)
+{
+	GuiText titleTxt(title.c_str(), 30, skin::kInk);
+	Place(titleTxt, 78, 28);
+	TitleBand titleBand;
+	PageIcon pageIcon(&skin::iconSaves);
+	const std::string sub = FlatCapped(subtitle, 40);
+	GuiText subTxt(sub.c_str(), 16, skin::kInkDim);
+	subTxt.SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
+	subTxt.SetPosition(-40, 40);
+	NoteCard noteCard;
+	GuiFlowList list(44, 84, 540, 5);
+	list.SetCards(true);
+	list.SetRows(&rows);
+	list.Select(0);
+	GuiText noteTxt("", 15, skin::kInkSoft);
+	Place(noteTxt, NoteCard::kTextX, NoteCard::kTextY);
+	noteTxt.SetWrap(true, NoteCard::kTextW, NoteCard::kLines);
+	SkinButton backBtn(skin::pill, skin::pillOver, 4, 198, 406, "Back",
+		WPAD_BUTTON_B | WPAD_CLASSIC_BUTTON_B, PAD_BUTTON_B, WIIDRC_BUTTON_B);
+	HideButton(backBtn);
+	GuiPrompts prompts;
+	const int promptBack = prompts.Add("B", tr("Back"));
+	prompts.Add("A", tr("Select"));
+
+	HaltGui();
+	GuiWindow w(screenwidth, screenheight);
+	w.Append(&titleBand);
+	w.Append(&pageIcon);
+	w.Append(&titleTxt);
+	w.Append(&subTxt);
+	w.Append(&noteCard);
+	w.Append(&list);
+	w.Append(&noteTxt);
+	w.Append(&backBtn.button);
+	w.Append(&prompts);
+	mainWindow->Append(&w);
+	ResumeGui();
+
+	int shownRow = -1;
+	bool done = false;
+	while (!done) {
+		usleep(10000);
+		HaltGui();
+		ClearStaleButtons({&backBtn.button});
+		const int row = list.Selected();
+		if (row != shownRow && row >= 0 && static_cast<std::size_t>(row) < rows.size()) {
+			shownRow = row;
+			noteTxt.SetText(note(row).c_str());
+		}
+		const int acted = list.GetClicked();
+		if (acted >= 0 && static_cast<std::size_t>(acted) < rows.size()) {
+			done = act(acted);
+			list.Refresh();
+			if (!rows.empty()) list.Select(std::min<int>(acted, static_cast<int>(rows.size()) - 1));
+			shownRow = -1;
+		}
+		if (prompts.GetClicked() == promptBack) backBtn.button.SetState(STATE::CLICKED);
+		if (backBtn.Clicked()) done = true;
+		ResumeGui();
+	}
+	HaltGui();
+	mainWindow->Remove(&w);
+}
+
+// A .gci file in sd:/riftwii/gc/saves, picked on a page of its own. False:
+// none there, or B.
+static bool PickGciFile(std::string& path)
+{
+	std::vector<std::string> names;
+	if (DIR* dir = opendir(kGcSavesDir)) {
+		while (dirent* e = readdir(dir)) {
+			const std::string name = e->d_name;
+			// macOS's "._" files beside every copied one are not saves.
+			if (name.size() > 4 && name[0] != '.' && strcasecmp(name.c_str() + name.size() - 4, ".gci") == 0)
+				names.push_back(name);
+		}
+		closedir(dir);
+	}
+	if (names.empty()) {
+		ShowPopup(tr("No saves on the SD card"),
+			tr("Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again.", {kGcSavesDir}), tr("OK"));
+		return false;
+	}
+	std::sort(names.begin(), names.end());
+	if (names.size() > 200) names.resize(200);
+	std::vector<FlowRow> rows;
+	for (const std::string& name : names) {
+		FlowRow row;
+		row.kind = FlowRow::Kind::Action;
+		row.label = FlatCapped(name, 50);
+		rows.push_back(row);
+	}
+	int picked = -1;
+	RunRowPage(tr("Add a save"), kGcSavesDir, rows, [](int) { return std::string(tr("Press A to add this save to the memory card.")); },
+		[&](int row) {
+			picked = row;
+			return true;
+		});
+	if (picked < 0) return false;
+	path = std::string(kGcSavesDir) + "/" + names[static_cast<std::size_t>(picked)];
+	return true;
+}
+
+// The game's memory card: its saves, how full it is, and adding a save.
+static void MenuGcCard(FrontendState& state)
+{
+	const std::string path = GcCardPath(state.game_id);
+	std::vector<std::uint8_t> card;
+	// A card is 2 MB; the library takes 4 to 128 Mbit ones.
+	if (!ReadSmallFile(path, 16u << 20, card)) {
+		ShowPopup(tr("No memory card yet"),
+			tr("This game's memory card is made the first time the game starts: {1}.", {path}), tr("OK"));
+		return;
+	}
+	riftwii::GcCardInfo info;
+	std::string error;
+	if (!riftwii::gc_card_read(card, info, error)) {
+		logf("GameCube card %s: %s\n", path.c_str(), error.c_str());
+		ShowPopup(tr("Memory card damaged"), tr("RiftWii cannot read {1}: {2}", {path, FlatCapped(error, 120)}), tr("OK"));
+		return;
+	}
+	std::vector<FlowRow> rows;
+	const auto rebuild = [&] {
+		rows.clear();
+		for (const riftwii::GcSave& save : info.saves) {
+			FlowRow row;
+			row.kind = FlowRow::Kind::Action;
+			row.label = FlatCapped(GcSaveName(save), 34);
+			row.value = save.block_count == 1 ? std::string(tr("1 block"))
+				: tr("{1} blocks", {std::to_string(save.block_count)});
+			row.dim = !save.intact;
+			rows.push_back(row);
+		}
+		FlowRow add;
+		add.kind = FlowRow::Kind::Action;
+		add.label = tr("Add a save from the SD card");
+		rows.push_back(add);
+	};
+	rebuild();
+	const auto commit = [&](const std::vector<std::uint8_t>& changed) {
+		if (!WriteChangedBlocks(path, card, changed)) {
+			logf("GameCube card %s: could not be written\n", path.c_str());
+			ShowPopup(tr("Memory card not changed"), tr("RiftWii could not write {1}.", {path}), tr("OK"));
+			return false;
+		}
+		card = changed;
+		riftwii::GcCardInfo again;
+		std::string why;
+		if (riftwii::gc_card_read(card, again, why)) info = again;
+		rebuild();
+		return true;
+	};
+	const auto note = [&](int row) -> std::string {
+		const std::size_t at = static_cast<std::size_t>(row);
+		const std::string free = tr("{1} of {2} blocks free.", {std::to_string(info.free_blocks), std::to_string(info.blocks - 5)});
+		if (at >= info.saves.size()) return tr("Adds a .gci save file from {1}.", {kGcSavesDir}) + " " + free;
+		const riftwii::GcSave& save = info.saves[at];
+		if (!save.intact) return tr("This save is damaged: its blocks do not add up. It can only be deleted.");
+		std::string text = save.comment_detail.empty() ? std::string() : save.comment_detail + "\n";
+		text += save.game_code + save.maker + " \xC2\xB7 " + GcSaveDate(save.modified) + " \xC2\xB7 " + free;
+		return text;
+	};
+	const auto act = [&](int row) {
+		const std::size_t at = static_cast<std::size_t>(row);
+		std::string why;
+		if (at >= info.saves.size()) {
+			std::string from;
+			std::vector<std::uint8_t> gci;
+			if (!PickGciFile(from)) return false;
+			// The largest a .gci can be: its entry and a whole card's blocks.
+			if (!ReadSmallFile(from, 64 + 2043u * 0x2000, gci)) {
+				ShowPopup(tr("Save not added"), tr("RiftWii could not read {1}.", {from}), tr("OK"));
+				return false;
+			}
+			std::vector<std::uint8_t> changed = card;
+			if (!riftwii::gc_card_import(changed, gci, why)) {
+				logf("GameCube card %s: %s not added: %s\n", path.c_str(), from.c_str(), why.c_str());
+				ShowPopup(tr("Save not added"), FlatCapped(why, 200), tr("OK"));
+				return false;
+			}
+			if (commit(changed)) logf("GameCube card %s: %s added\n", path.c_str(), from.c_str());
+			return false;
+		}
+		const riftwii::GcSave save = info.saves[at];
+		const std::string name = GcSaveName(save);
+		const int choice = save.intact
+			? ChooseTwo(name, note(row), tr("Copy to the SD card"), tr("As a .gci file, for Dolphin"), tr("Delete"), tr("From this memory card"))
+			: (ShowPopup(name, note(row), tr("Delete"), tr("Back")) == 0 ? 1 : -1);
+		if (choice == 0) {
+			std::vector<std::uint8_t> gci;
+			if (!riftwii::gc_card_export(card, save.slot, gci, why)) {
+				ShowPopup(tr("Save not copied"), FlatCapped(why, 200), tr("OK"));
+				return false;
+			}
+			mkdir("sd:/riftwii", 0777);
+			mkdir("sd:/riftwii/gc", 0777);
+			mkdir(kGcSavesDir, 0777);
+			const std::string to = std::string(kGcSavesDir) + "/" + GciFileName(save);
+			FILE* f = std::fopen(to.c_str(), "wb");
+			const bool written = f && std::fwrite(gci.data(), 1, gci.size(), f) == gci.size();
+			if (f) std::fclose(f);
+			logf("GameCube card %s: %s %s\n", path.c_str(), to.c_str(), written ? "written" : "could not be written");
+			ShowPopup(written ? tr("Save copied") : tr("Save not copied"),
+				written ? tr("It is {1}.", {to}) : tr("RiftWii could not write {1}.", {to}), tr("OK"));
+		} else if (choice == 1) {
+			if (ShowPopup(tr("Delete {1}?", {name}), tr("It is gone from the memory card for good. Copy it to the SD card first to keep it."),
+				    tr("Keep it"), tr("Delete")) != 1)
+				return false;
+			std::vector<std::uint8_t> changed = card;
+			if (!riftwii::gc_card_delete(changed, save.slot, why)) {
+				ShowPopup(tr("Save not deleted"), FlatCapped(why, 200), tr("OK"));
+				return false;
+			}
+			if (commit(changed)) logf("GameCube card %s: %s deleted\n", path.c_str(), save.file_name.c_str());
+		}
+		return false;
+	};
+	RunRowPage(tr("Memory Card"), GameTitle(state), rows, note, act);
+}
+
 // The Mods page: each pack made for the game as a switch, its options
 // under it once it is on.
 static void BuildModRows(const FrontendState& state, const std::string& scanStatus,
@@ -5751,8 +6115,8 @@ static std::string PlayTileNote(const FrontendState& state)
 // The Saves tile's note for a GameCube game.
 static std::string GcSaveNote(const FrontendState& state)
 {
-	return tr("Saves go to this game's own memory card on the SD card: {1}.",
-		{"sd:/riftwii/gc/cards/" + state.game_id + ".raw"});
+	return tr("Saves go to this game's own memory card on the SD card: {1}.", {GcCardPath(state.game_id)}) + " " +
+		tr("Press A to see its saves.");
 }
 
 // The band's line of facts: the ID, the year, the genre, how many play,
@@ -6270,7 +6634,13 @@ static int MenuHome(FrontendState& state)
 			if (tile == GameTile::Play) {
 				startBtn.button.SetState(STATE::CLICKED);
 			} else if (tile == GameTile::Saves && SelectedGcGame(state)) {
-				say(GcSaveNote(state));
+				transition::Hold(transition::Kind::SlideForward);
+				mainWindow->Remove(&w);
+				MenuGcCard(state);
+				transition::Hold(transition::Kind::SlideBack);
+				mainWindow->Append(&w);
+				rebuildTiles();
+				shownTile = -1;
 			} else if (tile == GameTile::Cheats && SelectedGcGame(state)) {
 				say(tr("Cheats don't work in GameCube games yet."));
 			} else if (tile == GameTile::Saves && !state.model.pack_save_owner().empty()) {

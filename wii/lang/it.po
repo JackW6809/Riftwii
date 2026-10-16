@@ -1449,6 +1449,96 @@ msgstr "Lettura di {1} e scrittura di {2}"
 msgid "{1} not built"
 msgstr "{1} non creato"
 
+msgid "1 block"
+msgstr "1 blocco"
+
+msgid "{1} blocks"
+msgstr "{1} blocchi"
+
+msgid "{1} of {2} blocks free."
+msgstr "{1} blocchi liberi su {2}."
+
+msgid "Add a save"
+msgstr "Aggiungi un salvataggio"
+
+msgid "Add a save from the SD card"
+msgstr "Aggiungi un salvataggio dalla scheda SD"
+
+msgid "Adds a .gci save file from {1}."
+msgstr "Aggiunge un file di salvataggio .gci da {1}."
+
+msgid "As a .gci file, for Dolphin"
+msgstr "Come file .gci, per Dolphin"
+
+msgid "Copy to the SD card"
+msgstr "Copia sulla scheda SD"
+
+msgid "Delete"
+msgstr "Elimina"
+
+msgid "Delete {1}?"
+msgstr "Eliminare {1}?"
+
+msgid "From this memory card"
+msgstr "Da questa Memory Card"
+
+msgid "It is gone from the memory card for good. Copy it to the SD card first to keep it."
+msgstr "Sparisce dalla Memory Card per sempre. Copialo prima sulla scheda SD per tenerlo."
+
+msgid "Keep it"
+msgstr "Tienilo"
+
+msgid "Memory card damaged"
+msgstr "Memory Card danneggiata"
+
+msgid "Memory card not changed"
+msgstr "Memory Card non modificata"
+
+msgid "No memory card yet"
+msgstr "Ancora nessuna Memory Card"
+
+msgid "No saves on the SD card"
+msgstr "Nessun salvataggio sulla scheda SD"
+
+msgid "Press A to add this save to the memory card."
+msgstr "Premi A per aggiungere questo salvataggio alla Memory Card."
+
+msgid "Press A to see its saves."
+msgstr "Premi A per vedere i salvataggi."
+
+msgid "Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again."
+msgstr "Metti dei file di salvataggio .gci (da Dolphin, Nintendont o un'altra scheda) in {1}, poi riprova."
+
+msgid "Save copied"
+msgstr "Salvataggio copiato"
+
+msgid "Save not added"
+msgstr "Salvataggio non aggiunto"
+
+msgid "Save not copied"
+msgstr "Salvataggio non copiato"
+
+msgid "Save not deleted"
+msgstr "Salvataggio non eliminato"
+
+msgid "This game's memory card is made the first time the game starts: {1}."
+msgstr "La Memory Card di questo gioco viene creata al primo avvio del gioco: {1}."
+
+msgid "This save is damaged: its blocks do not add up. It can only be deleted."
+msgstr "Questo salvataggio è danneggiato: i blocchi non tornano. Si può solo eliminare."
+
+msgid "It is {1}."
+msgstr "È {1}."
+
+msgid "RiftWii cannot read {1}: {2}"
+msgstr "RiftWii non riesce a leggere {1}: {2}"
+
+msgid "RiftWii could not read {1}."
+msgstr "RiftWii non è riuscito a leggere {1}."
+
+msgid "RiftWii could not write {1}."
+msgstr "RiftWii non è riuscito a scrivere {1}."
+
 msgid "This game's own options: how its disc is read, and its controls."
 msgstr "Le opzioni proprie di questo gioco: come viene letto il disco e i comandi."
 

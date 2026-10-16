@@ -1449,6 +1449,96 @@ msgstr "{1}を読み込み、{2}を書き込み中"
 msgid "{1} not built"
 msgstr "{1}は作られませんでした"
 
+msgid "1 block"
+msgstr "1ブロック"
+
+msgid "{1} blocks"
+msgstr "{1}ブロック"
+
+msgid "{1} of {2} blocks free."
+msgstr "{2}ブロック中{1}ブロックが空いています。"
+
+msgid "Add a save"
+msgstr "セーブを追加"
+
+msgid "Add a save from the SD card"
+msgstr "SDカードからセーブを追加"
+
+msgid "Adds a .gci save file from {1}."
+msgstr "{1}から.gciのセーブファイルを追加します。"
+
+msgid "As a .gci file, for Dolphin"
+msgstr ".gciファイルとして(Dolphin用)"
+
+msgid "Copy to the SD card"
+msgstr "SDカードにコピー"
+
+msgid "Delete"
+msgstr "削除"
+
+msgid "Delete {1}?"
+msgstr "{1}を削除しますか?"
+
+msgid "From this memory card"
+msgstr "このメモリーカードから"
+
+msgid "It is gone from the memory card for good. Copy it to the SD card first to keep it."
+msgstr "メモリーカードから完全に消えます。残すには先にSDカードにコピーしてください。"
+
+msgid "Keep it"
+msgstr "残す"
+
+msgid "Memory card damaged"
+msgstr "メモリーカードが壊れています"
+
+msgid "Memory card not changed"
+msgstr "メモリーカードは変更されていません"
+
+msgid "No memory card yet"
+msgstr "メモリーカードはまだありません"
+
+msgid "No saves on the SD card"
+msgstr "SDカードにセーブがありません"
+
+msgid "Press A to add this save to the memory card."
+msgstr "Aを押すと、このセーブをメモリーカードに追加します。"
+
+msgid "Press A to see its saves."
+msgstr "Aを押すとセーブを見られます。"
+
+msgid "Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again."
+msgstr ".gciのセーブファイル(Dolphin、Nintendont、別のカードのもの)を{1}に入れてから、もう一度試してください。"
+
+msgid "Save copied"
+msgstr "セーブをコピーしました"
+
+msgid "Save not added"
+msgstr "セーブは追加されませんでした"
+
+msgid "Save not copied"
+msgstr "セーブはコピーされませんでした"
+
+msgid "Save not deleted"
+msgstr "セーブは削除されませんでした"
+
+msgid "This game's memory card is made the first time the game starts: {1}."
+msgstr "このゲームのメモリーカードは、ゲームを初めて始めたときに作られます: {1}。"
+
+msgid "This save is damaged: its blocks do not add up. It can only be deleted."
+msgstr "このセーブは壊れています: ブロックが合いません。削除しかできません。"
+
+msgid "It is {1}."
+msgstr "{1}です。"
+
+msgid "RiftWii cannot read {1}: {2}"
+msgstr "RiftWiiは{1}を読めません: {2}"
+
+msgid "RiftWii could not read {1}."
+msgstr "RiftWiiは{1}を読めませんでした。"
+
+msgid "RiftWii could not write {1}."
+msgstr "RiftWiiは{1}を書き込めませんでした。"
+
 msgid "This game's own options: how its disc is read, and its controls."
 msgstr "このゲーム専用のオプション: ディスクの読み込み方と操作。"
 

@@ -1449,6 +1449,96 @@ msgstr "Leyendo {1} y escribiendo {2}"
 msgid "{1} not built"
 msgstr "{1} no se creó"
 
+msgid "1 block"
+msgstr "1 bloque"
+
+msgid "{1} blocks"
+msgstr "{1} bloques"
+
+msgid "{1} of {2} blocks free."
+msgstr "{1} de {2} bloques libres."
+
+msgid "Add a save"
+msgstr "Añadir una partida"
+
+msgid "Add a save from the SD card"
+msgstr "Añadir una partida desde la tarjeta SD"
+
+msgid "Adds a .gci save file from {1}."
+msgstr "Añade un archivo de partida .gci de {1}."
+
+msgid "As a .gci file, for Dolphin"
+msgstr "Como archivo .gci, para Dolphin"
+
+msgid "Copy to the SD card"
+msgstr "Copiar a la tarjeta SD"
+
+msgid "Delete"
+msgstr "Borrar"
+
+msgid "Delete {1}?"
+msgstr "¿Borrar {1}?"
+
+msgid "From this memory card"
+msgstr "De esta tarjeta de memoria"
+
+msgid "It is gone from the memory card for good. Copy it to the SD card first to keep it."
+msgstr "Desaparece de la tarjeta de memoria para siempre. Cópiala antes a la tarjeta SD para conservarla."
+
+msgid "Keep it"
+msgstr "Conservarla"
+
+msgid "Memory card damaged"
+msgstr "Tarjeta de memoria dañada"
+
+msgid "Memory card not changed"
+msgstr "Tarjeta de memoria sin cambios"
+
+msgid "No memory card yet"
+msgstr "Aún no hay tarjeta de memoria"
+
+msgid "No saves on the SD card"
+msgstr "No hay partidas en la tarjeta SD"
+
+msgid "Press A to add this save to the memory card."
+msgstr "Pulsa A para añadir esta partida a la tarjeta de memoria."
+
+msgid "Press A to see its saves."
+msgstr "Pulsa A para ver sus partidas."
+
+msgid "Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again."
+msgstr "Pon archivos de partida .gci (de Dolphin, Nintendont u otra tarjeta) en {1} y vuelve a intentarlo."
+
+msgid "Save copied"
+msgstr "Partida copiada"
+
+msgid "Save not added"
+msgstr "Partida no añadida"
+
+msgid "Save not copied"
+msgstr "Partida no copiada"
+
+msgid "Save not deleted"
+msgstr "Partida no borrada"
+
+msgid "This game's memory card is made the first time the game starts: {1}."
+msgstr "La tarjeta de memoria de este juego se crea la primera vez que se inicia: {1}."
+
+msgid "This save is damaged: its blocks do not add up. It can only be deleted."
+msgstr "Esta partida está dañada: sus bloques no cuadran. Solo se puede borrar."
+
+msgid "It is {1}."
+msgstr "Es {1}."
+
+msgid "RiftWii cannot read {1}: {2}"
+msgstr "RiftWii no puede leer {1}: {2}"
+
+msgid "RiftWii could not read {1}."
+msgstr "RiftWii no pudo leer {1}."
+
+msgid "RiftWii could not write {1}."
+msgstr "RiftWii no pudo escribir {1}."
+
 msgid "This game's own options: how its disc is read, and its controls."
 msgstr "Las opciones propias de este juego: cómo se lee su disco y sus controles."
 

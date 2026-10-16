@@ -1449,6 +1449,96 @@ msgstr "A ler {1} e a escrever {2}"
 msgid "{1} not built"
 msgstr "{1} não foi criado"
 
+msgid "1 block"
+msgstr "1 bloco"
+
+msgid "{1} blocks"
+msgstr "{1} blocos"
+
+msgid "{1} of {2} blocks free."
+msgstr "{1} de {2} blocos livres."
+
+msgid "Add a save"
+msgstr "Adicionar um save"
+
+msgid "Add a save from the SD card"
+msgstr "Adicionar um save do cartão SD"
+
+msgid "Adds a .gci save file from {1}."
+msgstr "Adiciona um ficheiro de save .gci de {1}."
+
+msgid "As a .gci file, for Dolphin"
+msgstr "Como ficheiro .gci, para o Dolphin"
+
+msgid "Copy to the SD card"
+msgstr "Copiar para o cartão SD"
+
+msgid "Delete"
+msgstr "Apagar"
+
+msgid "Delete {1}?"
+msgstr "Apagar {1}?"
+
+msgid "From this memory card"
+msgstr "Deste cartão de memória"
+
+msgid "It is gone from the memory card for good. Copy it to the SD card first to keep it."
+msgstr "Desaparece do cartão de memória para sempre. Copie-o primeiro para o cartão SD para o guardar."
+
+msgid "Keep it"
+msgstr "Manter"
+
+msgid "Memory card damaged"
+msgstr "Cartão de memória danificado"
+
+msgid "Memory card not changed"
+msgstr "Cartão de memória sem alterações"
+
+msgid "No memory card yet"
+msgstr "Ainda não há cartão de memória"
+
+msgid "No saves on the SD card"
+msgstr "Sem saves no cartão SD"
+
+msgid "Press A to add this save to the memory card."
+msgstr "Prima A para adicionar este save ao cartão de memória."
+
+msgid "Press A to see its saves."
+msgstr "Prima A para ver os saves."
+
+msgid "Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again."
+msgstr "Coloque ficheiros de save .gci (do Dolphin, do Nintendont ou de outro cartão) em {1} e tente outra vez."
+
+msgid "Save copied"
+msgstr "Save copiado"
+
+msgid "Save not added"
+msgstr "Save não adicionado"
+
+msgid "Save not copied"
+msgstr "Save não copiado"
+
+msgid "Save not deleted"
+msgstr "Save não apagado"
+
+msgid "This game's memory card is made the first time the game starts: {1}."
+msgstr "O cartão de memória deste jogo é criado na primeira vez que o jogo arranca: {1}."
+
+msgid "This save is damaged: its blocks do not add up. It can only be deleted."
+msgstr "Este save está danificado: os blocos não batem certo. Só pode ser apagado."
+
+msgid "It is {1}."
+msgstr "É {1}."
+
+msgid "RiftWii cannot read {1}: {2}"
+msgstr "O RiftWii não consegue ler {1}: {2}"
+
+msgid "RiftWii could not read {1}."
+msgstr "O RiftWii não conseguiu ler {1}."
+
+msgid "RiftWii could not write {1}."
+msgstr "O RiftWii não conseguiu escrever {1}."
+
 msgid "This game's own options: how its disc is read, and its controls."
 msgstr "As opções próprias deste jogo: como o disco é lido e os controlos."
 

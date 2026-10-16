@@ -1353,6 +1353,36 @@ T = {
     "Building {1}": ("Creando {1}", "{1}を作成中", "A criar {1}", "Creazione di {1}"),
     "Reading {1} and writing {2}": ("Leyendo {1} y escribiendo {2}", "{1}を読み込み、{2}を書き込み中", "A ler {1} e a escrever {2}", "Lettura di {1} e scrittura di {2}"),
     "{1} not built": ("{1} no se creó", "{1}は作られませんでした", "{1} não foi criado", "{1} non creato"),
+    "1 block": ("1 bloque", "1ブロック", "1 bloco", "1 blocco"),
+    "{1} blocks": ("{1} bloques", "{1}ブロック", "{1} blocos", "{1} blocchi"),
+    "{1} of {2} blocks free.": ("{1} de {2} bloques libres.", "{2}ブロック中{1}ブロックが空いています。", "{1} de {2} blocos livres.", "{1} blocchi liberi su {2}."),
+    "Add a save": ("Añadir una partida", "セーブを追加", "Adicionar um save", "Aggiungi un salvataggio"),
+    "Add a save from the SD card": ("Añadir una partida desde la tarjeta SD", "SDカードからセーブを追加", "Adicionar um save do cartão SD", "Aggiungi un salvataggio dalla scheda SD"),
+    "Adds a .gci save file from {1}.": ("Añade un archivo de partida .gci de {1}.", "{1}から.gciのセーブファイルを追加します。", "Adiciona um ficheiro de save .gci de {1}.", "Aggiunge un file di salvataggio .gci da {1}."),
+    "As a .gci file, for Dolphin": ("Como archivo .gci, para Dolphin", ".gciファイルとして(Dolphin用)", "Como ficheiro .gci, para o Dolphin", "Come file .gci, per Dolphin"),
+    "Copy to the SD card": ("Copiar a la tarjeta SD", "SDカードにコピー", "Copiar para o cartão SD", "Copia sulla scheda SD"),
+    "Delete": ("Borrar", "削除", "Apagar", "Elimina"),
+    "Delete {1}?": ("¿Borrar {1}?", "{1}を削除しますか?", "Apagar {1}?", "Eliminare {1}?"),
+    "From this memory card": ("De esta tarjeta de memoria", "このメモリーカードから", "Deste cartão de memória", "Da questa Memory Card"),
+    "It is gone from the memory card for good. Copy it to the SD card first to keep it.": ("Desaparece de la tarjeta de memoria para siempre. Cópiala antes a la tarjeta SD para conservarla.", "メモリーカードから完全に消えます。残すには先にSDカードにコピーしてください。", "Desaparece do cartão de memória para sempre. Copie-o primeiro para o cartão SD para o guardar.", "Sparisce dalla Memory Card per sempre. Copialo prima sulla scheda SD per tenerlo."),
+    "Keep it": ("Conservarla", "残す", "Manter", "Tienilo"),
+    "Memory card damaged": ("Tarjeta de memoria dañada", "メモリーカードが壊れています", "Cartão de memória danificado", "Memory Card danneggiata"),
+    "Memory card not changed": ("Tarjeta de memoria sin cambios", "メモリーカードは変更されていません", "Cartão de memória sem alterações", "Memory Card non modificata"),
+    "No memory card yet": ("Aún no hay tarjeta de memoria", "メモリーカードはまだありません", "Ainda não há cartão de memória", "Ancora nessuna Memory Card"),
+    "No saves on the SD card": ("No hay partidas en la tarjeta SD", "SDカードにセーブがありません", "Sem saves no cartão SD", "Nessun salvataggio sulla scheda SD"),
+    "Press A to add this save to the memory card.": ("Pulsa A para añadir esta partida a la tarjeta de memoria.", "Aを押すと、このセーブをメモリーカードに追加します。", "Prima A para adicionar este save ao cartão de memória.", "Premi A per aggiungere questo salvataggio alla Memory Card."),
+    "Press A to see its saves.": ("Pulsa A para ver sus partidas.", "Aを押すとセーブを見られます。", "Prima A para ver os saves.", "Premi A per vedere i salvataggi."),
+    "Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again.": ("Pon archivos de partida .gci (de Dolphin, Nintendont u otra tarjeta) en {1} y vuelve a intentarlo.", ".gciのセーブファイル(Dolphin、Nintendont、別のカードのもの)を{1}に入れてから、もう一度試してください。", "Coloque ficheiros de save .gci (do Dolphin, do Nintendont ou de outro cartão) em {1} e tente outra vez.", "Metti dei file di salvataggio .gci (da Dolphin, Nintendont o un'altra scheda) in {1}, poi riprova."),
+    "Save copied": ("Partida copiada", "セーブをコピーしました", "Save copiado", "Salvataggio copiato"),
+    "Save not added": ("Partida no añadida", "セーブは追加されませんでした", "Save não adicionado", "Salvataggio non aggiunto"),
+    "Save not copied": ("Partida no copiada", "セーブはコピーされませんでした", "Save não copiado", "Salvataggio non copiato"),
+    "Save not deleted": ("Partida no borrada", "セーブは削除されませんでした", "Save não apagado", "Salvataggio non eliminato"),
+    "This game's memory card is made the first time the game starts: {1}.": ("La tarjeta de memoria de este juego se crea la primera vez que se inicia: {1}.", "このゲームのメモリーカードは、ゲームを初めて始めたときに作られます: {1}。", "O cartão de memória deste jogo é criado na primeira vez que o jogo arranca: {1}.", "La Memory Card di questo gioco viene creata al primo avvio del gioco: {1}."),
+    "This save is damaged: its blocks do not add up. It can only be deleted.": ("Esta partida está dañada: sus bloques no cuadran. Solo se puede borrar.", "このセーブは壊れています: ブロックが合いません。削除しかできません。", "Este save está danificado: os blocos não batem certo. Só pode ser apagado.", "Questo salvataggio è danneggiato: i blocchi non tornano. Si può solo eliminare."),
+    "It is {1}.": ("Es {1}.", "{1}です。", "É {1}.", "È {1}."),
+    "RiftWii cannot read {1}: {2}": ("RiftWii no puede leer {1}: {2}", "RiftWiiは{1}を読めません: {2}", "O RiftWii não consegue ler {1}: {2}", "RiftWii non riesce a leggere {1}: {2}"),
+    "RiftWii could not read {1}.": ("RiftWii no pudo leer {1}.", "RiftWiiは{1}を読めませんでした。", "O RiftWii não conseguiu ler {1}.", "RiftWii non è riuscito a leggere {1}."),
+    "RiftWii could not write {1}.": ("RiftWii no pudo escribir {1}.", "RiftWiiは{1}を書き込めませんでした。", "O RiftWii não conseguiu escrever {1}.", "RiftWii non è riuscito a scrivere {1}."),
     "This game's own options: how its disc is read, and its controls.": ("Las opciones propias de este juego: cómo se lee su disco y sus controles.", "このゲーム専用のオプション: ディスクの読み込み方と操作。", "As opções próprias deste jogo: como o disco é lido e os controlos.", "Le opzioni proprie di questo gioco: come viene letto il disco e i comandi."),
     "Not made yet": ("Aún no creado", "まだ作られていません", "Ainda não criado", "Non ancora creato"),
     "Home lists the GameCube games only, from sd:/games.": ("Inicio muestra solo los juegos de GameCube, de sd:/games.", "ホームにはsd:/gamesのゲームキューブのゲームだけを表示します。", "O Início mostra só os jogos de GameCube, de sd:/games.", "La Home mostra solo i giochi GameCube, da sd:/games."),
@@ -2796,6 +2826,66 @@ KO = {
         "{1} 읽고 {2} 쓰는 중",
     "{1} not built":
         "{1}을(를) 만들지 못했습니다",
+    "1 block":
+        "1블록",
+    "{1} blocks":
+        "{1}블록",
+    "{1} of {2} blocks free.":
+        "{2}블록 중 {1}블록 남음.",
+    "Add a save":
+        "저장 데이터 추가",
+    "Add a save from the SD card":
+        "SD 카드에서 저장 데이터 추가",
+    "Adds a .gci save file from {1}.":
+        "{1}에서 .gci 저장 파일을 추가합니다.",
+    "As a .gci file, for Dolphin":
+        ".gci 파일로 (Dolphin용)",
+    "Copy to the SD card":
+        "SD 카드에 복사",
+    "Delete":
+        "삭제",
+    "Delete {1}?":
+        "{1}을(를) 삭제할까요?",
+    "From this memory card":
+        "이 메모리 카드에서",
+    "It is gone from the memory card for good. Copy it to the SD card first to keep it.":
+        "메모리 카드에서 완전히 사라집니다. 남기려면 먼저 SD 카드에 복사하세요.",
+    "Keep it":
+        "남기기",
+    "Memory card damaged":
+        "메모리 카드 손상",
+    "Memory card not changed":
+        "메모리 카드가 바뀌지 않았습니다",
+    "No memory card yet":
+        "아직 메모리 카드가 없습니다",
+    "No saves on the SD card":
+        "SD 카드에 저장 데이터가 없습니다",
+    "Press A to add this save to the memory card.":
+        "A를 누르면 이 저장 데이터를 메모리 카드에 추가합니다.",
+    "Press A to see its saves.":
+        "A를 누르면 저장 데이터를 볼 수 있습니다.",
+    "Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again.":
+        ".gci 저장 파일(Dolphin, Nintendont, 다른 카드의 것)을 {1}에 넣고 다시 시도하세요.",
+    "Save copied":
+        "저장 데이터 복사됨",
+    "Save not added":
+        "저장 데이터가 추가되지 않았습니다",
+    "Save not copied":
+        "저장 데이터가 복사되지 않았습니다",
+    "Save not deleted":
+        "저장 데이터가 삭제되지 않았습니다",
+    "This game's memory card is made the first time the game starts: {1}.":
+        "이 게임의 메모리 카드는 게임을 처음 시작할 때 만들어집니다: {1}.",
+    "This save is damaged: its blocks do not add up. It can only be deleted.":
+        "이 저장 데이터는 손상되었습니다: 블록이 맞지 않습니다. 삭제만 할 수 있습니다.",
+    "It is {1}.":
+        "{1}입니다.",
+    "RiftWii cannot read {1}: {2}":
+        "RiftWii가 {1}을(를) 읽을 수 없습니다: {2}",
+    "RiftWii could not read {1}.":
+        "RiftWii가 {1}을(를) 읽지 못했습니다.",
+    "RiftWii could not write {1}.":
+        "RiftWii가 {1}을(를) 쓰지 못했습니다.",
     "This game's own options: how its disc is read, and its controls.":
         "이 게임만의 옵션: 디스크 읽기 방식과 조작.",
     "Not made yet":
@@ -4389,6 +4479,66 @@ FR = {
         "Lecture de {1} et écriture de {2}",
     "{1} not built":
         "{1} non créé",
+    "1 block":
+        "1 bloc",
+    "{1} blocks":
+        "{1} blocs",
+    "{1} of {2} blocks free.":
+        "{1} blocs libres sur {2}.",
+    "Add a save":
+        "Ajouter une sauvegarde",
+    "Add a save from the SD card":
+        "Ajouter une sauvegarde depuis la carte SD",
+    "Adds a .gci save file from {1}.":
+        "Ajoute un fichier de sauvegarde .gci depuis {1}.",
+    "As a .gci file, for Dolphin":
+        "En fichier .gci, pour Dolphin",
+    "Copy to the SD card":
+        "Copier sur la carte SD",
+    "Delete":
+        "Supprimer",
+    "Delete {1}?":
+        "Supprimer {1} ?",
+    "From this memory card":
+        "De cette carte mémoire",
+    "It is gone from the memory card for good. Copy it to the SD card first to keep it.":
+        "Elle disparaît de la carte mémoire pour de bon. Copiez-la d'abord sur la carte SD pour la garder.",
+    "Keep it":
+        "La garder",
+    "Memory card damaged":
+        "Carte mémoire endommagée",
+    "Memory card not changed":
+        "Carte mémoire inchangée",
+    "No memory card yet":
+        "Pas encore de carte mémoire",
+    "No saves on the SD card":
+        "Aucune sauvegarde sur la carte SD",
+    "Press A to add this save to the memory card.":
+        "Appuyez sur A pour ajouter cette sauvegarde à la carte mémoire.",
+    "Press A to see its saves.":
+        "Appuyez sur A pour voir ses sauvegardes.",
+    "Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again.":
+        "Placez des fichiers de sauvegarde .gci (de Dolphin, de Nintendont ou d'une autre carte) dans {1}, puis réessayez.",
+    "Save copied":
+        "Sauvegarde copiée",
+    "Save not added":
+        "Sauvegarde non ajoutée",
+    "Save not copied":
+        "Sauvegarde non copiée",
+    "Save not deleted":
+        "Sauvegarde non supprimée",
+    "This game's memory card is made the first time the game starts: {1}.":
+        "La carte mémoire de ce jeu est créée au premier lancement du jeu : {1}.",
+    "This save is damaged: its blocks do not add up. It can only be deleted.":
+        "Cette sauvegarde est endommagée : ses blocs ne correspondent pas. Elle ne peut qu'être supprimée.",
+    "It is {1}.":
+        "C'est {1}.",
+    "RiftWii cannot read {1}: {2}":
+        "RiftWii ne peut pas lire {1} : {2}",
+    "RiftWii could not read {1}.":
+        "RiftWii n'a pas pu lire {1}.",
+    "RiftWii could not write {1}.":
+        "RiftWii n'a pas pu écrire {1}.",
     "This game's own options: how its disc is read, and its controls.":
         "Les options propres à ce jeu : la lecture de son disque et ses commandes.",
     "Not made yet":
