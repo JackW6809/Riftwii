@@ -5093,12 +5093,11 @@ static void MenuGcCard(FrontendState& state)
 static void MakeGcCrashCard()
 {
 	std::string text;
-	// The three ways back promise that A goes back; with none the message
+	// The two ways back promise that A goes back; with none the message
 	// says to turn the Wii off.
 	bool wayBack = true;
 	switch (riftwii::wii::FindGcWayBack()) {
 		case riftwii::wii::GcWayBack::Channel: text = tr("The game stopped. Press A to go back to RiftWii and send a problem report."); break;
-		case riftwii::wii::GcWayBack::HomebrewChannel: text = tr("The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts."); break;
 		case riftwii::wii::GcWayBack::WiiMenu: text = tr("The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."); break;
 		default:
 			text = tr("The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.");

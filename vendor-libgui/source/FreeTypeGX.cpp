@@ -104,10 +104,20 @@ int RenderTextCoverage(const char* text, FT_UInt pixelSize, uint8_t* out, int wi
 	FT_Size saved = ftFace->size, mine = nullptr;
 	if (FT_New_Size(ftFace, &mine) != 0) return 0;
 	FT_Activate_Size(mine);
-	FT_Set_Pixel_Sizes(ftFace, 0, pixelSize);
+	// A bitmap-only face without this size: nothing drawn rather than
+	// glyphs at some other size overrunning the card.
+	if (FT_Set_Pixel_Sizes(ftFace, 0, pixelSize) != 0)
+	{
+		FT_Activate_Size(saved);
+		FT_Done_Size(mine);
+		return 0;
+	}
+	// Outlines only, so the glyphs come out as 8-bit coverage and not as a
+	// face's embedded 1-bit bitmaps.
+	const FT_Int32 loadFlags = FT_LOAD_NO_BITMAP | FT_LOAD_TARGET_NORMAL;
 	wchar_t* wide = charToWideChar(text);
-	const auto advance = [](wchar_t c) -> int {
-		if (FT_Load_Char(ftFace, (FT_ULong) c, FT_LOAD_DEFAULT) != 0) return 0;
+	const auto advance = [loadFlags](wchar_t c) -> int {
+		if (FT_Load_Char(ftFace, (FT_ULong) c, loadFlags) != 0) return 0;
 		return (int) (ftSlot->advance.x >> 6);
 	};
 	const int ascender = (int) (ftFace->size->metrics.ascender >> 6);
@@ -133,14 +143,19 @@ int RenderTextCoverage(const char* text, FT_UInt pixelSize, uint8_t* out, int wi
 		const int baseline = lines * lineHeight + ascender;
 		for (const wchar_t* c = at; c < end; ++c)
 		{
-			if (FT_Load_Char(ftFace, (FT_ULong) *c, FT_LOAD_RENDER) != 0) continue;
+			if (FT_Load_Char(ftFace, (FT_ULong) *c, FT_LOAD_RENDER | loadFlags) != 0) continue;
 			const FT_Bitmap& bmp = ftSlot->bitmap;
+			// Gray is a byte a pixel; mono (a face with no outlines) a bit.
+			const bool gray = bmp.pixel_mode == FT_PIXEL_MODE_GRAY;
+			const bool mono = bmp.pixel_mode == FT_PIXEL_MODE_MONO;
+			if (!gray && !mono) { pen += (int) (ftSlot->advance.x >> 6); continue; }
 			for (int y = 0; y < (int) bmp.rows; ++y)
 				for (int x = 0; x < (int) bmp.width; ++x)
 				{
 					const int ox = pen + ftSlot->bitmap_left + x, oy = baseline - ftSlot->bitmap_top + y;
 					if (ox < 0 || oy < 0 || ox >= width || oy >= height) continue;
-					const uint8_t v = bmp.buffer[y * bmp.pitch + x];
+					const uint8_t* row = bmp.buffer + y * bmp.pitch;
+					const uint8_t v = gray ? row[x] : ((row[x >> 3] & (0x80 >> (x & 7))) ? 255 : 0);
 					if (v > out[oy * width + ox]) out[oy * width + ox] = v;
 				}
 			pen += (int) (ftSlot->advance.x >> 6);

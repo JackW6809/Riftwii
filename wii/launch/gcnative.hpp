@@ -21,9 +21,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
 
 // Where holding HOME in a GameCube game goes, as Settings > Return to
 // says: the RiftWii channel (on "riftwii", when it is installed), else the
-// Wii Menu; None when neither has a ticket. (HomebrewChannel is never
-// chosen any more; the value stays for the menu's crash texts.)
-enum class GcWayBack { None, Channel, HomebrewChannel, WiiMenu };
+// Wii Menu; None when neither has a ticket.
+enum class GcWayBack { None, Channel, WiiMenu };
 GcWayBack FindGcWayBack();
 
 // The crash screen's message, made by the menu in its own font and

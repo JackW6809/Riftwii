@@ -1521,9 +1521,6 @@ msgstr "약 {1}~{2}분"
 msgid "The game stopped. Press A to go back to RiftWii and send a problem report."
 msgstr "게임이 멈췄습니다. A를 누르면 RiftWii로 돌아가 문제 보고를 보낼 수 있습니다."
 
-msgid "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts."
-msgstr "게임이 멈췄습니다. A를 누르면 Homebrew Channel로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다."
-
 msgid "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."
 msgstr "게임이 멈췄습니다. A를 누르면 Wii 메뉴로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다."
 

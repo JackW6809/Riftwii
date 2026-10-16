@@ -997,8 +997,7 @@ std::uint32_t find_gx_set_projection(const Code& code) {
 // HOME launches, with its ticket view, and /dev/es opened here; IOS keeps
 // it open across the jump, as it keeps the SD card's. The RiftWii channel
 // when it is installed and Settings > Return to says RiftWii, else the
-// Homebrew Channel (its titles as StartHomebrewChannelTitle knows them),
-// else the Wii Menu.
+// Wii Menu.
 constexpr std::uint32_t kLeaveBytes = 0x100;
 constexpr u64 kWiiMenuTitle = 0x0000000100000002ull;
 
@@ -1359,7 +1358,13 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // While the log still reaches the card: what holding HOME goes to.
     prepare_leave(ctx, leave_addr, test_leave);
     ctx->crash_card = 0;
-    if (g_crash_card.size() == GC_CRASH_CARD_BYTES) {
+    // A message promising that A goes back is left out when there is no
+    // way back after all (/dev/es did not open): a white screen beats a
+    // promise A cannot keep.
+    const bool broken_promise = g_crash_card_way_back && ctx->leave_buf == 0;
+    if (broken_promise && !g_crash_card.empty())
+        logf("GameCube: the crash screen's message is left out, as it promises a way back there is not\n");
+    if (g_crash_card.size() == GC_CRASH_CARD_BYTES && !broken_promise) {
         std::memcpy(reinterpret_cast<void*>(crash_addr), g_crash_card.data(), GC_CRASH_CARD_BYTES);
         ctx->crash_card = crash_addr;
     }

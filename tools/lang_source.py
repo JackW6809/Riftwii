@@ -1377,7 +1377,6 @@ T = {
     "About a minute": ("Un minuto, más o menos", "約1分", "Cerca de um minuto", "Circa un minuto"),
     "About {1}-{2} minutes": ("Unos {1}-{2} minutos", "約{1}〜{2}分", "Cerca de {1}-{2} minutos", "Circa {1}-{2} minuti"),
     "The game stopped. Press A to go back to RiftWii and send a problem report.": ("El juego se ha detenido. Pulsa A para volver a RiftWii y enviar un informe del problema.", "ゲームが止まりました。Aを押すとRiftWiiに戻り、問題の報告を送れます。", "O jogo parou. Prima A para voltar ao RiftWii e enviar um relatório do problema.", "Il gioco si è fermato. Premi A per tornare a RiftWii e inviare una segnalazione del problema."),
-    "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Pulsa A para volver al Canal Homebrew. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Aを押すとHomebrew Channelに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Prima A para voltar ao Homebrew Channel. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Premi A per tornare all'Homebrew Channel. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
     "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Pulsa A para volver al Menú de Wii. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Aを押すとWiiメニューに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Prima A para voltar ao Menu Wii. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Premi A per tornare al Menu Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
     "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Desligue a Wii e volte a ligá-la. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
     "Hold HOME for two seconds to leave the game.": ("Mantén HOME dos segundos para salir del juego.", "HOMEを2秒押し続けるとゲームをやめます。", "Mantenha HOME premido dois segundos para sair do jogo.", "Tieni premuto HOME per due secondi per uscire dal gioco."),
@@ -2910,8 +2909,6 @@ KO = {
         "약 {1}~{2}분",
     "The game stopped. Press A to go back to RiftWii and send a problem report.":
         "게임이 멈췄습니다. A를 누르면 RiftWii로 돌아가 문제 보고를 보낼 수 있습니다.",
-    "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.":
-        "게임이 멈췄습니다. A를 누르면 Homebrew Channel로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
     "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.":
         "게임이 멈췄습니다. A를 누르면 Wii 메뉴로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
     "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
@@ -4635,8 +4632,6 @@ FR = {
         "Environ {1} à {2} minutes",
     "The game stopped. Press A to go back to RiftWii and send a problem report.":
         "Le jeu s'est arrêté. Appuyez sur A pour revenir à RiftWii et envoyer un rapport de problème.",
-    "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.":
-        "Le jeu s'est arrêté. Appuyez sur A pour revenir à la Homebrew Channel. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
     "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.":
         "Le jeu s'est arrêté. Appuyez sur A pour revenir au Menu Wii. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
     "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
