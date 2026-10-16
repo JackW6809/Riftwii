@@ -95,7 +95,7 @@ static int bt_send(struct gc_bt* bt, struct gc_bt_rq* rq) {
     gc_flush((uint32_t)(uintptr_t)rq, 160);  /* ipc, vec and setup */
     if (rq->data) gc_invalidate(rq->data, rq->length);  /* IOS writes there, or has the flushed bytes */
     rq->state = GC_BT_RQ_SENT;
-    if (gc_ipc_send(bt_phys(rq->ipc)) != 0) {
+    if (gc_ipc_send(bt_phys(rq->ipc), bt) != 0) {
         rq->state = GC_BT_RQ_IDLE;
         bt->last_error = -1000;
         return 0;

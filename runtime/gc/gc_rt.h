@@ -244,7 +244,8 @@ void gc_invalidate(uint32_t address, uint32_t length);
 void gc_guard(struct gc_rt_context* ctx);
 uint32_t gc_irq_off(void);
 void gc_irq_restore(uint32_t msr);
-int32_t gc_ipc_send(uint32_t phys);
+struct gc_bt;
+int32_t gc_ipc_send(uint32_t phys, struct gc_bt* bt);
 int32_t gc_sd_write(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t buf);
 uint32_t gc_ipc_take(void);
 #endif

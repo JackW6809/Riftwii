@@ -78,17 +78,6 @@ void gc_guard(struct gc_rt_context* ctx) {
     }
 }
 
-/* A request to IOS (its physical address): sent, and taken by IOS. */
-int32_t gc_ipc_send(uint32_t phys) {
-    uint32_t polls;
-    gc_write32(GC_IPC_PPCMSG, phys);
-    gc_write32(GC_IPC_PPCCTRL, GC_IPC_X1);
-    for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y2) == 0; ++polls)
-        if (polls == GC_IPC_TIMEOUT) return -1000;
-    gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y2);
-    return 0;
-}
-
 /* The reply IOS has ready (the request's physical address), or 0. */
 uint32_t gc_ipc_take(void) {
     uint32_t reply;
@@ -97,6 +86,26 @@ uint32_t gc_ipc_take(void) {
     gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y1);
     gc_write32(GC_IPC_PPCCTRL, GC_IPC_X2);
     return reply;
+}
+
+/* A request to IOS (its physical address): sent, and taken by IOS. IOS
+ * takes no new request while a reply waits to be acknowledged, and the
+ * Wii Remotes' reads (gc_bt.c) finish whenever a remote sends something:
+ * a reply waiting meanwhile goes to them, or the send never completes
+ * (Luigi's Mansion in Dolphin: every disc read timed out, the control
+ * register at X1 | Y1). Every reply but a pending request's own is
+ * theirs: disc reads and trace writes run one at a time. */
+int32_t gc_ipc_send(uint32_t phys, struct gc_bt* bt) {
+    uint32_t polls;
+    gc_write32(GC_IPC_PPCMSG, phys);
+    gc_write32(GC_IPC_PPCCTRL, GC_IPC_X1);
+    for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y2) == 0; ++polls) {
+        const uint32_t reply = gc_ipc_take();
+        if (reply != 0 && bt) gc_bt_on_reply(bt, reply);
+        if (polls == GC_IPC_TIMEOUT) return -1000;
+    }
+    gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y2);
+    return 0;
 }
 
 /* A reply that is not the one being waited for: the Wii Remotes' reads
@@ -122,11 +131,7 @@ static int32_t gc_ioctlv(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl,
     rq[5] = out_count;
     rq[6] = gc_physical((uint32_t)(uintptr_t)ctx->vec);
     gc_flush((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
-    gc_write32(GC_IPC_PPCMSG, phys);
-    gc_write32(GC_IPC_PPCCTRL, GC_IPC_X1);
-    for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y2) == 0; ++polls)
-        if (polls == GC_IPC_TIMEOUT) return -1000;
-    gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y2);
+    if (gc_ipc_send(phys, (struct gc_bt*)(uintptr_t)ctx->bt) != 0) return -1000;
     for (;;) {
         for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y1) == 0; ++polls)
             if (polls == GC_IPC_TIMEOUT) return -1000;
@@ -278,11 +283,7 @@ static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, 
     gc_flush(in, in_len);
     gc_flush(out, out_len);
     gc_flush((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
-    gc_write32(GC_IPC_PPCMSG, phys);
-    gc_write32(GC_IPC_PPCCTRL, GC_IPC_X1);
-    for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y2) == 0; ++polls)
-        if (polls == GC_IPC_TIMEOUT) return -1000;
-    gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y2);
+    if (gc_ipc_send(phys, (struct gc_bt*)(uintptr_t)ctx->bt) != 0) return -1000;
     for (;;) {
         for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y1) == 0; ++polls)
             if (polls == GC_IPC_TIMEOUT) return -1000;
