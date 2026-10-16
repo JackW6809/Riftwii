@@ -3711,7 +3711,8 @@ static std::string SaveNote(const riftwii::LaunchModel& model)
 struct RowRef {
 	enum class What { Mods, Saves, Cheats, Width, Deflicker, Borders, VideoMode, RegionVideo, Aspect, Rumble, Speaker,
 		RegionStrings, Language, Cios, Server, Favorite, Pack, Option, Note,
-		AddCodes, ForgetCodes, MakeImage, Cover, Memory, About, GcDiscReads, GcCard, GcControls } what = What::Note;
+		AddCodes, ForgetCodes, MakeImage, Cover, Memory, About, GcDiscReads, GcCard, GcProgressive, GcWidescreen,
+		GcLanguage, GcControls } what = What::Note;
 	std::size_t pkg = 0, opt = 0;
 };
 
@@ -3728,6 +3729,19 @@ static std::string AspectName(const std::string& v)
 }
 static const char* const kGameLanguages[] = {"global", "console", "ja", "en", "de", "fr", "es", "it", "nl", "zh-hans",
 	"zh-hant", "ko"};
+// A GameCube game's language: its own (the console's), then
+// riftwii::kGcLanguages in the SRAM's order.
+static const char* const kGcLanguageChoices[] = {"game", "english", "german", "french", "spanish", "italian", "dutch"};
+static std::string GcLanguageName(const std::string& v)
+{
+	if (v == "english") return tr("English");
+	if (v == "german") return tr("German");
+	if (v == "french") return tr("French");
+	if (v == "spanish") return tr("Spanish");
+	if (v == "italian") return tr("Italian");
+	if (v == "dutch") return tr("Dutch");
+	return tr("The console's");
+}
 static const char* const kCiosChoices[] = {"global", "auto", "248", "249", "250", "251", "252"};
 static const char* const kServers[] = {"global", "off", "wiimmfi", "wiilink", "altwfc", "custom"};
 
@@ -4027,6 +4041,29 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		card.on = game.gc_card == "shared";
 		rows.push_back(card);
 		refs.push_back({W::GcCard});
+		FlowRow progressive;
+		progressive.kind = FlowRow::Kind::Option;
+		progressive.label = tr("Progressive scan");
+		// 480p is NTSC's: a PAL game keeps its own picture whatever is picked.
+		progressive.dim = riftwii::gc_pal_game(state.game_id);
+		progressive.on = game.gc_progressive == "480p" && !progressive.dim;
+		progressive.value = progressive.on ? "480p" : tr("Game's own");
+		rows.push_back(progressive);
+		refs.push_back({W::GcProgressive});
+		FlowRow widescreen;
+		widescreen.kind = FlowRow::Kind::Option;
+		widescreen.label = tr("Widescreen");
+		widescreen.on = game.gc_widescreen == "16:9";
+		widescreen.value = widescreen.on ? "16:9" : tr("Game's own");
+		rows.push_back(widescreen);
+		refs.push_back({W::GcWidescreen});
+		FlowRow language;
+		language.kind = FlowRow::Kind::Option;
+		language.label = tr("Game language");
+		language.on = game.gc_language != "game";
+		language.value = GcLanguageName(game.gc_language);
+		rows.push_back(language);
+		refs.push_back({W::GcLanguage});
 		FlowRow controls;
 		controls.kind = FlowRow::Kind::Action;
 		controls.label = tr("Controls");
@@ -6354,6 +6391,9 @@ static int ChangedGameSettings(const riftwii::GameSettings& g)
 	if (g.region_strings == "on") ++changed;
 	if (g.gc_disc_reads == "fast") ++changed;
 	if (g.gc_card == "shared") ++changed;
+	if (g.gc_progressive == "480p") ++changed;
+	if (g.gc_widescreen == "16:9") ++changed;
+	if (g.gc_language != "game") ++changed;
 	if (g.rumble == "off") ++changed;
 	if (g.speaker == "off") ++changed;
 	return changed;
@@ -6515,6 +6555,14 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 				say(tr("Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."));
 			else if (ref.what == RowRef::What::GcCard)
 				say(tr("Own: a card for this game alone. Shared: one card for all games (Japanese games have a shared card of their own). Switching copies no saves: they stay on the other card; move them with Copy to the SD card and Add a save from the SD card on the Saves page."));
+			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id))
+				say(tr("480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."));
+			else if (ref.what == RowRef::What::GcProgressive)
+				say(tr("480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."));
+			else if (ref.what == RowRef::What::GcWidescreen)
+				say(tr("16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting."));
+			else if (ref.what == RowRef::What::GcLanguage)
+				say(tr("The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."));
 			else if (ref.what == RowRef::What::GcControls)
 				say(std::string(tr("Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.")) + " " +
 					tr("On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."));
@@ -6559,6 +6607,9 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::Cios) game.cios = StepValue(kCiosChoices, game.cios, direction);
 			else if (ref.what == RowRef::What::GcDiscReads) game.gc_disc_reads = game.gc_disc_reads == "fast" ? "drive" : "fast";
 			else if (ref.what == RowRef::What::GcCard) game.gc_card = game.gc_card == "shared" ? "own" : "shared";
+			else if (ref.what == RowRef::What::GcProgressive) game.gc_progressive = game.gc_progressive == "480p" ? "game" : "480p";
+			else if (ref.what == RowRef::What::GcWidescreen) game.gc_widescreen = game.gc_widescreen == "16:9" ? "game" : "16:9";
+			else if (ref.what == RowRef::What::GcLanguage) game.gc_language = StepValue(kGcLanguageChoices, game.gc_language, direction);
 			else if (ref.what == RowRef::What::GcControls) {
 				ShowGcControls(false);
 				changed = false;

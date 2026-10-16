@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 #define GC_RT_MAGIC 0x52574744u          /* "RWGD" */
-#define GC_RT_VERSION 1u                 /* also in gc_entry.S's header */
+#define GC_RT_VERSION 2u                 /* also in gc_entry.S's header */
 #define GC_RT_CONTEXT_MAGIC 0x52574743u  /* "RWGC" */
 
 /* The DI interrupt types a DVDLow callback takes. */
@@ -71,6 +71,12 @@ struct gc_rt_header {
     uint32_t hook_fatal;      /* __OSUnhandledException(exception, context, dsisr, dar): shown, never returns */
     uint32_t dsi_entry;       /* an exception before the game's OS has its handlers (the loader's vector stubs) */
     uint32_t exi_hooks;       /* GC_EXI_HOOKS entries (gc_card.h) of three words: hook, replay, continue */
+    uint32_t hook_vi_configure;     /* VIConfigure(rm): gc_on_vi_configure picks the mode, then the original */
+    uint32_t replay_vi_configure;
+    uint32_t continue_vi_configure;
+    uint32_t hook_projection;       /* GXSetProjection(mtx, type): a perspective one widened, then the original */
+    uint32_t replay_projection;
+    uint32_t continue_projection;
 };
 
 /* gc_on_fatal's exception number for one caught by the loader's own
@@ -103,6 +109,9 @@ enum gc_trace_word {
     GC_TR_CARD_WRITES, /* page programs << 16 | sector erases */
     GC_TR_CARD_FLUSHES, GC_TR_CARD_DIRTY, GC_TR_CARD_ERROR,
     GC_TR_CARD_LAST, /* the last command << 24 | accesses */
+    GC_TR_VI_CONFIGURES,
+    GC_TR_VI_MODE, /* the last VIConfigure: the game's viTVMode << 8 | the one it got */
+    GC_TR_PROJECTIONS, /* perspective projections widened (16:9) */
     GC_TR_WORDS
 };
 /* where: what wrote the record */
@@ -129,6 +138,7 @@ enum gc_trace_word {
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
 #define GC_FLAG_CRASH 4u  /* tests of the crash screen: the 600th pad read takes a program exception */
 #define GC_FLAG_LEAVE 2u  /* tests of the way back: port 1 holds L, R, Z and Start from the 1800th pad read */
+#define GC_FLAG_PROGRESSIVE 8u  /* 480p: VIConfigure's NTSC interlaced modes become progressive (gc_on_vi_configure) */
 
 /* Disc audio streaming (the drive's own ADPCM, 48 kHz stereo): what the
  * drive would have played into the AI is decoded here and mixed into the
@@ -232,6 +242,12 @@ struct gc_rt_context {
     uint32_t leave_hold;      /* timebase ticks */
     uint32_t leave_since;     /* when the hold began (low bit set), 0: not held */
     uint32_t crash_card;      /* the message, GC_CRASH_CARD_BYTES (loader-placed), 0: none */
+    /* The picture options (the game's Options: 480p, 16:9). */
+    uint32_t vi_configures;
+    uint32_t vi_mode;         /* GC_TR_VI_MODE */
+    uint32_t projections;
+    uint32_t vi_copy[16];     /* the progressive copy of the game's GXRenderModeObj (0x3C bytes) */
+    uint32_t projection[16];  /* the widened copy of the game's projection matrix */
     uint8_t aram_scratch[32] __attribute__((aligned(32)));  /* the hardware's own ARAM DMA goes here */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
@@ -241,7 +257,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x380u
+#define GC_RT_CONTEXT_BYTES 0x420u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
@@ -254,6 +270,8 @@ uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t le
 void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where);
 uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
+uint32_t gc_on_vi_configure(struct gc_rt_context* ctx, uint32_t mode);
+uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type);
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context);
 void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_context, uint32_t dsisr, uint32_t dar);

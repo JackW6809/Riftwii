@@ -1644,6 +1644,24 @@ msgstr "高速"
 msgid "Like a GameCube"
 msgstr "ゲームキューブと同じ"
 
+msgid "Progressive scan"
+msgstr "プログレッシブ"
+
+msgid "Widescreen"
+msgstr "ワイド画面"
+
+msgid "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."
+msgstr "480pはアメリカと日本のゲーム用です。このゲームはPAL地域のものなので、ゲームのままの映像になります。"
+
+msgid "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."
+msgstr "480p:コンポーネントケーブルと480pの設定があるとゲームに伝えます。先に確認を求めることがあります。480pのないゲームも480pに切り替えます。コンポーネントケーブルが必要です。"
+
+msgid "16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting."
+msgstr "16:9はゲームの3Dをワイドテレビ用に広く描きます。メニューと文字は横に伸びたままです。ゲームに16:9の設定があるなら「ゲームのまま」にしてください。"
+
+msgid "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."
+msgstr "このゲームに伝える本体の言語です。本体の設定は変わりません。ヨーロッパのゲームは使いますが、ほかの多くのゲームは使いません。"
+
 msgid "Controls"
 msgstr "操作"
 

@@ -20,6 +20,9 @@ struct GcImage {
     std::string patch_source;  // set: `path` is a patch (gcpatch.hpp) to make the game from this original
     bool shared_card = false;  // the memory card is the shared one, not the game's own (the Memory card option)
     bool drive_timing = true;  // reads take a GameCube drive's time (the game's Disc reads option)
+    bool progressive = false;  // 480p (the game's Progressive scan option)
+    bool widescreen = false;   // 3D drawn for 16:9 (its Widescreen option)
+    int language = -1;         // the SRAM language the game reads (its Game language option); -1: the console's
 };
 
 // A GameCube image on the SD card in games/<folder>/ (.iso or .gcm) whose

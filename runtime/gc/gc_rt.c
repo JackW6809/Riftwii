@@ -431,6 +431,9 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
         w[GC_TR_CARD_ERROR] = (uint32_t)card->flush_error;
         w[GC_TR_CARD_LAST] = card->last_cmd << 24 | (card->activity & 0xFFFFFFu);
     }
+    w[GC_TR_VI_CONFIGURES] = ctx->vi_configures;
+    w[GC_TR_VI_MODE] = ctx->vi_mode;
+    w[GC_TR_PROJECTIONS] = ctx->projections;
     w[GC_TR_PENDING_CB] = ctx->pending_cb;
     w[GC_TR_ALARMS] = ctx->alarms;
     w[GC_TR_BEATS] = ctx->beats;
@@ -829,6 +832,60 @@ static void gc_leave_check(struct gc_rt_context* ctx, const uint8_t* status) {
 /* Test presses: every 240 reads, 10 reads of A, then B, then Start, on
  * port 1 (PADStatus: buttons at 0, err at 10; A 0x100, B 0x200, Start
  * 0x1000). */
+/* GXRenderModeObj as VIConfigure reads it: viTVMode is the first word,
+ * the TV format << 2 | 0 interlaced, 1 double-strike (240 lines), 2
+ * progressive; xfbMode is the word at 0x14, 0 single field, 1 double
+ * field (the XFB holds whole frames); field_rendering is the byte at 0x18. */
+#define GC_RM_WORDS 15u
+#define GC_RM_TV_MODE 0u
+#define GC_RM_XFB_MODE 5u
+#define GC_RM_FIELD_RENDERING 0x18u
+#define GC_VI_NTSC_INTERLACED 0u
+#define GC_VI_NTSC_PROGRESSIVE 2u
+#define GC_VI_XFB_SINGLE 0u
+#define GC_VI_XFB_DOUBLE 1u
+
+/* VIConfigure(rm) with 480p on: an NTSC interlaced mode whose frames are
+ * whole in the XFB goes on as its progressive twin, which shows the same
+ * XFB a whole frame each retrace. A copy changes, never the game's own
+ * mode, which it keeps using for its copies to the XFB. Modes drawn a
+ * field at a time and double-strike (240-line) modes stay as they are:
+ * their XFB holds half a picture. */
+uint32_t gc_on_vi_configure(struct gc_rt_context* ctx, uint32_t mode) {
+    const uint32_t* words = (const uint32_t*)(uintptr_t)mode;
+    const uint8_t* bytes = (const uint8_t*)(uintptr_t)mode;
+    uint32_t used = mode;
+    uint32_t used_tv_mode;
+    uint32_t i;
+    ++ctx->vi_configures;
+    if ((ctx->flags & GC_FLAG_PROGRESSIVE) && words[GC_RM_TV_MODE] == GC_VI_NTSC_INTERLACED &&
+        words[GC_RM_XFB_MODE] == GC_VI_XFB_DOUBLE && bytes[GC_RM_FIELD_RENDERING] == 0) {
+        for (i = 0; i < GC_RM_WORDS; ++i) ctx->vi_copy[i] = words[i];
+        ctx->vi_copy[GC_RM_TV_MODE] = GC_VI_NTSC_PROGRESSIVE;
+        ctx->vi_copy[GC_RM_XFB_MODE] = GC_VI_XFB_SINGLE;
+        used = (uint32_t)(uintptr_t)ctx->vi_copy;
+    }
+    used_tv_mode = ((const uint32_t*)(uintptr_t)used)[GC_RM_TV_MODE];
+    ctx->vi_mode = (words[GC_RM_TV_MODE] & 0xFFu) << 8 | (used_tv_mode & 0xFFu);
+    return used;
+}
+
+/* GXSetProjection(mtx, type) with 16:9 on: a perspective projection
+ * (type 0) is copied for gc_hook_projection to widen; an orthographic
+ * one (type 1: menus, text, the 2D layers) is left alone. GXSetProjection
+ * reads the copy at once, so one is enough, and the game's own matrix is
+ * never changed (games set the same one every frame). */
+#define GC_GX_PERSPECTIVE 0u
+
+uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type) {
+    const uint32_t* matrix = (const uint32_t*)(uintptr_t)mtx;
+    uint32_t i;
+    if (type != GC_GX_PERSPECTIVE) return mtx;
+    for (i = 0; i < 16; ++i) ctx->projection[i] = matrix[i];
+    ++ctx->projections;
+    return (uint32_t)(uintptr_t)ctx->projection;
+}
+
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
     const uint32_t n = ctx->pad_reads++;
     gc_guard(ctx);  /* once a frame: IOS rewrites its counter there all the time */

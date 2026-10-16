@@ -117,7 +117,28 @@ struct GameSettings {
     // A GameCube game's memory card: "own" is the game's own file, "shared"
     // one card for all the games of its encoding (gc_card_path).
     std::string gc_card = "own";
+    // A GameCube game's picture and language, each the game's own unless
+    // picked (gcnative.cpp does each):
+    // "480p": progressive scan, for a US or Japanese game on a component cable;
+    std::string gc_progressive = "game";
+    // "16:9": the game's 3D drawn for a widescreen TV;
+    std::string gc_widescreen = "game";
+    // one of kGcLanguages: the language the game is told the console's
+    // GameCube settings say, for this game only.
+    std::string gc_language = "game";
 };
+
+// The GameCube's languages in the order of their number in its settings
+// (the SRAM's language byte, as YAGCD lists it), by GameSettings name.
+inline const char* const kGcLanguages[] = {"english", "german", "french", "spanish", "italian", "dutch"};
+
+// The SRAM language number for a GameSettings::gc_language name; -1 for
+// "game" or a name that is not one of kGcLanguages.
+int gc_sram_language(const std::string& name);
+
+// A GameCube game made for a PAL television (its ID's fourth letter): its
+// picture is 50 Hz or 576 lines, never NTSC's 480.
+bool gc_pal_game(const std::string& id);
 
 class LaunchModel {
 public:

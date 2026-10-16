@@ -1418,6 +1418,12 @@ T = {
     "Disc reads": ("Lectura del disco", "ディスクの読み込み", "Leitura do disco", "Lettura del disco"),
     "Fast": ("Rápida", "高速", "Rápida", "Veloce"),
     "Like a GameCube": ("Como una GameCube", "ゲームキューブと同じ", "Como uma GameCube", "Come un GameCube"),
+    "Progressive scan": ("Barrido progresivo", "プログレッシブ", "Varredura progressiva", "Scansione progressiva"),
+    "Widescreen": ("Panorámico", "ワイド画面", "Widescreen", "Panoramico"),
+    "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture.": ("480p es para juegos de EE. UU. y Japón. Este es de una región PAL y mantiene su propia imagen.", "480pはアメリカと日本のゲーム用です。このゲームはPAL地域のものなので、ゲームのままの映像になります。", "480p é para jogos dos EUA e do Japão. Este é de uma região PAL e mantém a sua própria imagem.", "Il 480p è per i giochi americani e giapponesi. Questo è di una regione PAL e mantiene la sua immagine."),
+    "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable.": ("480p: al juego se le dice que hay un cable por componentes y que el ajuste 480p está activado; puede preguntar antes. Los juegos sin 480p se cambian a él. Necesita un cable por componentes.", "480p:コンポーネントケーブルと480pの設定があるとゲームに伝えます。先に確認を求めることがあります。480pのないゲームも480pに切り替えます。コンポーネントケーブルが必要です。", "480p: o jogo é informado de que há um cabo componente e de que a opção 480p está ligada; ele pode perguntar antes. Jogos sem 480p passam para ele. Precisa de um cabo componente.", "480p: al gioco viene detto che ci sono un cavo component e l'impostazione 480p; può chiedere prima. I giochi senza 480p vengono portati a 480p. Serve un cavo component."),
+    "16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting.": ("16:9 dibuja el 3D del juego más ancho para una TV panorámica; los menús y el texto siguen estirados. Déjalo en «El del juego» si el juego tiene su propio ajuste 16:9.", "16:9はゲームの3Dをワイドテレビ用に広く描きます。メニューと文字は横に伸びたままです。ゲームに16:9の設定があるなら「ゲームのまま」にしてください。", "16:9 desenha o 3D do jogo mais largo para uma TV widescreen; menus e texto continuam esticados. Deixe em \"O do jogo\" se o jogo tiver a sua própria opção 16:9.", "16:9 disegna il 3D del gioco più largo per una TV panoramica; menu e testi restano allungati. Lascia \"Del gioco\" se il gioco ha una sua impostazione 16:9."),
+    "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it.": ("El idioma que se le dice a este juego que usa la consola; el ajuste de la consola no cambia. Los juegos europeos lo usan; la mayoría de los demás, no.", "このゲームに伝える本体の言語です。本体の設定は変わりません。ヨーロッパのゲームは使いますが、ほかの多くのゲームは使いません。", "O idioma que este jogo é informado que o console usa; a configuração do console fica como está. Jogos europeus o usam, a maioria dos outros o ignora.", "La lingua che a questo gioco viene detto che usa la console; l'impostazione della console resta com'è. I giochi europei la usano, la maggior parte degli altri no."),
     "Controls": ("Controles", "操作", "Controlos", "Comandi"),
     "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it.": ("Como una GameCube: cada lectura tarda lo mismo que en la unidad de una GameCube, con lo que cuentan algunos juegos. Rápida: las lecturas van a la velocidad de la tarjeta SD y la carga es más corta; pruébala si el juego funciona bien así.", "ゲームキューブと同じ: 読み込みごとにゲームキューブのドライブと同じ時間がかかります。これを前提にするゲームもあります。高速: SDカードの速さで読み込むので、ロードが短くなります。ゲームが問題なく動くなら試してください。", "Como uma GameCube: cada leitura demora o mesmo que na unidade de uma GameCube, com o que alguns jogos contam. Rápida: as leituras vêm à velocidade do cartão SD, por isso o carregamento é mais curto; experimente se o jogo funcionar bem assim.", "Come un GameCube: ogni lettura dura quanto sull'unità di un GameCube, su cui alcuni giochi contano. Veloce: le letture vanno alla velocità della scheda SD, quindi i caricamenti sono più brevi; provala se il gioco funziona bene così."),
     "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.": ("Qué botones del mando de Wii, el Nunchuk y el mando clásico hacen de los del mando de GameCube.", "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかを表示します。", "Que botões do Comando Wii, do Nunchuk e do Comando Clássico fazem de botões do comando GameCube.", "Quali pulsanti del telecomando Wii, del Nunchuk e del controller classico fanno da pulsanti del controller GameCube."),
@@ -2980,6 +2986,18 @@ KO = {
         "빠르게",
     "Like a GameCube":
         "게임큐브처럼",
+    "Progressive scan":
+        "프로그레시브 스캔",
+    "Widescreen":
+        "와이드 화면",
+    "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture.":
+        "480p는 미국과 일본 게임용입니다. 이 게임은 PAL 지역 게임이라 원래 화면을 그대로 씁니다.",
+    "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable.":
+        "480p: 컴포넌트 케이블과 480p 설정이 있다고 게임에 알려 줍니다. 게임이 먼저 물어볼 수 있습니다. 480p가 없는 게임도 480p로 바꿉니다. 컴포넌트 케이블이 필요합니다.",
+    "16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting.":
+        "16:9는 와이드 TV에 맞게 게임의 3D를 더 넓게 그립니다. 메뉴와 글자는 늘어난 채로 남습니다. 게임에 16:9 설정이 있으면 \"게임 자체\"로 두세요.",
+    "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it.":
+        "이 게임에 알려 줄 본체 언어입니다. 본체 설정은 그대로입니다. 유럽 게임은 이 언어를 쓰고, 다른 게임은 대부분 무시합니다.",
     "Controls":
         "조작",
     "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it.":
@@ -4681,6 +4699,18 @@ FR = {
         "Rapide",
     "Like a GameCube":
         "Comme une GameCube",
+    "Progressive scan":
+        "Balayage progressif",
+    "Widescreen":
+        "Écran large",
+    "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture.":
+        "Le 480p est pour les jeux américains et japonais. Celui-ci vient d'une région PAL et garde sa propre image.",
+    "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable.":
+        "480p : le jeu apprend qu'un câble composante et le réglage 480p sont là ; il peut d'abord poser la question. Les jeux sans 480p y passent aussi. Il faut un câble composante.",
+    "16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting.":
+        "16:9 dessine la 3D du jeu plus large pour une TV grand écran ; les menus et le texte restent étirés. Laissez « Par défaut du jeu » si le jeu a son propre réglage 16:9.",
+    "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it.":
+        "La langue que ce jeu croit réglée sur la console ; le réglage de la console reste tel quel. Les jeux européens l'utilisent, la plupart des autres l'ignorent.",
     "Controls":
         "Commandes",
     "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it.":

@@ -76,6 +76,23 @@ std::string pack_title(const LaunchPackage& p) {
     return title;
 }
 
+int gc_sram_language(const std::string& name) {
+    int number = 0;
+    for (const char* language : kGcLanguages) {
+        if (name == language) return number;
+        ++number;
+    }
+    return -1;
+}
+
+bool gc_pal_game(const std::string& id) {
+    if (id.size() < 4) return false;
+    // P: Europe, D: Germany, F: France, S: Spain, I: Italy, X and Y:
+    // other European releases, U: Australia (all PAL).
+    const std::string pal_regions = "PDFSIXYU";
+    return pal_regions.find(id[3]) != std::string::npos;
+}
+
 bool needs_launch_pipeline(bool has_selected_packages, const std::string& save_mode) {
     return has_selected_packages || save_mode == "separate" || save_mode == "fresh";
 }
@@ -355,6 +372,9 @@ std::string LaunchModel::save() const {
     if (game.region_strings == "on") text += "*riftwii*\tregionstrings\ton\n";
     if (game.gc_disc_reads == "fast") text += "*riftwii*\tgcdiscreads\tfast\n";
     if (game.gc_card == "shared") text += "*riftwii*\tgccard\tshared\n";
+    if (game.gc_progressive == "480p") text += "*riftwii*\tgcprogressive\t480p\n";
+    if (game.gc_widescreen == "16:9") text += "*riftwii*\tgcwidescreen\t16:9\n";
+    if (gc_sram_language(game.gc_language) >= 0) text += "*riftwii*\tgclanguage\t" + game.gc_language + "\n";
     for (const LaunchPackage& p : packages) {
         // Only this game's packs: the file is per game ID, and another
         // game's pack could not be turned on here anyway.
@@ -429,6 +449,12 @@ void LaunchModel::restore(const std::string& text) {
                 game.gc_disc_reads = value == "fast" ? "fast" : "drive";
             } else if (key == "gccard") {
                 game.gc_card = value == "shared" ? "shared" : "own";
+            } else if (key == "gcprogressive") {
+                game.gc_progressive = value == "480p" ? "480p" : "game";
+            } else if (key == "gcwidescreen") {
+                game.gc_widescreen = value == "16:9" ? "16:9" : "game";
+            } else if (key == "gclanguage") {
+                game.gc_language = gc_sram_language(value) >= 0 ? value : "game";
             }
             continue;
         }

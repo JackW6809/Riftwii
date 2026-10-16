@@ -822,6 +822,175 @@ std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_H
     return ecb;
 }
 
+// Instruction fields, for the searches below.
+unsigned opcode(std::uint32_t w) { return w >> 26; }
+unsigned reg_d(std::uint32_t w) { return (w >> 21) & 31; }
+unsigned reg_a(std::uint32_t w) { return (w >> 16) & 31; }
+std::uint32_t li(unsigned reg, std::uint16_t value) { return (14u << 26) | (reg << 21) | value; }  // addi reg,0,value
+// rlwinm's shift, first and last mask bits, as its low 16 bits hold them
+// (rA is above them).
+std::uint32_t rlwinm_low(unsigned shift, unsigned first, unsigned last) {
+    return (shift << 11) | (first << 6) | (last << 1);
+}
+bool is_rlwinm_of(std::uint32_t w, unsigned source, std::uint32_t low) {
+    return opcode(w) == 21 && reg_d(w) == source && (w & 0xFFFF) == low;
+}
+
+// The GameCube OS keeps the console's settings (the SRAM: language,
+// progressive scan, sound...) in a copy in memory, read once at start-up,
+// and its getters read that copy after locking it: `lis rA,hi`, `addi
+// rB,rA,lo` (the copy), then the lock word at 0x48 and `addi r4,rB,0x48`.
+// The settings are bytes in the copy (YAGCD's SRAM layout): the language
+// at 0x12, the flags at 0x13 with progressive scan in bit 7.
+//
+// The language and progressive getters (OSGetLanguage,
+// OSGetProgressiveMode) each read their byte from that register: the
+// loads found here, for the loader to turn into a constant. The copy and
+// the console's SRAM are never changed, so nothing the game writes back
+// to the SRAM later (it does for its own 480p question) carries a choice
+// made here.
+constexpr std::uint16_t kSramLockOffset = 0x48;
+constexpr std::uint16_t kSramLanguage = 0x12;
+constexpr std::uint16_t kSramFlags = 0x13;
+
+struct SramReads {
+    std::uint32_t copy = 0;  // the settings' copy in memory
+    std::vector<std::uint32_t> language;     // lbz rX,0x12(copy)
+    std::vector<std::uint32_t> progressive;  // lbz rX,0x13(copy), then its bit 7 taken (>> 7 & 1)
+};
+
+SramReads find_sram_reads(const Code& code) {
+    struct Site {
+        std::uint32_t at;  // the addi that makes the copy's address
+        unsigned reg;
+        std::uint32_t copy;
+    };
+    std::vector<Site> sites;
+    std::map<std::uint32_t, unsigned> seen;  // copy address -> how many locks
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (opcode(w) != 15 || reg_a(w) != 0) return;  // lis rA,hi
+        const unsigned high_reg = reg_d(w);
+        for (std::uint32_t b = a + 4; b < a + 24 && code.has(b); b += 4) {
+            const std::uint32_t add = code.at(b);
+            if (opcode(add) != 14 || reg_a(add) != high_reg) continue;  // addi rB,rA,lo
+            const unsigned copy_reg = reg_d(add);
+            const std::uint32_t copy = (w << 16) + static_cast<std::uint32_t>(static_cast<std::int16_t>(add & 0xFFFF));
+            const std::uint32_t lock_load = (32u << 26) | (copy_reg << 16) | kSramLockOffset;  // lwz r0,0x48(rB)
+            const std::uint32_t lock_addr = (14u << 26) | (4u << 21) | (copy_reg << 16) | kSramLockOffset;  // addi r4,rB,0x48
+            for (std::uint32_t c = b + 4; c < b + 48 && code.has(c + 4); c += 4)
+                if (code.at(c) == lock_load && code.at(c + 4) == lock_addr) {
+                    sites.push_back({b, copy_reg, copy});
+                    seen[copy]++;
+                    break;
+                }
+            return;
+        }
+    });
+    SramReads out;
+    unsigned most = 0;
+    for (const auto& [copy, n] : seen)
+        if (n > most) {
+            most = n;
+            out.copy = copy;
+        }
+    const std::uint32_t take_bit7 = rlwinm_low(25, 31, 31);  // rlwinm rC,rX,25,31,31
+    for (const Site& site : sites) {
+        if (site.copy != out.copy) continue;
+        for (std::uint32_t a = site.at + 4; code.has(a) && a < site.at + 0x100; a += 4) {
+            const std::uint32_t w = code.at(a);
+            if (w == 0x4E800020) break;
+            if (opcode(w) != 34 || reg_a(w) != site.reg) continue;  // lbz rX,d(rB)
+            const std::uint16_t offset = w & 0xFFFF;
+            if (offset == kSramLanguage) out.language.push_back(a);
+            if (offset != kSramFlags) continue;
+            // The getter takes bit 7 within a few words; OSSetProgressiveMode
+            // and the reset code read the same byte to change it.
+            for (std::uint32_t b = a + 4; b <= a + 16; b += 4)
+                if (is_rlwinm_of(code.at(b), reg_d(w), take_bit7)) {
+                    out.progressive.push_back(a);
+                    break;
+                }
+        }
+    }
+    return out;
+}
+
+// VIGetDTVStatus: reads the VI's DTV register (0xCC00206E, bit 0 set
+// while a component cable is plugged in, YAGCD's VI_DTV) with `lhz
+// rX,0x206E(rY)` and keeps its low two bits (`clrlwi rZ,rX,30`). Other
+// OS code reads the register too, for its other bits.
+std::vector<std::uint32_t> find_dtv_reads(const Code& code) {
+    std::vector<std::uint32_t> found;
+    const std::uint32_t low_two_bits = rlwinm_low(0, 30, 31);
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (opcode(w) != 40 || (w & 0xFFFF) != 0x206E) return;  // lhz rX,0x206E(rY)
+        if (is_rlwinm_of(code.at(a + 4), reg_d(w), low_two_bits)) found.push_back(a);
+    });
+    return found;
+}
+
+// VIConfigure(const GXRenderModeObj* rm): near its start it keeps rm in a
+// register, loads rm->viTVMode (`lwz rX,0(rR)`) and takes its low two
+// bits (interlaced, double-strike or progressive), reads the start-up TV
+// mode at 0x800000CC, and shifts viTVMode right by 2 (its TV format). The
+// one function doing all three in its first 0x80 bytes; 0 if not exactly one.
+std::uint32_t find_vi_configure(const Code& code) {
+    std::uint32_t found = 0;
+    unsigned count = 0;
+    const std::uint32_t low_two_bits = rlwinm_low(0, 30, 31);
+    const std::uint32_t shift_right_2 = rlwinm_low(30, 2, 31);
+    code.each([&](std::uint32_t start, std::uint32_t) {
+        if (!code.has(start - 4) || code.at(start - 4) != 0x4E800020) return;  // a function's first word
+        bool takes_interlace = false, reads_boot_mode = false, takes_format = false;
+        bool high_8000[32] = {};
+        for (std::uint32_t a = start; code.has(a) && a < start + 0x80; a += 4) {
+            const std::uint32_t w = code.at(a);
+            if (w == 0x4E800020) break;
+            if (opcode(w) == 15 && reg_a(w) == 0) high_8000[reg_d(w)] = (w & 0xFFFF) == 0x8000;  // lis rA,0x8000
+            if (opcode(w) == 32 && high_8000[reg_a(w)] && (w & 0xFFFF) == 0xCC) reads_boot_mode = true;
+            if (opcode(w) == 32 && (w & 0xFFFF) == 0 && reg_a(w) > 3) {  // lwz rX,0(rR), rR kept from r3
+                for (std::uint32_t b = a + 4; b < a + 24; b += 4)
+                    if (is_rlwinm_of(code.at(b), reg_d(w), low_two_bits)) takes_interlace = true;
+            }
+            if (opcode(w) == 21 && (w & 0xFFFF) == shift_right_2) takes_format = true;
+        }
+        if (takes_interlace && reads_boot_mode && takes_format) {
+            found = start;
+            ++count;
+        }
+    });
+    return count == 1 ? found : 0;
+}
+
+// GXSetProjection(f32 mtx[4][4], GXProjectionType type): it compares the
+// type with 1 (orthographic) at once and loads mtx's terms GX keeps: [0][0],
+// [1][1], [2][2], [2][3] (0x00, 0x14, 0x28, 0x2C) and, by the type, [0][2]
+// and [1][2] or [0][3] and [1][3] (0x08, 0x18 or 0x0C, 0x1C). The one
+// function that does it all in its first 0x80 bytes; 0 if not exactly one.
+std::uint32_t find_gx_set_projection(const Code& code) {
+    std::uint32_t found = 0;
+    unsigned count = 0;
+    code.each([&](std::uint32_t start, std::uint32_t) {
+        if (!code.has(start - 4) || code.at(start - 4) != 0x4E800020) return;
+        bool compares_type = false;
+        std::uint32_t loaded = 0;  // bit n: the word at 4n of mtx
+        for (std::uint32_t a = start; code.has(a) && a < start + 0x80; a += 4) {
+            const std::uint32_t w = code.at(a);
+            if (w == 0x4E800020) break;
+            if (w == 0x2C040001 && a < start + 0x20) compares_type = true;  // cmpwi r4,1
+            if (opcode(w) == 48 && reg_a(w) == 3 && (w & 0xFFFF) < 0x40 && (w & 3) == 0)  // lfs fX,d(r3)
+                loaded |= 1u << ((w & 0xFFFF) / 4);
+        }
+        const std::uint32_t wanted = (1u << 0) | (1u << 2) | (1u << 3) | (1u << 5) | (1u << 6) | (1u << 7) |
+                                     (1u << 10) | (1u << 11);
+        if (compares_type && (loaded & wanted) == wanted) {
+            found = start;
+            ++count;
+        }
+    });
+    return count == 1 ? found : 0;
+}
+
 }  // namespace
 
 // The way back from the game (gc_rt.c's gc_leave): the title holding
@@ -915,6 +1084,50 @@ static void prepare_leave(gc_rt_context* ctx, std::uint32_t buf, bool test) {
     ctx->leave_fd = static_cast<std::uint32_t>(fd);
     ctx->leave_buf = buf;
     logf("GameCube: the test of the way back goes on without a ticket view, to be refused\n");
+}
+
+// The game's picture and language options (its Options page), patched
+// into the staged code. `replay_hook(fn, entry, replay, back)` hooks a
+// function that then runs on (false: it cannot be hooked).
+template <class ReplayHook>
+static void apply_picture_and_language(const GcImage& image, Code& code, ReplayHook replay_hook, const gc_rt_header& h,
+                                       gc_rt_context* ctx) {
+    const SramReads sram = find_sram_reads(code);
+    // 480p. A game offers it when VIGetDTVStatus says a component cable is
+    // in and OSGetProgressiveMode says the console's 480p setting is on
+    // (or the player holds B at start): both are told yes. A game that has
+    // no 480p is switched to it by VIConfigure (gc_on_vi_configure).
+    if (image.progressive && gc_pal_game(image.id)) {
+        logf("GameCube: 480p left off: %s is a PAL game, its picture is not NTSC's 480 lines\n", image.id.c_str());
+    } else if (image.progressive) {
+        const std::vector<std::uint32_t> dtv = find_dtv_reads(code);
+        for (std::uint32_t a : dtv) code.put(a, li(reg_d(code.at(a)), 1));  // a component cable is in
+        for (std::uint32_t a : sram.progressive) code.put(a, li(reg_d(code.at(a)), 0x80));  // the 480p setting is on
+        const std::uint32_t vi_configure = find_vi_configure(code);
+        const bool hooked = vi_configure != 0 &&
+                            replay_hook(vi_configure, h.hook_vi_configure, h.replay_vi_configure, h.continue_vi_configure);
+        if (hooked) ctx->flags |= GC_FLAG_PROGRESSIVE;
+        logf("GameCube: 480p: %u cable check(s) and %u 480p setting read(s) answer yes; VIConfigure 0x%08x %s\n",
+             static_cast<unsigned>(dtv.size()), static_cast<unsigned>(sram.progressive.size()), vi_configure,
+             hooked ? "turns interlaced modes into 480p" : "not hooked: a game without its own 480p stays interlaced");
+    }
+    // 16:9: GXSetProjection widens what the game draws in perspective
+    // (gc_hook_projection); its 2D, drawn with orthographic projections,
+    // stays as it is and is stretched by the TV.
+    if (image.widescreen) {
+        const std::uint32_t projection = find_gx_set_projection(code);
+        const bool hooked = projection != 0 &&
+                            replay_hook(projection, h.hook_projection, h.replay_projection, h.continue_projection);
+        logf("GameCube: 16:9: GXSetProjection 0x%08x %s\n", projection, hooked ? "widens 3D" : "not hooked: 4:3 as before");
+    }
+    // The language: OSGetLanguage's read of the settings' copy becomes the
+    // chosen number. The console's SRAM is left as it is (sram above).
+    if (image.language >= 0) {
+        for (std::uint32_t a : sram.language)
+            code.put(a, li(reg_d(code.at(a)), static_cast<std::uint16_t>(image.language)));
+        logf("GameCube: the game is told the language is %s (%u read(s) of the settings at 0x%08x)\n",
+             kGcLanguages[image.language], static_cast<unsigned>(sram.language.size()), sram.copy);
+    }
 }
 
 bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string& error) {
@@ -1098,6 +1311,29 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         }
     }
 
+    // Hooks into the blob, in the staged code.
+    auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
+        if (fn != 0) code.put(fn, branch(fn, blob_addr + entry));
+    };
+    // A hook that runs the original afterwards: its first word to the
+    // replay slot, then the jump to its second.
+    auto replay_hook = [&](std::uint32_t fn, std::uint32_t entry, std::uint32_t replay, std::uint32_t back) {
+        store32(blob_addr + replay, code.at(fn));
+        store32(blob_addr + back, 0x3D800000 | ((fn + 4) >> 16));
+        store32(blob_addr + back + 4, 0x618C0000 | ((fn + 4) & 0xFFFF));
+        hook(fn, entry);
+    };
+    // The game's picture and language options, while the log still
+    // reaches the card (testers send it).
+    apply_picture_and_language(image, code, [&](std::uint32_t fn, std::uint32_t entry, std::uint32_t replay,
+                                                std::uint32_t back) {
+        // The replay slot runs the first word elsewhere: not a relative branch.
+        const unsigned first = opcode(code.at(fn));
+        if (first == 16 || first == 18) return false;
+        replay_hook(fn, entry, replay, back);
+        return true;
+    }, h, ctx);
+
     // The card, opened and selected; the blob reads it after the jump.
     // IOS lets one owner have the slot: the file system lets go first (as
     // a Wii game's launch does), and the log goes on on screen only.
@@ -1151,17 +1387,6 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     std::memset(memcard, 0, sizeof(*memcard));
 
     // The hooks, in the staged code.
-    auto hook = [&](std::uint32_t fn, std::uint32_t entry) {
-        if (fn != 0) code.put(fn, branch(fn, blob_addr + entry));
-    };
-    // A hook that runs the original afterwards: its first word to the
-    // replay slot, then the jump to its second.
-    auto replay_hook = [&](std::uint32_t fn, std::uint32_t entry, std::uint32_t replay, std::uint32_t back) {
-        store32(blob_addr + replay, code.at(fn));
-        store32(blob_addr + back, 0x3D800000 | ((fn + 4) >> 16));
-        store32(blob_addr + back + 4, 0x618C0000 | ((fn + 4) & 0xFFFF));
-        hook(fn, entry);
-    };
     hook(low.read, h.hook_read);
     hook(low.seek, h.hook_seek);
     hook(low.disk_id, h.hook_disk_id);

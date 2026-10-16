@@ -1644,6 +1644,24 @@ msgstr "Veloce"
 msgid "Like a GameCube"
 msgstr "Come un GameCube"
 
+msgid "Progressive scan"
+msgstr "Scansione progressiva"
+
+msgid "Widescreen"
+msgstr "Panoramico"
+
+msgid "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."
+msgstr "Il 480p è per i giochi americani e giapponesi. Questo è di una regione PAL e mantiene la sua immagine."
+
+msgid "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."
+msgstr "480p: al gioco viene detto che ci sono un cavo component e l'impostazione 480p; può chiedere prima. I giochi senza 480p vengono portati a 480p. Serve un cavo component."
+
+msgid "16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting."
+msgstr "16:9 disegna il 3D del gioco più largo per una TV panoramica; menu e testi restano allungati. Lascia \"Del gioco\" se il gioco ha una sua impostazione 16:9."
+
+msgid "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."
+msgstr "La lingua che a questo gioco viene detto che usa la console; l'impostazione della console resta com'è. I giochi europei la usano, la maggior parte degli altri no."
+
 msgid "Controls"
 msgstr "Comandi"
 

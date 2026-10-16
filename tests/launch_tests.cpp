@@ -385,6 +385,36 @@ static void test_saves() {
     prefs.restore("*riftwii*\tgccard\tbogus\n");
     EXPECT_EQ(prefs.game.gc_card, std::string("own"));
     prefs.restore(model.save());
+    // A GameCube game's 480p, 16:9 and language: the game's own writes
+    // nothing, a pick round-trips, and anything unknown is the game's own.
+    {
+        riftwii::LaunchModel gc;
+        EXPECT_TRUE(gc.save().find("gcprogressive") == std::string::npos);
+        EXPECT_TRUE(gc.save().find("gcwidescreen") == std::string::npos);
+        EXPECT_TRUE(gc.save().find("gclanguage") == std::string::npos);
+        gc.game.gc_progressive = "480p";
+        gc.game.gc_widescreen = "16:9";
+        gc.game.gc_language = "german";
+        riftwii::LaunchModel back;
+        back.restore(gc.save());
+        EXPECT_EQ(back.game.gc_progressive, std::string("480p"));
+        EXPECT_EQ(back.game.gc_widescreen, std::string("16:9"));
+        EXPECT_EQ(back.game.gc_language, std::string("german"));
+        back.restore("*riftwii*\tgcprogressive\t1080p\n*riftwii*\tgcwidescreen\t21:9\n*riftwii*\tgclanguage\tklingon\n");
+        EXPECT_EQ(back.game.gc_progressive, std::string("game"));
+        EXPECT_EQ(back.game.gc_widescreen, std::string("game"));
+        EXPECT_EQ(back.game.gc_language, std::string("game"));
+        // The SRAM's numbers: English 0 to Dutch 5.
+        EXPECT_EQ(riftwii::gc_sram_language("english"), 0);
+        EXPECT_EQ(riftwii::gc_sram_language("french"), 2);
+        EXPECT_EQ(riftwii::gc_sram_language("dutch"), 5);
+        EXPECT_EQ(riftwii::gc_sram_language("game"), -1);
+        EXPECT_TRUE(riftwii::gc_pal_game("GLMP01"));
+        EXPECT_TRUE(riftwii::gc_pal_game("GZLD01"));
+        EXPECT_FALSE(riftwii::gc_pal_game("GMSE01"));
+        EXPECT_FALSE(riftwii::gc_pal_game("GMSJ01"));
+        EXPECT_FALSE(riftwii::gc_pal_game("GM"));
+    }
     prefs.restore("*riftwii*\taspect\t21:9\n");
     EXPECT_EQ(prefs.game.aspect, std::string("global"));  // unknown: Settings' choice
     // "Game's own" picked on the page is kept, over Settings' choice.

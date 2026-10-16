@@ -450,9 +450,15 @@ bool LaunchGcGame(const GcImage& wanted, const std::vector<PackageChoices>& pack
         choices.restore(text.str());
         image.drive_timing = choices.game.gc_disc_reads != "fast";
         image.shared_card = choices.game.gc_card == "shared";
+        image.progressive = choices.game.gc_progressive == "480p";
+        image.widescreen = choices.game.gc_widescreen == "16:9";
+        image.language = gc_sram_language(choices.game.gc_language);
     }
     logf("GameCube: %s (%s), disc reads %s\n", image.id.c_str(), image.path.c_str(),
          image.drive_timing ? "at a GameCube drive's speed" : "at the SD card's speed");
+    logf("GameCube: picture %s, %s; language %s\n", image.progressive ? "480p" : "the game's own",
+         image.widescreen ? "16:9" : "the game's own aspect",
+         image.language >= 0 ? kGcLanguages[image.language] : "the console's");
     if (packages.empty()) return LaunchGcNative(image, nullptr, error);
     // A pack that cannot be applied whole stops the launch (plan_packs).
     GcOverlayPlan plan;

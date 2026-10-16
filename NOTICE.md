@@ -154,3 +154,22 @@ only (how its choices files and macros work), never copied. Behavioural referenc
   The formatted card itself (`gc_card_format`, moved there from
   `wii/launch/gcnative.cpp`) keeps the layout recorded for the GameCube
   loader in the table above.
+- A GameCube game's 480p, 16:9 and language options (`apply_picture_and_language`
+  and its searches in `wii/launch/gcnative.cpp`, `gc_on_vi_configure` and
+  `gc_on_projection` in `runtime/gc/gc_rt.c`, their hooks in
+  `runtime/gc/gc_entry.S`). Facts: YAGCD's SRAM layout (the language byte
+  and its numbers, the flags byte with progressive scan in bit 7) and its
+  Video Interface chapter (the DTV register at 0xCC00206E, bit 0 a
+  component cable); the GXRenderModeObj and GXSetProjection layouts and
+  the matrix GX keeps of a projection, as libogc's public headers
+  (`gx.h`, `video_types.h`) declare them; Nintendo's published rule for
+  480p on the GameCube (a component cable and the console's setting, or
+  B held at start), as the games' own question shows it. Ideas: forcing
+  progressive scan and widescreen are options Nintendont also offers
+  (named here as the idea only; its source was not read), and widening
+  only the perspective projection, by its x scale times 3/4, is the
+  common widescreen approach. How each SDK function is found by its
+  instructions (the SRAM copy's lock, VIGetDTVStatus, VIConfigure,
+  GXSetProjection) was worked out from Super Mario Sunshine's and Luigi's
+  Mansion's own code. No code from Nintendont, Swiss, Dolphin or any
+  other project was used.
