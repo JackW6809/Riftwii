@@ -22,6 +22,7 @@
 #include "gc_rt.h"
 #include "log.hpp"
 #include "riftwii/fat32.hpp"
+#include "riftwii/gccard.hpp"
 #include "riftwii/gcoverlay.hpp"
 #include "riftwii/redirect.hpp"
 #include "riftwii/sha1.hpp"
@@ -666,74 +667,25 @@ bool move_out_of_ios(Code& code, std::uint32_t moved_addr, std::vector<std::uint
 void store32(std::uint32_t a, std::uint32_t v) { *reinterpret_cast<volatile std::uint32_t*>(a) = v; }
 std::uint32_t load32(std::uint32_t a) { return *reinterpret_cast<volatile std::uint32_t*>(a); }
 
-// A formatted, empty 251-block card (gc_card.h), as the SDK's CARDFormat
-// leaves one: the header with its serial made from this console's SRAM
-// (the card's flash ID for slot A, the clock bias, the language) and the
-// format time, two empty directories and two block tables, each with its
-// pair of 16-bit checksums. Some games (Eclipse) never offer to format a
-// blank card and use it as if it were. Layout and checksum as libogc's
-// card.c writes them; the SDK reads the same card.
-void card_checksum(const std::uint8_t* p, std::uint32_t bytes, std::uint8_t* out) {
-    std::uint16_t sum = 0, inverse = 0;
-    for (std::uint32_t i = 0; i + 1 < bytes; i += 2) {
-        const std::uint16_t word = static_cast<std::uint16_t>(p[i] << 8 | p[i + 1]);
-        sum = static_cast<std::uint16_t>(sum + word);
-        inverse = static_cast<std::uint16_t>(inverse + (word ^ 0xFFFF));
-    }
-    if (sum == 0xFFFF) sum = 0;
-    if (inverse == 0xFFFF) inverse = 0;
-    out[0] = sum >> 8;
-    out[1] = sum;
-    out[2] = inverse >> 8;
-    out[3] = inverse;
-}
-
-void put_be16(std::uint8_t* p, std::uint32_t v) {
-    p[0] = static_cast<std::uint8_t>(v >> 8);
-    p[1] = static_cast<std::uint8_t>(v);
-}
-
+// A formatted, empty 251-block card (gc_card.h), its header made from
+// this console's SRAM (the card's flash ID for slot A, the clock bias,
+// the language), the time and the DTV register; the layout is the
+// library's (src/fs/gccard.cpp). Some games (Eclipse) never offer to
+// format a blank card and use it as if it were.
 void format_card(std::vector<std::uint8_t>& card, bool shift_jis) {
-    constexpr std::uint32_t kBlock = GC_CARD_SECTOR;
-    constexpr std::uint32_t kBlocks = GC_CARD_BYTES / GC_CARD_SECTOR;
-    std::fill(card.begin(), card.end(), 0xFF);
-    std::uint8_t* header = card.data();
+    GcCardFormat format;
     syssram* sram = __SYS_LockSram();
-    const std::uint32_t bias = sram->counter_bias;
-    const std::uint32_t language = sram->lang;
+    format.counter_bias = sram->counter_bias;
+    format.language = sram->lang;
     __SYS_UnlockSram(0);
-    const std::uint64_t now = gettime();
-    std::uint64_t rand = now;
+    format.format_time = gettime();
     syssramex* sramex = __SYS_LockSramEx();
-    for (unsigned i = 0; i < 12; ++i) {
-        rand = (rand * 0x41C64E6Dull + 0x3039ull) >> 16;
-        header[i] = static_cast<std::uint8_t>(sramex->flash_id[0][i] + static_cast<std::uint32_t>(rand));
-        rand = ((rand * 0x41C64E6Dull + 0x3039ull) >> 16) & 0x7FFF;
-    }
+    std::memcpy(format.flash_id.data(), sramex->flash_id[0], format.flash_id.size());
     __SYS_UnlockSramEx(0);
-    for (unsigned i = 0; i < 8; ++i) header[12 + i] = static_cast<std::uint8_t>(now >> (56 - 8 * i));
-    for (unsigned i = 0; i < 4; ++i) {
-        header[20 + i] = static_cast<std::uint8_t>(bias >> (24 - 8 * i));
-        header[24 + i] = static_cast<std::uint8_t>(language >> (24 - 8 * i));
-    }
-    const std::uint32_t dtv = *reinterpret_cast<volatile std::uint16_t*>(0xCC00206E);
-    for (unsigned i = 0; i < 4; ++i) header[28 + i] = static_cast<std::uint8_t>(dtv >> (24 - 8 * i));
-    put_be16(header + 0x20, 0);                  // device ID
-    put_be16(header + 0x22, GC_CARD_ID & 0xFC);  // size, megabits
-    put_be16(header + 0x24, shift_jis ? 1 : 0);  // the font encoding
-    card_checksum(header, 0x1FC, header + 0x1FC);
-    for (unsigned d = 0; d < 2; ++d) {
-        std::uint8_t* dir = card.data() + (d + 1) * kBlock;
-        card_checksum(dir, 0x1FFC, dir + 0x1FFC);
-    }
-    for (unsigned b = 0; b < 2; ++b) {
-        std::uint8_t* bat = card.data() + (b + 3) * kBlock;
-        std::fill(bat, bat + kBlock, 0);
-        put_be16(bat + 4, b);              // updated
-        put_be16(bat + 6, kBlocks - 5);    // free blocks
-        put_be16(bat + 8, 4);              // last allocated
-        card_checksum(bat + 4, 0x1FFC, bat);
-    }
+    format.dtv = *reinterpret_cast<volatile std::uint16_t*>(0xCC00206E);
+    format.size_mbits = GC_CARD_ID & 0xFC;
+    format.shift_jis = shift_jis;
+    gc_card_format(card, format);
 }
 
 // The SDK's EXI functions (gc_card.h's order), found through the EXI
