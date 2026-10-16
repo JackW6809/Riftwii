@@ -108,13 +108,10 @@ gc_continue_pad_read:
 
 /* ARStartDMA(type, main, aram, length): gc_on_ar_dma does the transfer
  * itself and returns a 32-byte scratch buffer's physical address; the
- * original then runs from its replay slot on that buffer for 32 bytes, as
- * its main memory and its ARAM address both, so the hardware still raises
- * its interrupt but touches nothing of the game's or of the copy. Dolphin
- * in Wii mode does do the DMA, into MEM2 at the ARAM address, which is
- * where gc_aram_copy keeps ARAM: with the game's ARAM address its 32
- * scratch bytes landed on each copy's start, and Luigi's Mansion crashed
- * on what it later read back. A Wii's DMA moves nothing in Wii mode.
+ * original then runs from its replay slot on that buffer for 32 bytes,
+ * with the game's own ARAM address, so the hardware still raises its
+ * interrupt but writes nothing of the game's (gc_on_ar_dma says why the
+ * buffer holds what it does).
  * Frame: 8 r3, 12 r4, 16 r5, 20 r6. */
     .globl gc_hook_ar_dma
 gc_hook_ar_dma:
@@ -134,8 +131,8 @@ gc_hook_ar_dma:
     addi 3, 3, gc_context_data - 6b
     bl gc_on_ar_dma
     mr 4, 3
-    mr 5, 3
     lwz 3, 0x08(1)
+    lwz 5, 0x10(1)
     li 6, 32
     lwz 0, 0x24(1)
     mtlr 0

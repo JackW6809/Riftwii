@@ -823,9 +823,21 @@ uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, u
     ctx->last_ar[2] = aram;
     ctx->last_ar[3] = length;
     if (ctx->ar_dmas <= 16 || (ctx->ar_dmas & 255) == 0) gc_trace(ctx, GC_TRACE_AR);
-    /* The game's own call still runs, for the interrupt it waits for, but
-     * on this buffer: an ARAM read on a Wii writes zeros (there is no ARAM
-     * behind it) and would undo the copy above. */
+    /* The game's own call still runs, for the interrupt it waits for, on
+     * this buffer for 32 bytes, with its own ARAM address: an ARAM read on
+     * a Wii writes zeros (there is no ARAM behind it) and would undo the
+     * copy above; with the scratch's own address for ARAM instead, a Wii's
+     * Luigi's Mansion stopped after 281 transfers, waiting.
+     * Dolphin does perform the call, into MEM2 at the ARAM address, which
+     * is the copy's own place: so the buffer holds the copy's first 32
+     * bytes, and a transfer into ARAM writes them again unchanged. */
+    {
+        uint32_t* scratch = (uint32_t*)(uintptr_t)ctx->aram_scratch;
+        const uint32_t* first = (const uint32_t*)(uintptr_t)(GC_ARAM_BASE | (aram & (GC_ARAM_SIZE - 1) & ~31u));
+        uint32_t i;
+        for (i = 0; i < 8; ++i) scratch[i] = first[i];
+        gc_flush((uint32_t)(uintptr_t)scratch, 32);
+    }
     return gc_physical((uint32_t)(uintptr_t)ctx->aram_scratch);
 }
 
