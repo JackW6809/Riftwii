@@ -1689,8 +1689,8 @@ msgstr "이 게임에 알려 줄 본체 언어입니다. 본체 설정은 그대
 msgid "Controls"
 msgstr "조작"
 
-msgid "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."
-msgstr "게임큐브처럼: 읽을 때마다 게임큐브 드라이브와 같은 시간이 걸리며, 일부 게임은 이를 전제로 합니다. 빠르게: SD 카드 속도로 읽어 로딩이 짧아집니다. 게임이 잘 돌아가면 사용해 보세요."
+msgid "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."
+msgstr "빠르게: SD 카드 속도로 읽습니다. 게임큐브처럼(실험적): 읽을 때마다 게임큐브 드라이브와 같은 시간이 걸리며, 이를 전제로 하는 게임은 일부뿐입니다. 지금은 Wii에서 일부 게임이 멈출 수 있습니다."
 
 msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
 msgstr "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지 보여 줍니다."

@@ -1689,8 +1689,8 @@ msgstr "La lingua che a questo gioco viene detto che usa la console; l'impostazi
 msgid "Controls"
 msgstr "Comandi"
 
-msgid "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."
-msgstr "Come un GameCube: ogni lettura dura quanto sull'unità di un GameCube, su cui alcuni giochi contano. Veloce: le letture vanno alla velocità della scheda SD, quindi i caricamenti sono più brevi; provala se il gioco funziona bene così."
+msgid "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."
+msgstr "Veloce: le letture vanno alla velocità della scheda SD. Come un GameCube (sperimentale): ogni lettura dura quanto sull'unità di un GameCube, su cui pochi giochi contano; su una Wii per ora può bloccare alcuni giochi."
 
 msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
 msgstr "Quali pulsanti del telecomando Wii, del Nunchuk e del controller classico fanno da pulsanti del controller GameCube."

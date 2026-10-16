@@ -370,7 +370,7 @@ static void test_saves() {
     model.game.speaker = "off";
     model.game.region_strings = "on";
     EXPECT_TRUE(model.save().find("gcdiscreads") == std::string::npos);
-    model.game.gc_disc_reads = "fast";
+    model.game.gc_disc_reads = "drive";
     EXPECT_TRUE(model.save().find("gccard") == std::string::npos);
     model.game.gc_card = "shared";
     riftwii::LaunchModel prefs;
@@ -380,10 +380,19 @@ static void test_saves() {
     EXPECT_EQ(prefs.game.rumble, std::string("off"));
     EXPECT_EQ(prefs.game.speaker, std::string("off"));
     EXPECT_EQ(prefs.game.region_strings, std::string("on"));
-    EXPECT_EQ(prefs.game.gc_disc_reads, std::string("fast"));
+    EXPECT_EQ(prefs.game.gc_disc_reads, std::string("drive"));
     EXPECT_EQ(prefs.game.gc_card, std::string("shared"));
     prefs.restore("*riftwii*\tgccard\tbogus\n");
     EXPECT_EQ(prefs.game.gc_card, std::string("own"));
+    // Fast is the default; one saved as fast before stays fast.
+    {
+        riftwii::LaunchModel fresh;
+        fresh.add("a.xml", "sd:/riivolution/a.xml", kModA, &disc);
+        fresh.restore("");
+        EXPECT_EQ(fresh.game.gc_disc_reads, std::string("fast"));
+        fresh.restore("*riftwii*\tgcdiscreads\tfast\n");
+        EXPECT_EQ(fresh.game.gc_disc_reads, std::string("fast"));
+    }
     prefs.restore(model.save());
     // A GameCube game's 480p, 16:9 and language: Settings' and the Wii's
     // (global, the default) write nothing, a pick and the game's own

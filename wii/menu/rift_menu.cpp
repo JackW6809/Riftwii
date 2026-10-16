@@ -4045,7 +4045,7 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		discReads.kind = FlowRow::Kind::Option;
 		discReads.label = tr("Disc reads");
 		discReads.value = game.gc_disc_reads == "fast" ? tr("Fast") : tr("Like a GameCube");
-		discReads.on = game.gc_disc_reads == "fast";
+		discReads.on = game.gc_disc_reads == "drive";
 		rows.push_back(discReads);
 		refs.push_back({W::GcDiscReads});
 		FlowRow card;
@@ -6627,7 +6627,7 @@ static int ChangedGameSettings(const riftwii::GameSettings& g)
 		if (*v != "global") ++changed;
 	if (g.region_video == "on") ++changed;
 	if (g.region_strings == "on") ++changed;
-	if (g.gc_disc_reads == "fast") ++changed;
+	if (g.gc_disc_reads == "drive") ++changed;
 	if (g.gc_card == "shared") ++changed;
 	if (g.gc_progressive != "global") ++changed;
 	if (g.gc_widescreen != "global") ++changed;
@@ -6793,7 +6793,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::Cover)
 				say(tr("Downloads this game's box art from GameTDB now."));
 			else if (ref.what == RowRef::What::GcDiscReads)
-				say(tr("Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."));
+				say(tr("Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."));
 			else if (ref.what == RowRef::What::GcCard)
 				say(tr("Own: a card for this game alone. Shared: one card for all games."));
 			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id))
