@@ -204,10 +204,12 @@ start-up leaves it, and jumps to the game.
   written back to its file's sectors as the game saves.
 - `gc_entry.S`: the hooks' entry points.
 
-**Leaving and crashing.** Holding HOME (L, R, Z and Start on a GameCube
-controller) for two seconds launches the RiftWii channel, else the
-Homebrew Channel, else the Wii Menu, through `ES_LaunchTitle` with the
-ticket view the loader read. A crash ends in `gc_on_fatal`: a record in
+**Leaving and crashing.** Holding HOME (HOME and - on a Wii Remote
+alone; L, R, Z and Start on a GameCube controller) for two seconds goes
+where Settings > Return to says, as a Wii game's HOME Menu does: the
+RiftWii channel when it is installed, else the Wii Menu, through
+`ES_LaunchTitle` with the ticket view the loader read. The memory card is
+written back first. A crash ends in `gc_on_fatal`: a record in
 the trace, then the menu's own message (drawn by FreeTypeGX's
 `RenderTextCoverage` before the launch) over the picture the VI shows, and
 A goes back. At its next start the menu turns the trace's crash into

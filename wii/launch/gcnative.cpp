@@ -1002,15 +1002,15 @@ std::uint32_t find_gx_set_projection(const Code& code) {
 constexpr std::uint32_t kLeaveBytes = 0x100;
 constexpr u64 kWiiMenuTitle = 0x0000000100000002ull;
 
-// The first of the titles to go back to that has a ticket, with its
-// first ticket view; 0 when none has.
+// Where the way back goes, as Settings > Return to says and as a Wii
+// game's HOME Menu goes (boot.cpp's return_title): the RiftWii channel on
+// "riftwii" when it is installed, else the Wii Menu. The first of those
+// with a ticket, with its first ticket view; 0 when neither has one.
 static u64 way_back_title(GcWayBack& kind, tikview& view) {
     std::vector<std::pair<u64, GcWayBack>> titles;
     if (Settings().return_to == "riftwii") {
         if (const u64 channel = ChannelTitle()) titles.emplace_back(channel, GcWayBack::Channel);
     }
-    for (u64 hbc : {0x000100014C554C5Aull, 0x000100014F484243ull, 0x0001000148415858ull, 0x00010001AF1BF516ull})
-        titles.emplace_back(hbc, GcWayBack::HomebrewChannel);
     titles.emplace_back(kWiiMenuTitle, GcWayBack::WiiMenu);
     for (const auto& [title, what] : titles) {
         u32 views = 0;

@@ -255,8 +255,10 @@ and `sd:/riftwii/gc/trace.bin`.
 - [ ] **Memory card**: save in the game, restart it, the save loads; the
   Saves tile lists it with its icon; copy it out as `.gci`, delete it,
   add it back; Options > Memory card > Shared uses `shared.raw`.
-- [ ] **Leaving**: hold HOME for two seconds (L, R, Z and Start on a
-  GameCube controller): RiftWii's channel, or the Homebrew Channel.
+- [ ] **Leaving**: hold HOME for two seconds (HOME and - on a Wii Remote
+  alone; L, R, Z and Start on a GameCube controller), just after saving:
+  Settings > Return to: RiftWii goes back to the RiftWii channel (the Wii
+  Menu without it), Wii Menu to the Wii Menu; the save is there next time.
 - [ ] **A crash** (`sd:/riftwii/gc/crash` makes one 600 pad reads in): the
   message shows, A goes back, the next start offers the report.
 - [ ] **Options**: Disc reads Fast loads sooner; 480p on a component
