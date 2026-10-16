@@ -6017,7 +6017,7 @@ static int MenuHome(FrontendState& state)
 					say(tr("This game's own picture, language, online server and the rest. The ones not changed follow Settings."));
 					break;
 				case GameTile::About:
-					say(tr("What GameTDB says about the game: when it came out, how many can play, the controllers it takes and its story."));
+					say(tr("GameTDB's details: release, players, controllers and story."));
 					break;
 			}
 		}

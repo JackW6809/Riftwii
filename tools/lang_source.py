@@ -1719,7 +1719,7 @@ T = {
     "crash recorder": ("registro de cuelgues", "クラッシュ記録", "registro de travamentos", "registro dei crash"),
     "screenshots": ("capturas", "スクリーンショット", "capturas", "screenshot"),
     "About this game": ("Sobre este juego", "このゲームについて", "Sobre este jogo", "Informazioni sul gioco"),
-    "What GameTDB says about the game: when it came out, how many can play, the controllers it takes and its story.": ("Lo que dice GameTDB del juego: cuándo salió, cuántos pueden jugar, los mandos que usa y su historia.", "GameTDBによるゲームの情報：発売日、遊べる人数、使えるコントローラー、ストーリー。", "O que o GameTDB diz sobre o jogo: quando saiu, quantos podem jogar, os controles que usa e a história.", "Cosa dice GameTDB del gioco: quando è uscito, quanti possono giocare, i controller che usa e la trama."),
+    "GameTDB's details: release, players, controllers and story.": ("Datos de GameTDB: lanzamiento, jugadores, mandos e historia.", "GameTDBの情報：発売日、人数、コントローラー、ストーリー。", "Dados do GameTDB: lançamento, jogadores, controles e história.", "Dati di GameTDB: uscita, giocatori, controller e trama."),
     "Wii Remote": ("Mando de Wii", "Wiiリモコン", "Wii Remote", "Telecomando Wii"),
     "Nunchuk": ("Nunchuk", "ヌンチャク", "Nunchuk", "Nunchuk"),
     "Classic Controller": ("Mando Clásico", "クラシックコントローラ", "Classic Controller", "Controller tradizionale"),
@@ -2994,8 +2994,8 @@ KO = {
         "스크린샷",
     "About this game":
         "이 게임에 대해",
-    "What GameTDB says about the game: when it came out, how many can play, the controllers it takes and its story.":
-        "GameTDB의 게임 정보: 발매일, 플레이 인원, 사용하는 컨트롤러, 스토리.",
+    "GameTDB's details: release, players, controllers and story.":
+        "GameTDB 정보: 발매일, 인원, 컨트롤러, 스토리.",
     "Wii Remote":
         "Wii 리모컨",
     "Nunchuk":
@@ -4347,8 +4347,8 @@ FR = {
         "captures",
     "About this game":
         "À propos de ce jeu",
-    "What GameTDB says about the game: when it came out, how many can play, the controllers it takes and its story.":
-        "Ce que GameTDB dit du jeu : sa sortie, le nombre de joueurs, les manettes utilisées et son histoire.",
+    "GameTDB's details: release, players, controllers and story.":
+        "Infos GameTDB : sortie, joueurs, manettes et histoire.",
     "Wii Remote":
         "Wiimote",
     "Nunchuk":

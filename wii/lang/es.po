@@ -1788,8 +1788,8 @@ msgstr "capturas"
 msgid "About this game"
 msgstr "Sobre este juego"
 
-msgid "What GameTDB says about the game: when it came out, how many can play, the controllers it takes and its story."
-msgstr "Lo que dice GameTDB del juego: cuándo salió, cuántos pueden jugar, los mandos que usa y su historia."
+msgid "GameTDB's details: release, players, controllers and story."
+msgstr "Datos de GameTDB: lanzamiento, jugadores, mandos e historia."
 
 msgid "Wii Remote"
 msgstr "Mando de Wii"
