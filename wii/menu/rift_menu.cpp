@@ -4215,8 +4215,10 @@ static bool AskGcBuild(const std::string& name, const std::string& originalName,
 	const int coversX = 584 + box.Extra() - 2 * 64 - 28;
 	SmallCover from(originalId, coversX, 164, 64, 90);
 	SmallCover to(id, coversX + 64 + 28, 164, 64, 90);
-	// The theme's own right arrow (the banner view's), at about the gap's width.
-	SkinMark arrow(skin::arrowRight, coversX + 64 + 1, 196, 0.6f);
+	// The theme's own right arrow (the banner view's), at about the gap's
+	// width; skin::Draw scales about the picture's middle, so its 44x44 box
+	// is placed with its middle on the gap's and the covers' middles.
+	SkinMark arrow(skin::arrowRight, coversX + 64 + 14 - 22, 164 + 45 - 22, 0.6f);
 	// The text runs from 56 - Extra() to 16 short of the covers; Add counts
 	// Extra() in itself.
 	box.Add(&from, coversX - 16 - 56);
