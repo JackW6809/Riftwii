@@ -1380,23 +1380,74 @@ msgstr "空き容量"
 msgid "Stopped. Nothing was kept."
 msgstr "中止しました。何も保存されませんでした。"
 
-msgid "Game not made"
-msgstr "ゲームを作成できませんでした"
-
-msgid "Not enough space"
-msgstr "空き容量が足りません"
-
-msgid "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again."
-msgstr "{1}を作るにはSDカードに{2}の空きが必要ですが、空きは{3}だけです。空き容量を増やして、もう一度スタートを押してください。"
-
-msgid "Make this game first?"
-msgstr "先にこのゲームを作りますか?"
-
-msgid "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate."
-msgstr "{1}は別のゲームのパッチです。RiftWiiは元のゲームとパッチからゲームを一度だけ作ります。SDカードに約{2}の空きが必要で、数分かかります。次回からはすぐに始まります。"
-
 msgid "{1} could not be made: {2}. Nothing was kept."
 msgstr "{1}を作成できませんでした: {2}。何も保存されませんでした。"
+
+msgid "GameCube"
+msgstr "ゲームキューブ"
+
+msgid "Memory Card"
+msgstr "メモリーカード"
+
+msgid "Not yet"
+msgstr "まだ非対応"
+
+msgid "Build and play"
+msgstr "作ってプレイ"
+
+msgid "About {1} minutes"
+msgstr "約{1}分"
+
+msgid "Cheats don't work in GameCube games yet."
+msgstr "ゲームキューブのゲームではまだチートを使えません。"
+
+msgid "Made from {1} on first start, once; every start after that is immediate."
+msgstr "最初の起動時に{1}から一度だけ作られます。次回からはすぐに始まります。"
+
+msgid "Saves go to this game's own memory card on the SD card: {1}."
+msgstr "セーブはSDカード上のこのゲーム専用のメモリーカードに保存されます: {1}。"
+
+msgid "Stop making {1}?"
+msgstr "{1}の作成を中止しますか?"
+
+msgid "What is made so far is deleted. It can be made again later, from the start."
+msgstr "ここまでに作った分は削除されます。あとで最初から作り直せます。"
+
+msgid "Keep going"
+msgstr "続ける"
+
+msgid "{1} can't be built"
+msgstr "{1}を作れません"
+
+msgid "It is built from {1}, and RiftWii cannot open it on the SD card any more. Put it back in sd:/games and try again."
+msgstr "このゲームは{1}から作られますが、RiftWiiはSDカード上でそれを開けなくなりました。sd:/gamesに戻して、もう一度試してください。"
+
+msgid "Building it needs {1} free on the SD card, and only {2} is free. Free some space and press Start again."
+msgstr "作るにはSDカードに{1}の空きが必要ですが、空きは{2}だけです。空き容量を増やして、もう一度スタートを押してください。"
+
+msgid "Build this game first?"
+msgstr "先にこのゲームを作りますか?"
+
+msgid "Build {1} from your {2}? This happens once."
+msgstr "お持ちの{2}から{1}を作りますか? これは一度だけです。"
+
+msgid "Needs {1}"
+msgstr "{1}必要"
+
+msgid "Once only"
+msgstr "一度だけ"
+
+msgid "Build it"
+msgstr "作る"
+
+msgid "Building {1}"
+msgstr "{1}を作成中"
+
+msgid "Reading {1} and writing {2}"
+msgstr "{1}を読み込み、{2}を書き込み中"
+
+msgid "{1} not built"
+msgstr "{1}は作られませんでした"
 
 msgid "SD image made"
 msgstr "SDイメージを作成しました"

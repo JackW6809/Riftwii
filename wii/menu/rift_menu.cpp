@@ -1755,6 +1755,15 @@ public:
 	void Append(GuiElement* e) { w.Append(e); }
 	// The second button alone, in the middle (as the first is when alone).
 	void CenterCancel() { cancelBtn.button.SetPosition(198 - 4, 314 - 4); }
+	// How much wider than 4:3 the box is on each side (PopupExtra).
+	int Extra() const { return extra; }
+	// After another box was opened over this one and closed: the page
+	// underneath takes no input again, this box does.
+	void Reactivate()
+	{
+		mainWindow->SetState(STATE::DISABLED);
+		w.SetState(STATE::DEFAULT);
+	}
 	// While work goes on with the box up (the GUI halted): whether its
 	// last button was pressed.
 	bool Pressed()
@@ -1892,6 +1901,77 @@ public:
 private:
 	int x, y, width;
 	double fraction = 0;
+};
+
+// A game's small cover at (x, y), `w` x `h`: its cover when one is kept,
+// else its colour with a disc on it. Drawn in a popup, over the page.
+class SmallCover : public GuiElement {
+public:
+	SmallCover(std::string id, int x, int y, int w, int h) : id(std::move(id)), x(x), y(y), w(w), h(h) {}
+	void Draw() override
+	{
+		skin::DrawNine(skin::card9, x - 4, y - 4, w + 8, h + 8, 12);
+		if (const u8* cover = id.empty() ? nullptr : riftwii::wii::CoverTexture(id)) {
+			skin::DrawRgb5a3Part(cover, riftwii::kCoverWidth, riftwii::kCoverHeight, 0.0f, 1.0f, x, y, w, h);
+			return;
+		}
+		Menu_DrawRectangle(x, y, w, h, skin::HueFor(id), 1);
+		skin::Draw(skin::iconDisc, x + (w - 40) / 2, y + (h - 40) / 2);
+	}
+private:
+	std::string id;
+	int x, y, w, h;
+};
+
+// A long job's progress in a popup box (making a GameCube game, an SD
+// image): the game's cover on the left; beside it the share done, large,
+// the bar under it, the time left under the bar and, last, what is being
+// done now. The box's own text stays empty.
+class ProgressPanel {
+public:
+	ProgressPanel(PopupBox& box, const std::string& coverId)
+		: left(56 - box.Extra()), right(584 + box.Extra()),
+		  cover(coverId, left, 160, kCoverW, kCoverH), percentTxt("0%", 36, skin::kInk),
+		  bar(left + kCoverW + 24, 208, right - (left + kCoverW + 24)), timeTxt("", 15, skin::kInkSoft),
+		  stageTxt("", 15, skin::kInkSoft), start(gettime())
+	{
+		const int textX = left + kCoverW + 24;
+		Place(percentTxt, textX, 160);
+		Place(timeTxt, textX, 230);
+		Place(stageTxt, textX, 256);
+		stageTxt.SetWrap(true, right - textX, 2);
+		box.Append(&cover);
+		box.Append(&percentTxt);
+		box.Append(&bar);
+		box.Append(&timeTxt);
+		box.Append(&stageTxt);
+	}
+	// `done` of `total`; the time left at the rate so far, once there is
+	// one (ten seconds in), and what is left in bytes before that.
+	void Set(std::uint64_t done, std::uint64_t total)
+	{
+		const double fraction = total ? static_cast<double>(std::min(done, total)) / static_cast<double>(total) : 0;
+		bar.Set(fraction);
+		percentTxt.SetText((std::to_string(static_cast<int>(fraction * 100)) + "%").c_str());
+		const u64 ms = diff_msec(start, gettime());
+		std::string time;
+		if (ms > 10000 && done > 0 && total > done) {
+			const std::uint64_t secs = (total - done) * ms / done / 1000;
+			time = secs >= 90 ? tr("{1} minutes left", {std::to_string((secs + 59) / 60)})
+					 : tr("{1} seconds left", {std::to_string(secs)});
+		}
+		timeTxt.SetText(time.c_str());
+	}
+	void SetStage(const std::string& stage) { stageTxt.SetText(stage.c_str()); }
+private:
+	static constexpr int kCoverW = 80, kCoverH = 112;
+	int left, right;
+	SmallCover cover;
+	GuiText percentTxt;
+	ProgressBar bar;
+	GuiText timeTxt;
+	GuiText stageTxt;
+	u64 start;
 };
 
 // Where the player leaves to, for wii/main.cpp's ExitApp: 1 the loader
@@ -3918,6 +3998,17 @@ static std::string SizeText(std::uint64_t bytes)
 	return std::to_string(tenths / 10) + "." + std::to_string(tenths % 10) + " GB";
 }
 
+// Stop pressed in `box` while `what` is being made: asked once more, as
+// what is made so far is thrown away. True: stop.
+static bool ConfirmStop(PopupBox& box, const std::string& what)
+{
+	const bool stop = ShowPopup(tr("Stop making {1}?", {what}),
+		tr("What is made so far is deleted. It can be made again later, from the start."),
+		tr("Keep going"), tr("Stop")) == 1;
+	box.Reactivate();
+	return stop;
+}
+
 // Makes an image of the code build `p` on the SD card (wii/menu/vsdmake.hpp),
 // asking first. True when it is made, with `key` the build's key in it.
 static bool MakeSdImage(const FrontendState& state, const riftwii::LaunchPackage& p, std::string& key)
@@ -3949,26 +4040,16 @@ static bool MakeSdImage(const FrontendState& state, const riftwii::LaunchPackage
 	logf("Image: making %s from %s\n", plan.image.c_str(), p.file.c_str());
 	{
 		PopupBox box(tr("Making {1}", {plan.image}), "", "", tr("Stop"));
-		ProgressBar bar(56, 280, 528);
-		box.Add(&bar, 528);
-		const u64 start = gettime();
+		ProgressPanel progress(box, state.game_id);
 		std::string shown;
 		ResumeGui();
 		ok = riftwii::wii::MakeVsdImage(plan, [&](std::uint64_t written, const std::string& path) {
 			if (!path.empty()) shown = path;
-			const u64 ms = diff_msec(start, gettime());
-			std::string text = SizeText(written) + " / " + SizeText(plan.plan.image_bytes);
-			// What is left at the rate so far, once there is a rate.
-			if (ms > 10000 && written > (16u << 20)) {
-				const std::uint64_t left = (plan.plan.image_bytes - std::min(written, plan.plan.image_bytes)) * ms / written / 1000;
-				text += "  -  " + std::string(left >= 90 ? tr("{1} minutes left", {std::to_string((left + 59) / 60)})
-						: tr("{1} seconds left", {std::to_string(left)}));
-			}
-			text += "\n" + FlatCapped(shown.empty() ? std::string(tr("Free space")) : shown, 60);
 			HaltGui();
-			bar.Set(static_cast<double>(written) / static_cast<double>(plan.plan.image_bytes));
-			box.SetBody(text);
-			const bool stop = box.Pressed();
+			progress.Set(written, plan.plan.image_bytes);
+			progress.SetStage(SizeText(written) + " / " + SizeText(plan.plan.image_bytes) + "\n" +
+				FlatCapped(shown.empty() ? std::string(tr("Free space")) : shown, 44));
+			const bool stop = box.Pressed() && ConfirmStop(box, plan.image);
 			ResumeGui();
 			return !stop;
 		}, error);
@@ -3989,6 +4070,93 @@ static bool MakeSdImage(const FrontendState& state, const riftwii::LaunchPackage
 	return true;
 }
 
+// The game picked, when it is a GameCube one (on the SD card).
+static const riftwii::wii::ImageGame* SelectedGcGame(const FrontendState& state)
+{
+	if (!state.use_sd || state.sd_index >= state.sd_catalog.games.size()) return nullptr;
+	const riftwii::wii::ImageGame& game = state.sd_catalog.games[state.sd_index];
+	return game.gamecube ? &game : nullptr;
+}
+
+// The game picked, when it is a GameCube game still to be made from its
+// patch (wii/launch/gcpatch.hpp).
+static const riftwii::wii::ImageGame* SelectedGcPatch(const FrontendState& state)
+{
+	const riftwii::wii::ImageGame* game = SelectedGcGame(state);
+	return game && !game->gc_patch_source.empty() ? game : nullptr;
+}
+
+static std::string ImageGameName(const riftwii::wii::ImageGame& game)
+{
+	if (!game.display.empty()) return game.display;
+	return game.title.empty() ? game.id : game.title;
+}
+
+// The game a patch makes its game from, when it is listed.
+static const riftwii::wii::ImageGame* GcOriginal(const FrontendState& state, const riftwii::wii::ImageGame& patch)
+{
+	for (const riftwii::wii::ImageGame& game : state.sd_catalog.games)
+		if (game.path == patch.gc_patch_source) return &game;
+	return nullptr;
+}
+
+// Making a game from its patch reads the original and writes the new game
+// on the same card: about 4 MB a second (Super Mario Eclipse, 1.4 GB, in
+// 5 to 6 minutes).
+static unsigned GcBuildMinutes(std::uint64_t bytes)
+{
+	return static_cast<unsigned>(bytes / (4ull << 20) / 60) + 1;
+}
+
+// Room and time for the Play tile and the box that asks: "1.4 GB · about
+// 6 minutes", from the original's size (0 when it cannot be opened).
+static std::uint64_t GcBuildBytes(const riftwii::wii::ImageGame& patch)
+{
+	riftwii::wii::GcImage image{patch.path, patch.id, patch.gc_patch_source};
+	std::uint64_t need = 0, have = 0;
+	if (!riftwii::wii::GcPatchSpace(image, need, have)) return 0;
+	return need;
+}
+
+// The box that asks before a game is made from its patch: the original's
+// cover, an arrow, the new game's; what it does, what it needs; and, in
+// place of the question, what is missing when it cannot be made. True:
+// make it.
+static bool AskGcBuild(const std::string& name, const std::string& originalName, const std::string& originalId,
+		       const std::string& id, std::uint64_t need, std::uint64_t have, bool originalThere)
+{
+	const bool roomy = have == 0 || have >= need;
+	std::string title, body;
+	if (!originalThere) {
+		title = tr("{1} can't be built", {name});
+		body = tr("It is built from {1}, and RiftWii cannot open it on the SD card any more. Put it back in sd:/games and try again.",
+			{originalName});
+	} else if (!roomy) {
+		title = tr("{1} can't be built", {name});
+		body = tr("Building it needs {1} free on the SD card, and only {2} is free. Free some space and press Start again.",
+			{SizeText(need), SizeText(have)});
+	} else {
+		title = tr("Build this game first?");
+		body = tr("Build {1} from your {2}? This happens once.", {name, originalName});
+	}
+	body += "\n\n" + tr("Needs {1}", {SizeText(need)}) + " \xC2\xB7 " +
+		tr("About {1} minutes", {std::to_string(GcBuildMinutes(need))}) + " \xC2\xB7 " + tr("Once only");
+	const bool canBuild = originalThere && roomy;
+	PopupBox box(title, body, canBuild ? tr("Build it") : tr("OK"), canBuild ? tr("Not now") : "");
+	// The covers on the right, the text beside them.
+	const int coversX = 584 + box.Extra() - 2 * 64 - 28;
+	SmallCover from(originalId, coversX, 164, 64, 90);
+	SmallCover to(id, coversX + 64 + 28, 164, 64, 90);
+	GuiText arrow(">", 24, skin::kInkSoft);
+	Place(arrow, coversX + 64 + 8, 196);
+	// The text runs from 56 - Extra() to 16 short of the covers; Add counts
+	// Extra() in itself.
+	box.Add(&from, coversX - 16 - 56);
+	box.Append(&to);
+	box.Append(&arrow);
+	return box.Wait() == 0 && canBuild;
+}
+
 // A GameCube game that is still to be made from its patch (gcpatch.hpp)
 // is made here, with the menu's own box, before the launch screen (which
 // cannot show translations) takes over. True: the game is ready (or was
@@ -3996,78 +4164,62 @@ static bool MakeSdImage(const FrontendState& state, const riftwii::LaunchPackage
 // popup said why.
 static bool PrepareGcGameInMenu(FrontendState& state)
 {
-	if (!state.use_sd || state.sd_index >= state.sd_catalog.games.size()) return true;
+	if (!SelectedGcPatch(state)) return true;
 	riftwii::wii::ImageGame& game = state.sd_catalog.games[state.sd_index];
-	if (!game.gamecube || game.gc_patch_source.empty()) return true;
+	const std::string name = ImageGameName(game);
+	const riftwii::wii::ImageGame* original = GcOriginal(state, game);
+	const std::string originalName = original ? ImageGameName(*original) : FlatCapped(game.gc_patch_source, 40);
+	const std::string originalId = original ? original->id : std::string();
 
 	riftwii::wii::GcImage image{game.path, game.id, game.gc_patch_source};
 	std::uint64_t need = 0, have = 0;
-	std::string error;
-	if (!riftwii::wii::GcPatchSpace(image, need, have)) {
-		logf("GameCube: %s cannot be made: the original %s cannot be opened\n", game.id.c_str(), image.patch_source.c_str());
-		ShowPopup(tr("Game not made"), tr("{1} could not be made: {2}. Nothing was kept.",
-			{game.id, FlatCapped("cannot open " + image.patch_source, 140)}), tr("OK"));
-		return false;
-	}
-	if (have != 0 && have < need) {
+	const bool originalThere = riftwii::wii::GcPatchSpace(image, need, have);
+	if (!originalThere) logf("GameCube: %s cannot be made: the original %s cannot be opened\n", game.id.c_str(), image.patch_source.c_str());
+	else if (have != 0 && have < need)
 		logf("GameCube: %s needs %llu MB free on the SD card, %llu MB are free\n", game.id.c_str(),
 			static_cast<unsigned long long>(need >> 20), static_cast<unsigned long long>(have >> 20));
-		ShowPopup(tr("Not enough space"),
-			tr("Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again.",
-				{game.id, SizeText(need), SizeText(have)}),
-			tr("OK"));
-		return false;
-	}
-	const std::string name = game.display.empty() ? game.title : game.display;
-	if (ShowPopup(tr("Make this game first?"),
-		    tr("{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate.",
-			    {name, SizeText(need)}),
-		    tr("Make it"), tr("Cancel")) != 0) {
-		logf("GameCube: the player did not want %s made now\n", game.id.c_str());
+	if (!AskGcBuild(name, originalName, originalId, game.id, need, have, originalThere)) {
+		if (originalThere && (have == 0 || have >= need)) logf("GameCube: the player did not want %s made now\n", game.id.c_str());
 		return false;
 	}
 
-	bool ok;
-	{
-		PopupBox box(tr("Making {1}", {name}), "", "", tr("Stop"));
-		ProgressBar bar(56, 280, 528);
-		box.Add(&bar, 528);
-		const u64 start = gettime();
-		u64 last_redraw = 0;
-		ResumeGui();
-		ok = riftwii::wii::PrepareGcPatch(image, error, [&](std::uint64_t done, std::uint64_t total) {
-			// A few redraws a second: each one halts the GUI, which costs copy time.
-			const u64 now = gettime();
-			if (last_redraw != 0 && diff_msec(last_redraw, now) < 400) return true;
-			last_redraw = now;
-			const double fraction = total ? static_cast<double>(done) / static_cast<double>(total) : 0;
-			std::string text = std::to_string(static_cast<int>(fraction * 100)) + "%";
-			// What is left at the rate so far, once there is a rate.
-			const u64 ms = diff_msec(start, now);
-			if (ms > 10000 && done > 0 && total > done) {
-				const std::uint64_t left = (total - done) * ms / done / 1000;
-				text += "  -  " + std::string(left >= 90 ? tr("{1} minutes left", {std::to_string((left + 59) / 60)})
-						: tr("{1} seconds left", {std::to_string(left)}));
-			}
-			HaltGui();
-			// Minutes of work with no button pressed: not idle, so the
-			// screen does not dim over the bar.
-			lastActive = now;
-			bar.Set(fraction);
-			box.SetBody(text);
-			const bool stop = box.Pressed();
+	for (;;) {
+		std::string error;
+		bool ok;
+		{
+			PopupBox box(tr("Building {1}", {name}), "", "", tr("Stop"));
+			ProgressPanel progress(box, game.id);
+			progress.SetStage(tr("Reading {1} and writing {2}", {originalName, name}));
+			u64 last_redraw = 0;
 			ResumeGui();
-			return !stop;
-		});
-		HaltGui();
-	}
-	if (!ok) {
+			ok = riftwii::wii::PrepareGcPatch(image, error, [&](std::uint64_t done, std::uint64_t total) {
+				// A few redraws a second: each one halts the GUI, which costs copy time.
+				const u64 now = gettime();
+				if (last_redraw != 0 && diff_msec(last_redraw, now) < 400) return true;
+				last_redraw = now;
+				HaltGui();
+				// Minutes of work with no button pressed: not idle, so the
+				// screen does not dim over the bar.
+				lastActive = now;
+				progress.Set(done, total);
+				const bool stop = box.Pressed() && ConfirmStop(box, name);
+				ResumeGui();
+				return !stop;
+			});
+			HaltGui();
+		}
+		if (ok) break;
 		logf("GameCube: %s was not made: %s\n", game.id.c_str(), error.c_str());
-		ShowPopup(tr("Game not made"),
-			error == "stopped" ? std::string(tr("Stopped. Nothing was kept."))
-				: tr("{1} could not be made: {2}. Nothing was kept.", {game.id, FlatCapped(error, 140)}),
-			tr("OK"));
-		return false;
+		if (error == "stopped") {
+			ShowPopup(tr("{1} not built", {name}), tr("Stopped. Nothing was kept."), tr("OK"));
+			return false;
+		}
+		// Most failures are the card's (a write, a read): worth another go.
+		if (ShowPopup(tr("{1} not built", {name}),
+			    tr("{1} could not be made: {2}. Nothing was kept.", {name, FlatCapped(error, 140)}),
+			    tr("Try again"), tr("OK")) != 0)
+			return false;
+		image = riftwii::wii::GcImage{game.path, game.id, game.gc_patch_source};
 	}
 	// The entry now is the prepared image, so the launch starts it as any other.
 	game.path = image.path;
@@ -5508,12 +5660,31 @@ static void MenuMods(FrontendState& state, std::string& scanStatus)
 // ---------------------------------------------------------------------------
 // The game page: the game's box, its name and facts, and tiles
 
+// The Play tile's note: what Start does; for a game still to be made from
+// its patch, that it is made first, once.
+static std::string PlayTileNote(const FrontendState& state)
+{
+	const riftwii::wii::ImageGame* patch = SelectedGcPatch(state);
+	if (!patch) return tr("Starts the game with the mods and settings shown here.");
+	const riftwii::wii::ImageGame* original = GcOriginal(state, *patch);
+	const std::string originalName = original ? ImageGameName(*original) : FlatCapped(patch->gc_patch_source, 40);
+	return tr("Made from {1} on first start, once; every start after that is immediate.", {originalName});
+}
+
+// The Saves tile's note for a GameCube game.
+static std::string GcSaveNote(const FrontendState& state)
+{
+	return tr("Saves go to this game's own memory card on the SD card: {1}.",
+		{"sd:/riftwii/gc/cards/" + state.game_id + ".raw"});
+}
+
 // The band's line of facts: the ID, the year, the genre, how many play,
 // online, how often it was played here (GameTDB's from the cache only).
 static std::string GameFacts(const FrontendState& state)
 {
 	std::vector<std::string> parts;
 	if (!state.game_id.empty()) parts.push_back(state.game_id);
+	if (SelectedGcGame(state)) parts.push_back(tr("GameCube"));
 	riftwii::GameInfo info;
 	if (!state.game_id.empty() && riftwii::wii::PeekGameInfo(state.game_id, info)) {
 		if (info.year) parts.push_back(std::to_string(info.year));
@@ -5573,20 +5744,36 @@ static void BuildGameTiles(const FrontendState& state, std::vector<TileSpec>& ti
 	const riftwii::GameSettings& game = state.model.game;
 	const int changed = ChangedGameSettings(game);
 	const bool favorite = riftwii::wii::Settings().favorites.count(state.game_id) != 0;
-	const std::string saves = !state.model.pack_save_owner().empty() ? std::string(tr("Kept by the pack"))
+	const riftwii::wii::ImageGame* gamecube = SelectedGcGame(state);
+	const riftwii::wii::ImageGame* toBuild = SelectedGcPatch(state);
+	// A GameCube game saves to its memory card on the SD card, whatever the
+	// save mode, and takes no cheats yet.
+	const std::string saves = gamecube ? std::string(tr("Memory Card")) + " \xC2\xB7 SD"
+		: !state.model.pack_save_owner().empty() ? std::string(tr("Kept by the pack"))
 		: std::string(tr(SaveLabel(state.model.save_mode).c_str()));
+	const std::string cheats = gamecube ? std::string(tr("Not yet")) : CheatsValue(game);
+	// Until a patch's game is made: what making it takes, where the mods
+	// count would be.
+	std::string play = tr("Play"), playValue = modsOn;
+	if (toBuild) {
+		play = tr("Build and play");
+		const std::uint64_t bytes = GcBuildBytes(*toBuild);
+		if (bytes != 0)
+			playValue = SizeText(bytes) + " \xC2\xB7 " + tr("About {1} minutes", {std::to_string(GcBuildMinutes(bytes))});
+	}
 
 	// The lower rows: two tiles across the tiles' width, 12 apart.
 	constexpr int kHalfW = (kTilesW - 12) / 2, kRightX = kTilesRight - kHalfW;
-	add(GameTile::Play, kTilesX, 132, 252, 84, tr("Play"), modsOn, &skin::iconPlay, false);
+	add(GameTile::Play, kTilesX, 132, 252, 84, play, playValue, &skin::iconPlay, false);
 	// "On" alone: the tile is narrow ("1 switched on" was cut to "1 switc..."),
 	// and Play beside it says how many.
 	add(GameTile::Mods, kTilesX + 264, 132, kTilesRight - kTilesX - 264, 84, tr("Mods"),
 		shown == 0 ? tr("None") : enabled == 0 ? tr("Off") : tr("On"),
 		&skin::iconMods, enabled != 0);
-	add(GameTile::Cheats, kTilesX, 228, kHalfW, 70, tr("Cheats"), CheatsValue(game), &skin::iconCheats,
-		game.cheats && !game.cheat_names.empty());
-	add(GameTile::Saves, kRightX, 228, kHalfW, 70, tr("Saves"), saves, &skin::iconSaves, state.model.save_mode != "nand");
+	add(GameTile::Cheats, kTilesX, 228, kHalfW, 70, tr("Cheats"), cheats, &skin::iconCheats,
+		!gamecube && game.cheats && !game.cheat_names.empty());
+	add(GameTile::Saves, kRightX, 228, kHalfW, 70, tr("Saves"), saves, &skin::iconSaves,
+		!gamecube && state.model.save_mode != "nand");
 	add(GameTile::Favorite, kHeroX, 310, kHeroW, 70, tr("Favourite"), favorite ? tr("On") : tr("Off"),
 		favorite ? &skin::iconStarOn : &skin::iconStar, favorite);
 	add(GameTile::Options, kTilesX, 310, kHalfW, 70, tr("Options"),
@@ -5972,10 +6159,13 @@ static int MenuHome(FrontendState& state)
 		if (lit != shownTile && lit >= 0 && static_cast<std::size_t>(lit) < tileWhat.size()) {
 			shownTile = lit;
 			switch (tileWhat[static_cast<std::size_t>(lit)]) {
-				case GameTile::Play: say(tr("Starts the game with the mods and settings shown here.")); break;
+				case GameTile::Play: say(PlayTileNote(state)); break;
 				case GameTile::Mods: say(ModsNote(state, scanStatus)); break;
-				case GameTile::Cheats: say(tr("Cheat codes for this game. Press A to choose them.")); break;
-				case GameTile::Saves: say(SaveNote(state.model)); break;
+				case GameTile::Cheats:
+					say(SelectedGcGame(state) ? std::string(tr("Cheats don't work in GameCube games yet."))
+								  : std::string(tr("Cheat codes for this game. Press A to choose them.")));
+					break;
+				case GameTile::Saves: say(SelectedGcGame(state) ? GcSaveNote(state) : SaveNote(state.model)); break;
 				case GameTile::Favorite: say(tr("Favourites have their own view on Home: press 1 there until it shows.")); break;
 				case GameTile::Options:
 					say(tr("This game's own picture, language, online server and the rest. The ones not changed follow Settings."));
@@ -5991,6 +6181,10 @@ static int MenuHome(FrontendState& state)
 			const GameTile tile = tileWhat[static_cast<std::size_t>(acted)];
 			if (tile == GameTile::Play) {
 				startBtn.button.SetState(STATE::CLICKED);
+			} else if (tile == GameTile::Saves && SelectedGcGame(state)) {
+				say(GcSaveNote(state));
+			} else if (tile == GameTile::Cheats && SelectedGcGame(state)) {
+				say(tr("Cheats don't work in GameCube games yet."));
 			} else if (tile == GameTile::Saves && !state.model.pack_save_owner().empty()) {
 				say(SaveNote(state.model));
 			} else if (tile == GameTile::Saves) {

@@ -1380,23 +1380,74 @@ msgstr "Spazio libero"
 msgid "Stopped. Nothing was kept."
 msgstr "Interrotto. Non è stato salvato nulla."
 
-msgid "Game not made"
-msgstr "Gioco non creato"
-
-msgid "Not enough space"
-msgstr "Spazio insufficiente"
-
-msgid "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again."
-msgstr "Per creare {1} servono {2} liberi sulla scheda SD e ce ne sono solo {3}. Libera dello spazio e premi di nuovo Avvia."
-
-msgid "Make this game first?"
-msgstr "Creare prima questo gioco?"
-
-msgid "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate."
-msgstr "{1} è una patch per un altro gioco. RiftWii crea il gioco dall'originale e dalla patch, una volta sola. Servono circa {2} liberi sulla scheda SD e ci vogliono alcuni minuti. Gli avvii successivi sono immediati."
-
 msgid "{1} could not be made: {2}. Nothing was kept."
 msgstr "Impossibile creare {1}: {2}. Non è stato salvato nulla."
+
+msgid "GameCube"
+msgstr "GameCube"
+
+msgid "Memory Card"
+msgstr "Memory Card"
+
+msgid "Not yet"
+msgstr "Non ancora"
+
+msgid "Build and play"
+msgstr "Crea e gioca"
+
+msgid "About {1} minutes"
+msgstr "Circa {1} minuti"
+
+msgid "Cheats don't work in GameCube games yet."
+msgstr "I trucchi non funzionano ancora nei giochi GameCube."
+
+msgid "Made from {1} on first start, once; every start after that is immediate."
+msgstr "Viene creato da {1} al primo avvio, una volta sola; gli avvii successivi sono immediati."
+
+msgid "Saves go to this game's own memory card on the SD card: {1}."
+msgstr "I salvataggi vanno nella Memory Card di questo gioco, sulla scheda SD: {1}."
+
+msgid "Stop making {1}?"
+msgstr "Interrompere la creazione di {1}?"
+
+msgid "What is made so far is deleted. It can be made again later, from the start."
+msgstr "Quanto creato finora viene eliminato. Si può ricreare più tardi, dall'inizio."
+
+msgid "Keep going"
+msgstr "Continua"
+
+msgid "{1} can't be built"
+msgstr "Impossibile creare {1}"
+
+msgid "It is built from {1}, and RiftWii cannot open it on the SD card any more. Put it back in sd:/games and try again."
+msgstr "Viene creato da {1}, e RiftWii non riesce più ad aprirlo sulla scheda SD. Rimettilo in sd:/games e riprova."
+
+msgid "Building it needs {1} free on the SD card, and only {2} is free. Free some space and press Start again."
+msgstr "Per crearlo servono {1} liberi sulla scheda SD e ce ne sono solo {2}. Libera dello spazio e premi di nuovo Avvia."
+
+msgid "Build this game first?"
+msgstr "Creare prima questo gioco?"
+
+msgid "Build {1} from your {2}? This happens once."
+msgstr "Creare {1} dal tuo {2}? Succede una volta sola."
+
+msgid "Needs {1}"
+msgstr "Servono {1}"
+
+msgid "Once only"
+msgstr "Una volta sola"
+
+msgid "Build it"
+msgstr "Crealo"
+
+msgid "Building {1}"
+msgstr "Creazione di {1}"
+
+msgid "Reading {1} and writing {2}"
+msgstr "Lettura di {1} e scrittura di {2}"
+
+msgid "{1} not built"
+msgstr "{1} non creato"
 
 msgid "SD image made"
 msgstr "Immagine SD creata"

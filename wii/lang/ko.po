@@ -1380,23 +1380,74 @@ msgstr "여유 공간"
 msgid "Stopped. Nothing was kept."
 msgstr "중단되었습니다. 아무것도 보관되지 않았습니다."
 
-msgid "Game not made"
-msgstr "게임을 만들지 못했습니다"
-
-msgid "Not enough space"
-msgstr "공간이 부족합니다"
-
-msgid "Making {1} needs {2} free on the SD card, and only {3} is free. Free some space and press Start again."
-msgstr "{1}을(를) 만들려면 SD 카드에 {2}의 여유 공간이 필요하지만 {3}만 남아 있습니다. 공간을 확보한 뒤 시작을 다시 누르세요."
-
-msgid "Make this game first?"
-msgstr "먼저 이 게임을 만들까요?"
-
-msgid "{1} is a patch for another game. RiftWii makes the game from the original and the patch, once. It needs about {2} free on the SD card and takes a few minutes. Every start after this one is immediate."
-msgstr "{1}은(는) 다른 게임의 패치입니다. RiftWii가 원본과 패치로 게임을 한 번만 만듭니다. SD 카드에 약 {2}의 여유 공간이 필요하고 몇 분 걸립니다. 그 뒤로는 바로 시작됩니다."
-
 msgid "{1} could not be made: {2}. Nothing was kept."
 msgstr "{1}을(를) 생성할 수 없습니다: {2}. 아무것도 보존되지 않았습니다."
+
+msgid "GameCube"
+msgstr "게임큐브"
+
+msgid "Memory Card"
+msgstr "메모리 카드"
+
+msgid "Not yet"
+msgstr "아직 미지원"
+
+msgid "Build and play"
+msgstr "만들고 플레이"
+
+msgid "About {1} minutes"
+msgstr "약 {1}분"
+
+msgid "Cheats don't work in GameCube games yet."
+msgstr "게임큐브 게임에서는 아직 치트를 쓸 수 없습니다."
+
+msgid "Made from {1} on first start, once; every start after that is immediate."
+msgstr "처음 시작할 때 {1}에서 한 번만 만들어지며, 그 뒤로는 바로 시작됩니다."
+
+msgid "Saves go to this game's own memory card on the SD card: {1}."
+msgstr "저장 데이터는 SD 카드에 있는 이 게임 전용 메모리 카드에 저장됩니다: {1}."
+
+msgid "Stop making {1}?"
+msgstr "{1} 만들기를 중지할까요?"
+
+msgid "What is made so far is deleted. It can be made again later, from the start."
+msgstr "지금까지 만든 것은 삭제됩니다. 나중에 처음부터 다시 만들 수 있습니다."
+
+msgid "Keep going"
+msgstr "계속하기"
+
+msgid "{1} can't be built"
+msgstr "{1}을(를) 만들 수 없습니다"
+
+msgid "It is built from {1}, and RiftWii cannot open it on the SD card any more. Put it back in sd:/games and try again."
+msgstr "{1}에서 만들어지는데, RiftWii가 SD 카드에서 더 이상 열 수 없습니다. sd:/games에 다시 넣고 다시 시도하세요."
+
+msgid "Building it needs {1} free on the SD card, and only {2} is free. Free some space and press Start again."
+msgstr "만들려면 SD 카드에 {1}의 여유 공간이 필요하지만 {2}만 남아 있습니다. 공간을 확보한 뒤 시작을 다시 누르세요."
+
+msgid "Build this game first?"
+msgstr "먼저 이 게임을 만들까요?"
+
+msgid "Build {1} from your {2}? This happens once."
+msgstr "가지고 있는 {2}(으)로 {1}을(를) 만들까요? 한 번만 하면 됩니다."
+
+msgid "Needs {1}"
+msgstr "{1} 필요"
+
+msgid "Once only"
+msgstr "한 번만"
+
+msgid "Build it"
+msgstr "만들기"
+
+msgid "Building {1}"
+msgstr "{1} 만드는 중"
+
+msgid "Reading {1} and writing {2}"
+msgstr "{1} 읽고 {2} 쓰는 중"
+
+msgid "{1} not built"
+msgstr "{1}을(를) 만들지 못했습니다"
 
 msgid "SD image made"
 msgstr "SD 이미지 생성됨"
