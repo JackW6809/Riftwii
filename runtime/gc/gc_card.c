@@ -15,6 +15,7 @@
 #define GC_CARD_ERASE_ALL 0xF4u
 #define GC_CARD_STATUS 0x83u
 #define GC_CARD_SET_INTERRUPT 0x81u
+#define GC_CARD_GET_ID 0x00u  /* two zero bytes, then the 32-bit ID is read */
 #define GC_CARD_STATUS_READY_UNLOCKED 0x41u
 #define GC_CARD_PAGE 128u
 
@@ -58,6 +59,7 @@ static void card_take(struct gc_card* card, uint32_t value) {
     if (n == 0) card->last_cmd = value;
     if (n == 4 && (card->cmd[0] == GC_CARD_READ || card->cmd[0] == GC_CARD_PROGRAM)) card->address = card_address(card);
     if (n == 1 && card->cmd[0] == GC_CARD_SET_INTERRUPT) card->irq_on = value & 1u;
+    if (n == 1 && card->cmd[0] == GC_CARD_GET_ID) card->address = 0;  /* the ID's next byte */
     if (n >= 5 && card->cmd[0] == GC_CARD_PROGRAM) {
         /* A page wraps within itself. */
         *card_byte(card, card->address) = (uint8_t)value;
@@ -69,6 +71,13 @@ static void card_take(struct gc_card* card, uint32_t value) {
 static uint32_t card_give(struct gc_card* card) {
     if (card->cmd[0] == GC_CARD_READ && card->count >= 5) return *card_byte(card, card->address++);
     if (card->cmd[0] == GC_CARD_STATUS) return GC_CARD_STATUS_READY_UNLOCKED;
+    /* The ID, most significant byte first. Later SDKs ask through EXIGetID,
+     * which the blob answers itself; the 2001 SDK's card library (Luigi's
+     * Mansion USA) sends the command on its own, and read 0 as no card. */
+    if (card->cmd[0] == GC_CARD_GET_ID && card->count >= 2) {
+        const uint32_t i = card->address++;
+        return i < 4 ? (GC_CARD_ID >> (24u - 8u * i)) & 0xFFu : 0;
+    }
     return 0;
 }
 
@@ -141,7 +150,10 @@ uint32_t gc_on_exi(struct gc_rt_context* ctx, uint32_t fn, uint32_t a0, uint32_t
         if (!card->locked) return 0;
     }
     *pass = 0;
-    card->activity++;
+    /* What keeps the card from being written back. A probe is not: the
+     * 2001 SDK's card library probes about 30 times a second while the
+     * game runs, and the card file was then never written until HOME. */
+    if (fn != GC_EXI_PROBE && fn != GC_EXI_PROBE_EX) card->activity++;
     if (fn == GC_EXI_SELECT) {
         if (card->selected) return 0;
         card->selected = 1;

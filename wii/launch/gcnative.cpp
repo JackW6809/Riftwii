@@ -719,14 +719,23 @@ void format_card(std::vector<std::uint8_t>& card, bool shift_jis) {
 // EXIImm, then EXISync; EXIProbe and EXIProbeEx call the probe select
 // uses and EXIGetID, EXIProbeEx returning -1 too. Returns the control
 // blocks' address, 0 when anything is missing or doubtful.
-std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_HOOKS]) {
+//
+// The 2001 SDK (Luigi's Mansion USA) differs: its blocks are 0x38 bytes,
+// indexed with mulli by 0x38; its EXIGetID does not read the probe times
+// (it is the one function calling lock, select and EXIImm); and it has no
+// EXIProbeEx, its EXIProbe being the probe select calls. EXIProbeEx is then
+// left 0, and the other ten are hooked.
+//
+// One block size: `index_word` is the instruction that turns a channel
+// into its block's offset.
+std::uint32_t find_exi_functions_by(const Code& code, std::uint32_t index_word, std::uint32_t (&out)[GC_EXI_HOOKS]) {
     std::fill(std::begin(out), std::end(out), 0);
-    // The control blocks: lis/addi pairs near a "slwi rX,rY,6" at a
+    // The control blocks: lis/addi pairs near the index instruction at a
     // function's start.
     std::map<std::uint32_t, unsigned> bases;
     std::map<std::uint32_t, std::uint32_t> base_of;  // function -> its base
     code.each([&](std::uint32_t a, std::uint32_t w) {
-        if ((w & 0xFC00FFFF) != 0x54003032) return;  // slwi rA,rS,6
+        if ((w & 0xFC00FFFF) != index_word) return;
         const std::uint32_t f = function_start(code, a);
         if (f == 0 || a - f > 0x40) return;
         std::uint32_t hi[32] = {};
@@ -806,11 +815,17 @@ std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_H
     out[GC_EXI_SELECT] = only([](const Fn& fn) { return fn.sets[2] && !fn.sets[4]; });
     out[GC_EXI_DESELECT] = only([](const Fn& fn) { return fn.clears[2]; });
     out[GC_EXI_LOCK] = only([](const Fn& fn) { return fn.sets[4]; });
-    out[GC_EXI_UNLOCK] = only([](const Fn& fn) { return fn.clears[4] && !fn.probe_times; });
     out[GC_EXI_IMM] = only([](const Fn& fn) { return fn.stores_16_20 && fn.sets[1]; });
     out[GC_EXI_GET_ID] = only([&](const Fn& fn) {
         return fn.probe_times && calls(fn, out[GC_EXI_LOCK]) && calls(fn, out[GC_EXI_SELECT]);
     });
+    if (out[GC_EXI_GET_ID] == 0)  // the 2001 SDK's, which does not read the probe times
+        out[GC_EXI_GET_ID] = only([&](const Fn& fn) {
+            return calls(fn, out[GC_EXI_LOCK]) && calls(fn, out[GC_EXI_SELECT]) && calls(fn, out[GC_EXI_IMM]);
+        });
+    const std::uint32_t get_id = out[GC_EXI_GET_ID];
+    // EXIGetID unlocks (and attaches) too: never taken for those.
+    out[GC_EXI_UNLOCK] = only([&](const Fn& fn) { return fn.clears[4] && !fn.probe_times && fn.start != get_id; });
     // The probe select calls (in the control blocks' functions).
     std::uint32_t probe = 0;
     for (const Fn& fn : fns)
@@ -818,13 +833,18 @@ std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_H
             for (std::uint32_t t : fn.calls)
                 for (const Fn& g : fns)
                     if (g.start == t && probe == 0) probe = t;
-    out[GC_EXI_ATTACH] = only([&](const Fn& fn) { return fn.sets[3] && calls(fn, probe) && !fn.probe_times; });
+    out[GC_EXI_ATTACH] = only(
+        [&](const Fn& fn) { return fn.sets[3] && calls(fn, probe) && !fn.probe_times && fn.start != get_id; });
     out[GC_EXI_PROBE] = only([&](const Fn& fn) {
         return calls(fn, probe) && calls(fn, out[GC_EXI_GET_ID]) && !fn.minus_one && !fn.sets[3] && fn.size < 0x100;
     });
     out[GC_EXI_PROBE_EX] = only([&](const Fn& fn) {
         return calls(fn, probe) && calls(fn, out[GC_EXI_GET_ID]) && fn.minus_one && !fn.sets[3];
     });
+    // The 2001 SDK: no EXIProbe around the probe, and no EXIProbeEx.
+    const bool old_sdk = index_word == 0x1C000038;  // the 0x38-byte blocks
+    const bool old_probe = old_sdk && out[GC_EXI_PROBE] == 0 && out[GC_EXI_PROBE_EX] == 0 && probe != 0;
+    if (old_probe) out[GC_EXI_PROBE] = probe;
     // EXIDma: the other one that starts a transfer, with DMA and start
     // set in the control word.
     out[GC_EXI_DMA] = only([&](const Fn& fn) { return fn.dma_start && fn.start != out[GC_EXI_IMM]; });
@@ -836,9 +856,19 @@ std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_H
                     out[GC_EXI_SYNC] = fn.calls[i + 1];
                     break;
                 }
-    for (std::uint32_t f : out)
-        if (f == 0) return 0;
+    for (unsigned i = 0; i < GC_EXI_HOOKS; ++i)
+        if (out[i] == 0 && !(i == GC_EXI_PROBE_EX && old_probe)) return 0;
     return ecb;
+}
+
+// The 0x40-byte blocks first ("slwi rX,rY,6"), then the 2001 SDK's 0x38-byte
+// ones ("mulli rX,rY,0x38"), each kept only if all the functions are found
+// on it: in Luigi's Mansion (USA) a table of the game's own has more
+// slwi-by-6 users than anything else, and in Twilight Princess another has
+// more mulli-by-0x38 users than its EXI blocks.
+std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_HOOKS]) {
+    if (const std::uint32_t ecb = find_exi_functions_by(code, 0x54003032, out)) return ecb;
+    return find_exi_functions_by(code, 0x1C000038, out);
 }
 
 // Instruction fields, for the searches below.
@@ -1496,6 +1526,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
             if (f != 0 && ((code.at(f) >> 26) == 18 || (code.at(f) >> 26) == 16)) branches = true;
         if (ecb != 0 && !branches) {
             for (unsigned i = 0; i < GC_EXI_HOOKS; ++i) {
+                if (exi[i] == 0) continue;  // EXIProbeEx, which the 2001 SDK does not have
                 const std::uint32_t entry = h.exi_hooks + 12 * i;
                 replay_hook(exi[i], load32(blob_addr + entry), load32(blob_addr + entry + 4),
                             load32(blob_addr + entry + 8));
