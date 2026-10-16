@@ -242,6 +242,10 @@ struct gc_rt_context {
     uint32_t leave_hold;      /* timebase ticks */
     uint32_t leave_since;     /* when the hold began (low bit set), 0: not held */
     uint32_t crash_card;      /* the message, GC_CRASH_CARD_BYTES (loader-placed), 0: none */
+    uint32_t leave_card_activity; /* the memory card's activity at the last pad read */
+    uint32_t leave_card_quiet;    /* since when the card has had no access (timebase) */
+    uint32_t ipc_no_timeout;      /* 1: the request being sent waits for its reply however long (the launch) */
+    uint32_t crash_a_was_down;    /* the crash screen: A was down at the last look */
     /* The picture options (the game's Options: 480p, 16:9). */
     uint32_t vi_configures;
     uint32_t vi_mode;         /* GC_TR_VI_MODE */

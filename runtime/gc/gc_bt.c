@@ -413,6 +413,12 @@ static void bt_on_input(struct gc_bt* bt, struct gc_bt_remote* r, const uint8_t*
         const uint32_t kind = p[11] << 8 | p[12];
         r->ext_kind = kind == 0x0000 ? GC_BT_EXT_NUNCHUK : kind == 0x0101 ? GC_BT_EXT_CLASSIC : GC_BT_EXT_OTHER;
         r->ext_step = (p[4] & 0x0F) == 0 ? 4 : 0;
+        /* Until the first report with the extension's bytes: sticks in the
+         * middle and every button up (active low), not the zeros or another
+         * extension's bytes, which read as everything pressed. */
+        r->ext[0] = r->ext[1] = 0x80;
+        r->ext[2] = r->ext[3] = 0x80;
+        r->ext[4] = r->ext[5] = 0xFF;
         bt_set_mode(bt, r);
         return;
     }
@@ -696,7 +702,10 @@ int gc_bt_home_held(const struct gc_bt* bt) {
     for (i = 0; i < GC_BT_REMOTES; ++i) {
         const struct gc_bt_remote* r = &bt->remotes[i];
         if (!r->used || !r->ready) continue;
-        if (r->core[1] & 0x80u) return 1;
+        /* A Wii Remote alone is held sideways and its HOME is the game's Y,
+         * so it leaves with HOME and - (0x10) held together. */
+        const int extension = r->ext_step == 4 && (r->ext_kind == GC_BT_EXT_NUNCHUK || r->ext_kind == GC_BT_EXT_CLASSIC);
+        if ((r->core[1] & 0x80u) && (extension || (r->core[1] & 0x10u))) return 1;
         /* The Classic Controller's HOME: its fifth byte's 0x08, active low. */
         if (r->ext_kind == GC_BT_EXT_CLASSIC && r->ext_step == 4 && !(r->ext[4] & 0x08u)) return 1;
     }

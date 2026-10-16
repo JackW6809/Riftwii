@@ -133,8 +133,12 @@ static int32_t gc_ioctlv(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl,
     gc_flush((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
     if (gc_ipc_send(phys, (struct gc_bt*)(uintptr_t)ctx->bt) != 0) return -1000;
     for (;;) {
+        /* The launch's reply never comes when IOS takes it (it reloads and
+         * the PPC is reset): with ipc_no_timeout the wait has no end, as a
+         * timeout would give the game back to a dead IOS; a refusal does
+         * come back as a reply. */
         for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y1) == 0; ++polls)
-            if (polls == GC_IPC_TIMEOUT) return -1000;
+            if (polls == GC_IPC_TIMEOUT && !ctx->ipc_no_timeout) return -1000;
         {
             const uint32_t reply = gc_read32(GC_IPC_ARMMSG);
             gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y1);
@@ -285,8 +289,12 @@ static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, 
     gc_flush((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
     if (gc_ipc_send(phys, (struct gc_bt*)(uintptr_t)ctx->bt) != 0) return -1000;
     for (;;) {
+        /* The launch's reply never comes when IOS takes it (it reloads and
+         * the PPC is reset): with ipc_no_timeout the wait has no end, as a
+         * timeout would give the game back to a dead IOS; a refusal does
+         * come back as a reply. */
         for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y1) == 0; ++polls)
-            if (polls == GC_IPC_TIMEOUT) return -1000;
+            if (polls == GC_IPC_TIMEOUT && !ctx->ipc_no_timeout) return -1000;
         {
             const uint32_t reply = gc_read32(GC_IPC_ARMMSG);
             gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y1);
@@ -583,7 +591,7 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
             ctx->beat_msr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR1);
         }
         gc_guard(ctx);
-        if (ctx->card) gc_card_flush(ctx, (struct gc_card*)(uintptr_t)ctx->card);
+        if (ctx->card) gc_card_flush(ctx, (struct gc_card*)(uintptr_t)ctx->card, 0);
         gc_trace(ctx, GC_TRACE_BEAT);
         gc_beat_arm(ctx);
         return;
@@ -779,6 +787,14 @@ static void gc_leave(struct gc_rt_context* ctx) {
     const uint32_t buf = ctx->leave_buf;
     int32_t result;
     uint32_t msr;
+    /* The memory card first: what the game saved is in MEM2 until a
+     * heartbeat writes it back. A sector that will not write keeps the
+     * game here, to try again. */
+    if (ctx->card) {
+        struct gc_card* card = (struct gc_card*)(uintptr_t)ctx->card;
+        gc_card_flush(ctx, card, 1);
+        if (card->dirty_count != 0) return;
+    }
     gc_trace(ctx, GC_TRACE_LEAVE);
     msr = gc_irq_off();  /* the game stops here: IOS takes the console over */
     *(volatile uint16_t*)(uintptr_t)GC_VI_DCR &= (uint16_t)~1u;
@@ -789,7 +805,9 @@ static void gc_leave(struct gc_rt_context* ctx) {
     gc_flush(buf, 0x100);
     gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
     ctx->busy = 1;
+    ctx->ipc_no_timeout = 1;
     result = gc_ioctlv(ctx, ctx->leave_fd, GC_ES_LAUNCHTITLE, 2, 0);
+    ctx->ipc_no_timeout = 0;
     /* Still here: IOS said no (the title went, or its ticket). The picture
      * and the game come back, and the trace says why. */
     ctx->busy = 0;
@@ -799,11 +817,14 @@ static void gc_leave(struct gc_rt_context* ctx) {
     gc_trace(ctx, GC_TRACE_LEAVE);
 }
 
-/* HOME on a Wii Remote or a Classic Controller, or L, R, Z and Start
- * together on a GameCube controller (the pads as the game reads them),
- * held for leave_hold ticks; checked at every pad read. Not while an SD
- * request is in flight (a memory card write among them): the next read
- * tries again. */
+/* HOME on a Wii Remote with an extension or on a Classic Controller (HOME
+ * and - on a Wii Remote alone, whose HOME is the game's Y), or L, R, Z and
+ * Start together on a GameCube controller (the pads as the game reads
+ * them), held for leave_hold ticks; checked at every pad read. Not while
+ * an SD request is in flight, nor within half a second of the game's last
+ * memory card access (a save may be under way): the next read tries
+ * again. */
+#define GC_CARD_QUIET_TICKS 30375000u  /* half a second of the timebase */
 #define GC_LEAVE_PAD 0x1070u  /* Start, L, R, Z */
 static void gc_leave_check(struct gc_rt_context* ctx, const uint8_t* status) {
     uint32_t port, now;
@@ -820,11 +841,19 @@ static void gc_leave_check(struct gc_rt_context* ctx, const uint8_t* status) {
         return;
     }
     __asm__ volatile("mftb %0" : "=r"(now));
+    if (ctx->card) {
+        const struct gc_card* card = (const struct gc_card*)(uintptr_t)ctx->card;
+        if (card->activity != ctx->leave_card_activity || ctx->leave_card_quiet == 0) {
+            ctx->leave_card_activity = card->activity;
+            ctx->leave_card_quiet = now | 1u;
+        }
+    }
     if (ctx->leave_since == 0) {
         ctx->leave_since = now | 1u;
         return;
     }
     if (now - ctx->leave_since < ctx->leave_hold || ctx->busy) return;
+    if (ctx->card && now - ctx->leave_card_quiet < GC_CARD_QUIET_TICKS) return;
     gc_leave(ctx);
     ctx->leave_since = 0;
 }
@@ -1023,7 +1052,8 @@ static int gc_crash_message(const struct gc_rt_context* ctx) {
     const uint16_t hsw = *(volatile uint16_t*)(uintptr_t)GC_VI_HSW;
     const uint32_t stride = (hsw & 0xFFu) * 32u, words = ((hsw >> 8) & 0x7Fu) * 32u / 4u;
     const uint32_t lines = (*(volatile uint16_t*)(uintptr_t)GC_VI_VTR >> 4) & 0x3FFu;
-    const uint32_t fields = bottom != top ? 2u : 1u;
+    /* A bottom field only when its register holds a frame buffer too. */
+    const uint32_t fields = bottom != top && bottom != 0 && bottom < 0x01800000u ? 2u : 1u;
     const int32_t width = (int32_t)(words * 2u), height = (int32_t)(lines * fields);
     uint32_t field, k, w;
     if (card == 0 || top == 0 || top >= 0x01800000u || stride == 0 || words == 0 || lines == 0) return 0;
@@ -1055,28 +1085,52 @@ static void gc_crash_screen(const struct gc_rt_context* ctx) {
  * buffer, which the SI goes on filling with interrupts off: A is bit 24 of
  * the first word; in Wii mode the SI sits at 0xCD006400). */
 #define GC_SI_C0INBUFH 0xCD006404u
-static int gc_crash_a(struct gc_rt_context* ctx) {
+/* A down now: port 1's SI word with no error (ERRSTAT, bit 31), a Wii
+ * Remote's A or a Classic Controller's a (its sixth byte's 0x10, active
+ * low). */
+static int gc_crash_a_down(struct gc_rt_context* ctx) {
     uint32_t i;
-    if (gc_read32(GC_SI_C0INBUFH) & 0x01000000u) return 1;
+    const uint32_t si = gc_read32(GC_SI_C0INBUFH);
+    if (!(si & 0x80000000u) && (si & 0x01000000u)) return 1;
     if (ctx->bt) {
         struct gc_bt* bt = (struct gc_bt*)(uintptr_t)ctx->bt;
         gc_bt_poll(ctx, bt);
-        for (i = 0; i < GC_BT_REMOTES; ++i)
-            if (bt->remotes[i].used && bt->remotes[i].ready && (bt->remotes[i].core[1] & 0x08u)) return 1;
+        for (i = 0; i < GC_BT_REMOTES; ++i) {
+            const struct gc_bt_remote* r = &bt->remotes[i];
+            if (!r->used || !r->ready) continue;
+            if (r->core[1] & 0x08u) return 1;
+            if (r->ext_kind == GC_BT_EXT_CLASSIC && r->ext_step == 4 && !(r->ext[5] & 0x10u)) return 1;
+        }
     }
     return 0;
 }
+/* A pressed: down now and up at the last look, so the A the game crashed
+ * under (often its main button) or one still held after IOS refused does
+ * not count; the player sees the message first. */
+static int gc_crash_a(struct gc_rt_context* ctx) {
+    const int down = gc_crash_a_down(ctx);
+    const int pressed = down && !ctx->crash_a_was_down;
+    ctx->crash_a_was_down = (uint32_t)down;
+    return pressed;
+}
 /* The light flashes; A goes back to RiftWii when there is a way back. */
+/* About a frame (16 ms of the timebase): how often the controllers are
+ * looked at, the pace gc_bt's start-up counts in. */
+#define GC_CRASH_POLL_TICKS 972000u
 static void gc_crash_wait(struct gc_rt_context* ctx) {
-    uint32_t start, now;
+    uint32_t start, now, polled;
     __asm__ volatile("mftb %0" : "=r"(start));
+    polled = start;
+    ctx->crash_a_was_down = 1;  /* the first look only learns where A is */
     for (;;) {
         __asm__ volatile("mftb %0" : "=r"(now));
         if (now - start >= 10000000u) {
             start = now;
             gc_write32(GC_GPIO_OUT, gc_read32(GC_GPIO_OUT) ^ GC_GPIO_SLOT_LED);
         }
-        if (ctx->leave_buf != 0 && ctx->leave_fd != 0xFFFFFFFFu && gc_crash_a(ctx)) gc_leave(ctx);
+        if (now - polled < GC_CRASH_POLL_TICKS) continue;
+        polled = now;
+        if (gc_crash_a(ctx) && ctx->leave_buf != 0 && ctx->leave_fd != 0xFFFFFFFFu) gc_leave(ctx);
     }
 }
 

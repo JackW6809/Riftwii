@@ -94,7 +94,10 @@ uint32_t gc_on_exi(struct gc_rt_context* ctx, uint32_t fn, uint32_t a0, uint32_t
                    uint32_t a4, uint32_t* pass);
 void gc_card_on_alarm(struct gc_rt_context* ctx, struct gc_card* card, uint32_t os_context);
 /* From the heartbeat: what was written, back to the card file once quiet. */
-void gc_card_flush(struct gc_rt_context* ctx, struct gc_card* card);
+/* Writes the image's changed sectors back to the card file. Without
+ * `force` only once a heartbeat has seen no card access (the game is not
+ * in the middle of a save); with it at once (leaving the game). */
+void gc_card_flush(struct gc_rt_context* ctx, struct gc_card* card, int force);
 #endif
 
 #endif
