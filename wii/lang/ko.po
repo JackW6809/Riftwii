@@ -1680,8 +1680,8 @@ msgstr "480p는 미국과 일본 게임용입니다. 이 게임은 PAL 지역 �
 msgid "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."
 msgstr "480p: 컴포넌트 케이블과 480p 설정이 있다고 게임에 알려 줍니다. 게임이 먼저 물어볼 수 있습니다. 480p가 없는 게임도 480p로 바꿉니다. 컴포넌트 케이블이 필요합니다."
 
-msgid "16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting."
-msgstr "16:9는 와이드 TV에 맞게 게임의 3D를 더 넓게 그립니다. 메뉴와 글자는 늘어난 채로 남습니다. 게임에 16:9 설정이 있으면 \"게임 자체\"로 두세요."
+msgid "Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own."
+msgstr "실험적: 16:9는 와이드 TV에 맞게 게임의 3D를 더 넓게 그리며, 메뉴와 글자는 늘어난 채로 남습니다. Wii에서는 일부 게임의 화면이 잘못될 수 있어(색 반전, 화면 겹침) \"기본\"은 게임 자체 화면을 유지합니다."
 
 msgid "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."
 msgstr "이 게임에 알려 줄 본체 언어입니다. 본체 설정은 그대로입니다. 유럽 게임은 이 언어를 쓰고, 다른 게임은 대부분 무시합니다."

@@ -262,7 +262,9 @@ and `sd:/riftwii/gc/trace.bin`.
 - [ ] **A crash** (`sd:/riftwii/gc/crash` makes one 600 pad reads in): the
   message shows, A goes back, the next start offers the report.
 - [ ] **Options**: Disc reads Fast loads sooner; 480p on a component
-  cable (the game asks first); 16:9 widens the 3D; a PAL game's language
+  cable (the game asks first); 16:9, picked by hand (Default keeps the
+  game's own), widens the 3D (experimental: on a Wii Super Mario Eclipse's
+  colours inverted and its picture doubled); a PAL game's language
   changes its menus.
 - [ ] **Packs**: Luigi's Mansion with a pack that changes a file.
 

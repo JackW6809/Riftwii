@@ -94,11 +94,12 @@ bool gc_pal_game(const std::string& id) {
 }
 
 bool gc_widescreen_on(const GameSettings& game, const GcConsoleSettings& console) {
-    if (game.gc_widescreen == "16:9") return true;
-    if (game.gc_widescreen == "game") return false;
-    if (console.aspect == "16:9") return true;
-    if (console.aspect == "4:3") return false;
-    return console.wii_widescreen;
+    // Only when picked for the game. Widening the 3D is experimental: on
+    // a Wii Super Mario Eclipse's colours came out inverted and its picture
+    // doubled with it, so Default keeps the game's own picture whatever
+    // Settings and the Wii's TV say.
+    (void)console;
+    return game.gc_widescreen == "16:9";
 }
 
 bool gc_progressive_on(const GameSettings& game, const std::string& id, const GcConsoleSettings& console) {

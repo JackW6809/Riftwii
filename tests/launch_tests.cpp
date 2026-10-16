@@ -416,19 +416,17 @@ static void test_saves() {
         EXPECT_EQ(back.game.gc_widescreen, std::string("global"));
         EXPECT_EQ(back.game.gc_language, std::string("global"));
 
-        // Global resolved: Settings' aspect, its "game" the Wii's TV; the
-        // Wii's 480p setting, never for a PAL game; Settings' language,
-        // its "console" the Wii's (CONF_LANG_GERMAN is 2).
+        // Global resolved: 16:9 never (experimental, only when picked);
+        // the Wii's 480p setting, never for a PAL game; Settings'
+        // language, its "console" the Wii's (CONF_LANG_GERMAN is 2).
         riftwii::GameSettings g;
         riftwii::GcConsoleSettings console;
         EXPECT_FALSE(riftwii::gc_widescreen_on(g, console));
         console.wii_widescreen = true;
-        EXPECT_TRUE(riftwii::gc_widescreen_on(g, console));
-        console.aspect = "4:3";
         EXPECT_FALSE(riftwii::gc_widescreen_on(g, console));
         console.aspect = "16:9";
+        EXPECT_FALSE(riftwii::gc_widescreen_on(g, console));
         console.wii_widescreen = false;
-        EXPECT_TRUE(riftwii::gc_widescreen_on(g, console));
         g.gc_widescreen = "game";
         EXPECT_FALSE(riftwii::gc_widescreen_on(g, console));
         g.gc_widescreen = "16:9";

@@ -153,8 +153,9 @@ struct GcConsoleSettings {
     int wii_language = -1;                  // the Wii's language, as libogc's CONF_LANG_* number
 };
 
-// Whether the game's 3D is drawn for 16:9: "16:9" yes, "game" no,
-// "global" as Settings' aspect says, and its "game" as the Wii's TV.
+// Whether the game's 3D is drawn for 16:9: only "16:9", picked for the
+// game; "game" and "global" (Default) keep the game's own picture, as the
+// widening is experimental.
 bool gc_widescreen_on(const GameSettings& game, const GcConsoleSettings& console);
 
 // Whether the game gets 480p: "480p" yes, "game" no, "global" when the

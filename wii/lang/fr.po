@@ -1680,8 +1680,8 @@ msgstr "Le 480p est pour les jeux américains et japonais. Celui-ci vient d'une 
 msgid "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."
 msgstr "480p : le jeu apprend qu'un câble composante et le réglage 480p sont là ; il peut d'abord poser la question. Les jeux sans 480p y passent aussi. Il faut un câble composante."
 
-msgid "16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting."
-msgstr "16:9 dessine la 3D du jeu plus large pour une TV grand écran ; les menus et le texte restent étirés. Laissez « Par défaut du jeu » si le jeu a son propre réglage 16:9."
+msgid "Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own."
+msgstr "Expérimental : 16:9 dessine la 3D du jeu plus large pour une TV grand écran, et les menus et le texte restent étirés. Sur une Wii, l'image de certains jeux se dérègle avec (couleurs inversées, image doublée), donc « Par défaut » garde celle du jeu."
 
 msgid "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."
 msgstr "La langue que ce jeu croit réglée sur la console ; le réglage de la console reste tel quel. Les jeux européens l'utilisent, la plupart des autres l'ignorent."

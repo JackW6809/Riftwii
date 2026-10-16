@@ -6801,7 +6801,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::GcProgressive)
 				say(tr("480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."));
 			else if (ref.what == RowRef::What::GcWidescreen)
-				say(tr("16:9 draws the game's 3D wider for a widescreen TV; menus and text stay stretched. Leave it on Game's own if the game has its own 16:9 setting."));
+				say(tr("Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own."));
 			else if (ref.what == RowRef::What::GcLanguage)
 				say(tr("The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."));
 			else if (ref.what == RowRef::What::GcControls)
