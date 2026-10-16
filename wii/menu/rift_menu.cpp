@@ -6735,7 +6735,9 @@ static int MenuHome(FrontendState& state)
 	HideButton(backBtn);
 	HideButton(startBtn);
 	GuiPrompts prompts;
-	const int promptPlay = prompts.Add("+", tr("Play"));
+	// The same words as the Play tile: Build and play while the game is still
+	// to be made from its patch (rebuildTiles keeps it so).
+	const int promptPlay = prompts.Add("+", SelectedGcPatch(state) ? tr("Build and play") : tr("Play"));
 	const int promptBack = prompts.Add("B", tr("Back"));
 	prompts.Add("A", tr("Select"));
 	// Dump (a development aid) has no button: the Wii Remote's 2 or a
@@ -6811,6 +6813,7 @@ static int MenuHome(FrontendState& state)
 		BuildGameTiles(state, tiles, tileWhat);
 		tileGrid.Refresh();
 		factsTxt.SetText(GameFacts(state).c_str());
+		prompts.SetAction(promptPlay, SelectedGcPatch(state) ? tr("Build and play") : tr("Play"));
 	};
 	int shownTile = -1;
 	while(menu == MENU_NONE)
