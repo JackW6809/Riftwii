@@ -50,7 +50,10 @@ constexpr std::uint32_t kLoaderCeiling = 0x81200000;  // its heap's top (memlimi
 constexpr std::uint32_t kGameFloor = 0x80003100;
 constexpr std::uint32_t kBounceBytes = 0x8000;
 constexpr std::uint32_t kBi2Bytes = 0x2000;
-constexpr std::uint32_t kStreamBytes = 0x4000;  // disc audio read ahead: about a third of a second
+// Disc audio read ahead (the ring of runtime/gc's gc_rt_stream): about 0.6 s,
+// four top-ups of GC_STREAM_CHUNK, so several frames without one (the card
+// busy with the game's own reads) do not run it dry.
+constexpr std::uint32_t kStreamBytes = 4 * GC_STREAM_CHUNK;
 // Broadway in Wii mode: the time base runs at the bus clock / 4 whatever
 // the game believes, so the game is told the Wii's clocks and its OSTicks
 // conversions come out right.
@@ -1143,6 +1146,9 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const bool test_leave = stat("sd:/riftwii/gc/leave", &st_press) == 0;
     // And of the crash screen (GC_FLAG_CRASH).
     const bool test_crash = stat("sd:/riftwii/gc/crash", &st_press) == 0;
+    // And of disc audio streaming: the music alone, to compare it with an
+    // offline decode (GC_FLAG_STREAM_ONLY).
+    const bool test_stream_only = stat("sd:/riftwii/gc/streamonly", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     // The game's view of the disc: the image, then the packs' window
@@ -1449,6 +1455,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         if (test_leave) ctx->flags |= GC_FLAG_LEAVE;
         if (test_crash) ctx->flags |= GC_FLAG_CRASH;
     }
+    if (test_stream_only) ctx->flags |= GC_FLAG_STREAM_ONLY;
     // The memory card: the EXI functions to the blob (gc_card.h).
     if (!card_image.empty()) {
         std::uint32_t exi[GC_EXI_HOOKS];

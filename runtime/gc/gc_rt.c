@@ -412,6 +412,9 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
         w[GC_TR_STREAM_PLAYING] = st->playing;
         w[GC_TR_STREAM_MIXES] = st->mixes;
         w[GC_TR_STREAM_REFILLS] = st->refills;
+        w[GC_TR_STREAM_STARVED] = st->starved;
+        w[GC_TR_STREAM_FETCH_BUSY] = st->fetch_busy;
+        w[GC_TR_STREAM_BUFFERED] = st->fetched - st->consumed;
     }
     w[GC_TR_AI_DMAS] = ctx->ai_dmas;
     w[GC_TR_AR_DMAS] = ctx->ar_dmas;
@@ -525,6 +528,8 @@ static void gc_command_seen(struct gc_rt_context* ctx, int traced) {
     if (traced && ctx->commands <= 32) gc_trace(ctx, GC_TRACE_COMMAND);
 }
 
+static void gc_stream_fetch(struct gc_rt_context* ctx);
+
 uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, uint32_t offset, uint32_t cb) {
     gc_command_seen(ctx, 0);
     ctx->reads++;
@@ -545,6 +550,7 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
         ctx->last_read_end = offset + length;
         gc_complete_after(ctx, cb, ok ? GC_DI_TC : GC_DI_DE, wait);
     }
+    gc_stream_fetch(ctx);  /* the card is free again: the music ring's top-up */
     if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
 }
@@ -619,8 +625,51 @@ static void gc_stream_reset(struct gc_rt_stream* st) {
     st->hist[0] = st->hist[1] = st->hist[2] = st->hist[3] = 0;
     st->sample = 28;
     st->phase = 0;
-    st->buf_valid = 0;
-    st->buf_at = 0;
+    st->fetched = 0;
+    st->consumed = 0;
+    st->ended = 0;
+}
+
+/* One top-up of the ring from the card: up to GC_STREAM_CHUNK bytes,
+ * never across the ring's end. Called only from the game's own context
+ * (see gc_rt_stream); the card being in use puts it off to the next
+ * call. Moves on to the queued stream when one ends. */
+static void gc_stream_fetch(struct gc_rt_context* ctx) {
+    struct gc_rt_stream* st = (struct gc_rt_stream*)(uintptr_t)ctx->stream;
+    uint32_t buffered;
+    uint32_t free_bytes;
+    uint32_t at;
+    uint32_t n;
+    if (st == 0 || !st->playing || st->ended) return;
+    if (st->pos >= st->start + st->length) {
+        if (st->next_length == 0) {
+            st->ended = 1;
+            return;
+        }
+        st->start = st->next_start;
+        st->length = st->next_length;
+        st->pos = st->start;
+    }
+    buffered = st->fetched - st->consumed;
+    free_bytes = st->buf_bytes - buffered;
+    /* Fewer, larger reads: each is one IOS request, a millisecond or more
+     * on a Wii. Whole sectors keep them going straight into the ring (a
+     * stream starts on a sector, as the drive's own blocks do). */
+    if (free_bytes < GC_STREAM_CHUNK / 2) return;
+    at = st->fetched % st->buf_bytes;
+    n = GC_STREAM_CHUNK;
+    if (n > free_bytes) n = free_bytes;
+    if (n > st->buf_bytes - at) n = st->buf_bytes - at;
+    n &= ~(GC_SECTOR - 1);
+    if (n > st->start + st->length - st->pos) n = (st->start + st->length - st->pos) & ~(GC_ADP_BLOCK - 1);
+    if (n == 0) return;
+    if (!gc_read_disc(ctx, (uint8_t*)(uintptr_t)(st->buf + at), n, st->pos)) {
+        st->fetch_busy++;
+        return;
+    }
+    st->pos += n;
+    st->fetched += n;  /* last: the decoder may take these bytes from now on */
+    st->refills++;
 }
 
 /* E1: set the stream (or the next one), or cancel it. */
@@ -637,6 +686,9 @@ uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t le
                 st->pos = offset;
                 gc_stream_reset(st);
                 st->playing = 1;
+                /* A good start in the ring before the AI asks for any. */
+                gc_stream_fetch(ctx);
+                gc_stream_fetch(ctx);
             }
             st->next_start = offset;  /* the drive loops a stream until told otherwise */
             st->next_length = length;
@@ -657,7 +709,7 @@ uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb
     gc_command_seen(ctx, 1);
     if (st != 0) {
         const uint32_t which = (sub >> 16) & 0xFFu;
-        const uint32_t played = st->pos - (st->buf_valid - st->buf_at);
+        const uint32_t played = st->pos - (st->fetched - st->consumed);
         if (which == 0) value = st->playing ? 1u : 0u;
         else if (which == 1) value = played >> 2;
         else if (which == 2) value = st->start >> 2;
@@ -691,45 +743,29 @@ static int16_t gc_adp_sample(int32_t nibble, uint32_t header, int32_t* hist1, in
     return (int16_t)gc_clamp16(cur >> 6);
 }
 
-/* The next ADPCM block into left/right; 0 when the stream has ended (or
- * the card is busy with the game's own read). */
-static int gc_stream_block(struct gc_rt_context* ctx, struct gc_rt_stream* st) {
+/* The next ADPCM block from the ring into left/right; 0 when the ring
+ * is empty (the stream has ended, or the card side has not caught up).
+ * Runs in the AI interrupt: no card access here. */
+static int gc_stream_block(struct gc_rt_stream* st) {
     const uint8_t* b;
     uint32_t i;
-    if (st->buf_at + GC_ADP_BLOCK > st->buf_valid) {
-        const uint32_t end = st->start + st->length;
-        uint32_t n;
-        if (st->pos >= end) {
-            if (st->next_length == 0) {
-                st->playing = 0;
-                return 0;
-            }
-            st->start = st->next_start;
-            st->length = st->next_length;
-            st->pos = st->start;
-        }
-        n = st->start + st->length - st->pos;
-        if (n > st->buf_bytes) n = st->buf_bytes;
-        n &= ~(GC_ADP_BLOCK - 1);
-        if (n == 0 || !gc_read_disc(ctx, (uint8_t*)(uintptr_t)st->buf, n, st->pos)) return 0;
-        st->pos += n;
-        st->buf_valid = n;
-        st->buf_at = 0;
-        st->refills++;
+    if (st->fetched - st->consumed < GC_ADP_BLOCK) {
+        if (st->ended) st->playing = 0;
+        return 0;
     }
-    b = (const uint8_t*)(uintptr_t)(st->buf + st->buf_at);
-    st->buf_at += GC_ADP_BLOCK;
+    b = (const uint8_t*)(uintptr_t)(st->buf + st->consumed % st->buf_bytes);
     for (i = 0; i < 28; ++i) {
         st->left[i] = gc_adp_sample(b[4 + i] & 0xF, b[0], &st->hist[0], &st->hist[1]);
         st->right[i] = gc_adp_sample(b[4 + i] >> 4, b[1], &st->hist[2], &st->hist[3]);
     }
+    st->consumed += GC_ADP_BLOCK;  /* the card side may reuse the block from now on */
     st->sample = 0;
     return 1;
 }
 
 /* The next 48 kHz stereo sample; 0 when there is none. */
-static int gc_stream_next(struct gc_rt_context* ctx, struct gc_rt_stream* st, int32_t* l, int32_t* r) {
-    if (st->sample >= 28 && !gc_stream_block(ctx, st)) return 0;
+static int gc_stream_next(struct gc_rt_stream* st, int32_t* l, int32_t* r) {
+    if (st->sample >= 28 && !gc_stream_block(st)) return 0;
     *l = st->left[st->sample];
     *r = st->right[st->sample];
     st->sample++;
@@ -755,7 +791,10 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
     for (i = 0; i < frames; ++i) {
         int32_t l;
         int32_t r;
-        if (!gc_stream_next(ctx, st, &l, &r)) break;
+        if (!gc_stream_next(st, &l, &r)) {
+            if (st->playing) st->starved++;
+            break;
+        }
         if (cr & GC_AI_32K) {
             /* 48 to 32 kHz: of every three samples, the first, then the
              * other two averaged. */
@@ -764,12 +803,16 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
             } else {
                 int32_t l2;
                 int32_t r2;
-                if (!gc_stream_next(ctx, st, &l2, &r2)) break;
+                if (!gc_stream_next(st, &l2, &r2)) {
+                    if (st->playing) st->starved++;
+                    break;
+                }
                 l = (l + l2) >> 1;
                 r = (r + r2) >> 1;
                 st->phase = 0;
             }
         }
+        if (ctx->flags & GC_FLAG_STREAM_ONLY) out[2 * i] = out[2 * i + 1] = 0;
         out[2 * i] = (int16_t)gc_clamp16(out[2 * i] + ((l * vol_l) >> 8));
         out[2 * i + 1] = (int16_t)gc_clamp16(out[2 * i + 1] + ((r * vol_r) >> 8));
     }
@@ -918,6 +961,7 @@ uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
     const uint32_t n = ctx->pad_reads++;
     gc_guard(ctx);  /* once a frame: IOS rewrites its counter there all the time */
+    gc_stream_fetch(ctx);  /* the music ring's top-up, once a frame */
     if (ctx->bt && status != 0) {
         struct gc_bt* bt = (struct gc_bt*)(uintptr_t)ctx->bt;
         gc_bt_poll(ctx, bt);

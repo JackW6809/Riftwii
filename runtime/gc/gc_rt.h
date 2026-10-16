@@ -112,6 +112,8 @@ enum gc_trace_word {
     GC_TR_VI_CONFIGURES,
     GC_TR_VI_MODE, /* the last VIConfigure: the game's viTVMode << 8 | the one it got */
     GC_TR_PROJECTIONS, /* perspective projections widened (16:9) */
+    GC_TR_STREAM_STARVED, GC_TR_STREAM_FETCH_BUSY,
+    GC_TR_STREAM_BUFFERED, /* ADPCM bytes in the ring ahead of the decoder */
     GC_TR_WORDS
 };
 /* where: what wrote the record */
@@ -138,22 +140,33 @@ enum gc_trace_word {
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
 #define GC_FLAG_CRASH 4u  /* tests of the crash screen: the 600th pad read takes a program exception */
 #define GC_FLAG_LEAVE 2u  /* tests of the way back: port 1 holds L, R, Z and Start from the 1800th pad read */
+#define GC_FLAG_STREAM_ONLY 16u  /* tests: AI buffers that carry disc music carry it alone (the game's own sound cleared) */
 #define GC_FLAG_PROGRESSIVE 8u  /* 480p: VIConfigure's NTSC interlaced modes become progressive (gc_on_vi_configure) */
 
 /* Disc audio streaming (the drive's own ADPCM, 48 kHz stereo): what the
  * drive would have played into the AI is decoded here and mixed into the
- * game's audio as it goes out. In MEM1 beside the blob (loader-placed). */
+ * game's audio as it goes out. In MEM1 beside the blob (loader-placed).
+ *
+ * The ADPCM comes off the card into a ring ahead of the decoder. The card
+ * is read only from the game's own context (its PADRead every frame, its
+ * disc reads, the stream's start), never from the AI interrupt: on a Wii
+ * a read takes milliseconds, and in the interrupt it held up the game's
+ * next audio buffer and was skipped whenever a disc read, a trace write
+ * or the Wii Remote driver had the card (the music crackled). The two
+ * sides each own one counter: `fetched` (the card side) and `consumed`
+ * (the decoder), so neither waits for the other. */
+#define GC_STREAM_CHUNK 0x2000u  /* the most one top-up reads: about 0.15 s of music */
 struct gc_rt_stream {
     uint32_t playing;         /* a stream is set (AudioStream with a length) */
-    uint32_t start;           /* the stream, disc bytes */
+    uint32_t start;           /* the stream being read ahead, disc bytes */
     uint32_t length;
-    uint32_t pos;             /* the next ADPCM block to decode */
-    uint32_t next_start;      /* played after this one ends (the drive's queue); 0 length: stop */
+    uint32_t pos;             /* the next disc byte to read into the ring */
+    uint32_t next_start;      /* read after this one ends (the drive's queue); 0 length: stop */
     uint32_t next_length;
-    uint32_t buf;             /* ADPCM read ahead from the disc, 32-byte aligned */
-    uint32_t buf_bytes;
-    uint32_t buf_valid;
-    uint32_t buf_at;
+    uint32_t buf;             /* the ring, 32-byte aligned (loader-placed) */
+    uint32_t buf_bytes;       /* its size, a multiple of GC_STREAM_CHUNK */
+    uint32_t fetched;         /* bytes put into the ring so far (the card side only) */
+    uint32_t consumed;        /* bytes decoded from it so far (the decoder only) */
     int32_t hist[4];          /* left hist1, hist2, right hist1, hist2 */
     int16_t left[28];
     int16_t right[28];
@@ -161,7 +174,10 @@ struct gc_rt_stream {
     uint32_t phase;           /* 48 to 32 kHz: two of every three samples */
     uint32_t mixes;
     uint32_t refills;
-    uint32_t pad[2];
+    uint32_t starved;         /* AI buffers the ring ran dry in (part of their music missing) */
+    uint32_t fetch_busy;      /* top-ups put off because the card was in use */
+    uint32_t ended;           /* the last stream is all in the ring: playing stops when it is decoded */
+    uint32_t pad[1];
 };
 
 /* The OSAlarm the callbacks run from: the SDK's is 0x28 bytes. */
