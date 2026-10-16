@@ -691,6 +691,18 @@ static void bt_fill_one(const struct gc_bt_remote* r, uint8_t* pad) {
     pad[10] = 0;
 }
 
+int gc_bt_home_held(const struct gc_bt* bt) {
+    uint32_t i;
+    for (i = 0; i < GC_BT_REMOTES; ++i) {
+        const struct gc_bt_remote* r = &bt->remotes[i];
+        if (!r->used || !r->ready) continue;
+        if (r->core[1] & 0x80u) return 1;
+        /* The Classic Controller's HOME: its fifth byte's 0x08, active low. */
+        if (r->ext_kind == GC_BT_EXT_CLASSIC && r->ext_step == 4 && !(r->ext[4] & 0x08u)) return 1;
+    }
+    return 0;
+}
+
 void gc_bt_fill(const struct gc_bt* bt, uint8_t* status) {
     uint32_t i;
     for (i = 0; i < GC_BT_REMOTES; ++i) {

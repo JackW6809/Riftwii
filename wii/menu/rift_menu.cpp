@@ -85,6 +85,7 @@
 #include "riftwii/apply.hpp"
 #include "riftwii/patch.hpp"
 #include "codebuilds.hpp"
+#include "gcnative.hpp"
 #include "gcpatch.hpp"
 #include "vsdmake.hpp"
 #include "gameextras.hpp"
@@ -4278,7 +4279,8 @@ static bool ShowGcControls(bool starting)
 {
 	const std::string body = std::string(tr("Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.")) +
 		"\n" + tr("With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.") +
-		"\n" + tr("A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller.");
+		"\n" + tr("Classic and GameCube controllers: as on a GameCube.") +
+		"\n" + tr("Hold HOME for two seconds to leave the game.");
 	if (!starting) {
 		ShowPopup(tr("GameCube controls"), body, tr("OK"));
 		return true;
@@ -4666,6 +4668,35 @@ static void MenuGcCard(FrontendState& state)
 		return false;
 	};
 	RunRowPage(tr("Memory Card"), GameTitle(state), rows, note, act);
+}
+
+// What a GameCube game's crash screen says (gcnative.hpp's
+// SetGcCrashCard), in the menu's own font and language, made here as the
+// launch screen cannot show translations.
+static void MakeGcCrashCard()
+{
+	std::string text;
+	switch (riftwii::wii::FindGcWayBack()) {
+		case riftwii::wii::GcWayBack::Channel: text = tr("The game stopped. Press A to go back to RiftWii."); break;
+		case riftwii::wii::GcWayBack::HomebrewChannel: text = tr("The game stopped. Press A to go back to the Homebrew Channel."); break;
+		case riftwii::wii::GcWayBack::WiiMenu: text = tr("The game stopped. Press A to go back to the Wii Menu."); break;
+		default: text = tr("The game stopped. Turn the Wii off and on again."); break;
+	}
+	std::vector<std::uint8_t> coverage(static_cast<std::size_t>(riftwii::wii::kGcCrashCardW) * riftwii::wii::kGcCrashCardH, 0);
+	const int lines = RenderTextCoverage(text.c_str(), 26, coverage.data(), riftwii::wii::kGcCrashCardW,
+		riftwii::wii::kGcCrashCardH);
+	logf("GameCube: the crash screen's message drawn (%d line(s))\n", lines);
+	riftwii::wii::SetGcCrashCard(lines > 0 ? std::move(coverage) : std::vector<std::uint8_t>());
+}
+
+// Before a GameCube game starts: its controls the first time, and its
+// crash screen's message. False: Back.
+static bool ReadyGcStart(const FrontendState& state)
+{
+	if (!SelectedGcGame(state)) return true;
+	if (!ShowGcControlsOnce(state)) return false;
+	MakeGcCrashCard();
+	return true;
 }
 
 // The Mods page: each pack made for the game as a switch, its options
@@ -6311,7 +6342,8 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::GcDiscReads)
 				say(tr("Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."));
 			else if (ref.what == RowRef::What::GcControls)
-				say(tr("Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."));
+				say(std::string(tr("Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.")) + " " +
+					tr("On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."));
 			else if (ref.what == RowRef::What::Memory) {
 				const riftwii::ExtrasBudget budget = riftwii::wii::EstimateExtras(state);
 				std::string text = tr("Taken from the game's own memory by what RiftWii adds to this launch: {1}.", {budget.list()});
@@ -6735,7 +6767,7 @@ static int MenuHome(FrontendState& state)
 				ShowPopup(tr("This code mod can't start"), codes_error, tr("OK"));
 			} else if (!PrepareGcGameInMenu(state)) {
 				// stopped or failed: the popup said why; stays on the page
-			} else if (!ShowGcControlsOnce(state)) {
+			} else if (!ReadyGcStart(state)) {
 				// Back: stays on the page (a game just made stays made)
 			} else if (!LaunchNote(state).empty() && !state.warning_shown) {
 				state.warning_shown = true;

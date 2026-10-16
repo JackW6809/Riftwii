@@ -22,12 +22,14 @@
 /* Changed for RiftWii (September and October 2026), under
  * GPL-3.0-or-later: charToWideChar decodes UTF-8 (translations, game names); less memory for the menu;
  * InitFreeType takes a font collection's face and says when it can't read it (the Menu font setting);
- * FontHasChar (the Korean menu needs a font with Hangul).
+ * FontHasChar (the Korean menu needs a font with Hangul); RenderTextCoverage (a GameCube game's crash
+ * screen, drawn without GX).
  * Every change is in RiftWii's git history; NOTICE.md lists the origin. */
 
 #include "FreeTypeGX.h"
 
 #include FT_MODULE_H
+#include FT_SIZES_H
 
 #define ALIGN8(x) (((x) + 7) & ~7)
 
@@ -92,6 +94,65 @@ void DeinitFreeType()
 	FT_Done_Memory(ftMemory);
 	ftLibrary = nullptr;
 	ftMemory = nullptr;
+}
+
+// RiftWii: through a size of its own, so the face's size, which the GUI's
+// glyph cache goes on using, is as it was afterwards.
+int RenderTextCoverage(const char* text, FT_UInt pixelSize, uint8_t* out, int width, int height)
+{
+	if (!ftFace || !text || !out || width <= 0 || height <= 0) return 0;
+	FT_Size saved = ftFace->size, mine = nullptr;
+	if (FT_New_Size(ftFace, &mine) != 0) return 0;
+	FT_Activate_Size(mine);
+	FT_Set_Pixel_Sizes(ftFace, 0, pixelSize);
+	wchar_t* wide = charToWideChar(text);
+	const auto advance = [](wchar_t c) -> int {
+		if (FT_Load_Char(ftFace, (FT_ULong) c, FT_LOAD_DEFAULT) != 0) return 0;
+		return (int) (ftSlot->advance.x >> 6);
+	};
+	const int ascender = (int) (ftFace->size->metrics.ascender >> 6);
+	const int lineHeight = (int) (ftFace->size->metrics.height >> 6);
+	int lines = 0;
+	const wchar_t* at = wide;
+	while (wide && *at && (lines + 1) * lineHeight <= height)
+	{
+		// As many whole words as fit; a word longer than the line alone.
+		const wchar_t* end = at;
+		const wchar_t* lastBreak = nullptr;
+		int used = 0, usedAtBreak = 0;
+		while (*end && *end != L'\n')
+		{
+			const int w = advance(*end);
+			if (used + w > width && end != at) break;
+			used += w;
+			++end;
+			if (*end == L' ') { lastBreak = end; usedAtBreak = used; }
+		}
+		if (*end && *end != L'\n' && lastBreak) { end = lastBreak; used = usedAtBreak; }
+		int pen = (width - used) / 2;
+		const int baseline = lines * lineHeight + ascender;
+		for (const wchar_t* c = at; c < end; ++c)
+		{
+			if (FT_Load_Char(ftFace, (FT_ULong) *c, FT_LOAD_RENDER) != 0) continue;
+			const FT_Bitmap& bmp = ftSlot->bitmap;
+			for (int y = 0; y < (int) bmp.rows; ++y)
+				for (int x = 0; x < (int) bmp.width; ++x)
+				{
+					const int ox = pen + ftSlot->bitmap_left + x, oy = baseline - ftSlot->bitmap_top + y;
+					if (ox < 0 || oy < 0 || ox >= width || oy >= height) continue;
+					const uint8_t v = bmp.buffer[y * bmp.pitch + x];
+					if (v > out[oy * width + ox]) out[oy * width + ox] = v;
+				}
+			pen += (int) (ftSlot->advance.x >> 6);
+		}
+		++lines;
+		at = end;
+		while (*at == L' ' || *at == L'\n') ++at;
+	}
+	delete[] wide;
+	FT_Activate_Size(saved);
+	FT_Done_Size(mine);
+	return lines;
 }
 
 void ChangeFontSize(FT_UInt pixelSize)

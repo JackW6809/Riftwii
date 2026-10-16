@@ -766,6 +766,66 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
     st->mixes++;
 }
 
+/* Back to RiftWii: the title the loader picked (its channel, else the
+ * Homebrew Channel, else the Wii Menu), launched through /dev/es, which
+ * IOS still runs in Wii mode. The screen goes black first (the VI's
+ * display enable, DCR bit 0). Returns only when IOS refused. */
+#define GC_ES_LAUNCHTITLE 8u
+#define GC_VI_DCR 0xCC002002u
+static void gc_leave(struct gc_rt_context* ctx) {
+    const uint32_t buf = ctx->leave_buf;
+    int32_t result;
+    uint32_t msr;
+    gc_trace(ctx, GC_TRACE_LEAVE);
+    msr = gc_irq_off();  /* the game stops here: IOS takes the console over */
+    *(volatile uint16_t*)(uintptr_t)GC_VI_DCR &= (uint16_t)~1u;
+    ctx->vec[0] = gc_physical(buf);
+    ctx->vec[1] = 8;
+    ctx->vec[2] = gc_physical(buf + 0x20);
+    ctx->vec[3] = 0xD8;
+    gc_flush(buf, 0x100);
+    gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
+    ctx->busy = 1;
+    result = gc_ioctlv(ctx, ctx->leave_fd, GC_ES_LAUNCHTITLE, 2, 0);
+    /* Still here: IOS said no (the title went, or its ticket). The picture
+     * and the game come back, and the trace says why. */
+    ctx->busy = 0;
+    ctx->last_error = result;
+    *(volatile uint16_t*)(uintptr_t)GC_VI_DCR |= 1u;
+    gc_irq_restore(msr);
+    gc_trace(ctx, GC_TRACE_LEAVE);
+}
+
+/* HOME on a Wii Remote or a Classic Controller, or L, R, Z and Start
+ * together on a GameCube controller (the pads as the game reads them),
+ * held for leave_hold ticks; checked at every pad read. Not while an SD
+ * request is in flight (a memory card write among them): the next read
+ * tries again. */
+#define GC_LEAVE_PAD 0x1070u  /* Start, L, R, Z */
+static void gc_leave_check(struct gc_rt_context* ctx, const uint8_t* status) {
+    uint32_t port, now;
+    int held = 0;
+    if (ctx->leave_buf == 0 || ctx->leave_fd == 0xFFFFFFFFu) return;
+    if (ctx->bt && gc_bt_home_held((const struct gc_bt*)(uintptr_t)ctx->bt)) held = 1;
+    for (port = 0; port < 4 && !held; ++port) {
+        const uint8_t* pad = status + 12 * port;
+        const uint32_t buttons = ((uint32_t)pad[0] << 8) | pad[1];
+        if (pad[10] == 0 && (buttons & GC_LEAVE_PAD) == GC_LEAVE_PAD) held = 1;
+    }
+    if (!held) {
+        ctx->leave_since = 0;
+        return;
+    }
+    __asm__ volatile("mftb %0" : "=r"(now));
+    if (ctx->leave_since == 0) {
+        ctx->leave_since = now | 1u;
+        return;
+    }
+    if (now - ctx->leave_since < ctx->leave_hold || ctx->busy) return;
+    gc_leave(ctx);
+    ctx->leave_since = 0;
+}
+
 /* Test presses: every 240 reads, 10 reads of A, then B, then Start, on
  * port 1 (PADStatus: buttons at 0, err at 10; A 0x100, B 0x200, Start
  * 0x1000). */
@@ -787,6 +847,14 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
         p[1] = (uint8_t)(now | bit);
         p[10] = 0;
     }
+    if ((ctx->flags & GC_FLAG_LEAVE) && status != 0 && n >= 1800) {
+        uint8_t* p = (uint8_t*)(uintptr_t)status;
+        p[0] |= (uint8_t)(GC_LEAVE_PAD >> 8);
+        p[1] |= (uint8_t)GC_LEAVE_PAD;
+        p[10] = 0;
+    }
+    if (status != 0) gc_leave_check(ctx, (const uint8_t*)(uintptr_t)status);
+    if ((ctx->flags & GC_FLAG_CRASH) && n == 600) __asm__ volatile("trap");
     return result;
 }
 
@@ -868,25 +936,90 @@ static void gc_crash_stack(struct gc_rt_context* ctx, const uint32_t* gpr) {
 /* After a crash: the frame on screen white (through the uncached mirror,
  * so the VI shows it at once) and the disc slot's blue light flashing
  * (Hollywood GPIO, Broadway's bank, bit 5), since the game's own picture
- * may hide the frame. */
+ * may hide the frame. With the menu's message (crash_card), the picture
+ * the VI shows now goes black with the message in the middle instead. */
 #define GC_CRASH_WHITE 0xEB80EB80u
+#define GC_YUYV_BLACK 0x10801080u
 #define GC_GPIO_OUT 0xCD0000C0u
 #define GC_GPIO_SLOT_LED 0x20u
+#define GC_VI_VTR 0xCC002000u   /* bits 4-13: active lines per field */
+#define GC_VI_TFBL 0xCC00201Cu  /* the top field's frame buffer */
+#define GC_VI_BFBL 0xCC002024u  /* the bottom field's */
+#define GC_VI_HSW 0xCC002048u   /* bits 0-7: a field line's stride, bits 8-14: its width, both in 32 bytes */
+/* A frame buffer register's address: bits 0-23, shifted by 5 when bit 28
+ * (the page offset) is set, as the SDK writes it. */
+static uint32_t gc_vi_fb(uint32_t reg) {
+    const uint32_t v = gc_read32(reg);
+    return (v & 0x10000000u) ? (v & 0x00FFFFFFu) << 5 : (v & 0x00FFFFFFu);
+}
+/* The message's coverage at the frame's (x, y), 0 outside it. */
+static uint32_t gc_card_at(const uint8_t* card, int32_t x, int32_t y) {
+    uint32_t at;
+    if (x < 0 || y < 0 || x >= (int32_t)GC_CRASH_CARD_W || y >= (int32_t)GC_CRASH_CARD_H) return 0;
+    at = (uint32_t)y * GC_CRASH_CARD_W + (uint32_t)x;
+    return ((card[at / 4u] >> (6u - 2u * (at % 4u))) & 3u) * 85u;
+}
+static uint32_t gc_luma(uint32_t coverage) { return 16u + coverage * 219u / 255u; }
+static int gc_crash_message(const struct gc_rt_context* ctx) {
+    const uint8_t* card = (const uint8_t*)(uintptr_t)ctx->crash_card;
+    const uint32_t top = gc_vi_fb(GC_VI_TFBL), bottom = gc_vi_fb(GC_VI_BFBL);
+    const uint16_t hsw = *(volatile uint16_t*)(uintptr_t)GC_VI_HSW;
+    const uint32_t stride = (hsw & 0xFFu) * 32u, words = ((hsw >> 8) & 0x7Fu) * 32u / 4u;
+    const uint32_t lines = (*(volatile uint16_t*)(uintptr_t)GC_VI_VTR >> 4) & 0x3FFu;
+    const uint32_t fields = bottom != top ? 2u : 1u;
+    const int32_t width = (int32_t)(words * 2u), height = (int32_t)(lines * fields);
+    uint32_t field, k, w;
+    if (card == 0 || top == 0 || top >= 0x01800000u || stride == 0 || words == 0 || lines == 0) return 0;
+    for (field = 0; field < fields; ++field) {
+        const uint32_t base = field == 0 ? top : bottom;
+        for (k = 0; k < lines; ++k) {
+            volatile uint32_t* row = (volatile uint32_t*)(uintptr_t)((base + k * stride) | 0xC0000000u);
+            const int32_t y = (int32_t)(k * fields + field) - (height - (int32_t)GC_CRASH_CARD_H) / 2;
+            if (base + k * stride + words * 4u > 0x01800000u) break;
+            for (w = 0; w < words; ++w) {
+                /* Two pixels a word: Y0 U Y1 V, grey on black. */
+                const int32_t x = (int32_t)(w * 2u) - (width - (int32_t)GC_CRASH_CARD_W) / 2;
+                const uint32_t y0 = gc_luma(gc_card_at(card, x, y)), y1 = gc_luma(gc_card_at(card, x + 1, y));
+                row[w] = (y0 << 24) | 0x800000u | (y1 << 8) | 0x80u;  /* coverage 0: GC_YUYV_BLACK */
+            }
+        }
+    }
+    return 1;
+}
 static void gc_crash_screen(const struct gc_rt_context* ctx) {
     volatile uint32_t* p;
     uint32_t i;
+    if (gc_crash_message(ctx)) return;
     if (ctx->xfb == 0) return;
     p = (volatile uint32_t*)(uintptr_t)(gc_physical(ctx->xfb) | 0xC0000000u);
     for (i = 0; i < ctx->xfb_bytes / 4; ++i) p[i] = GC_CRASH_WHITE;
 }
-static void gc_crash_flash_forever(void) {
+/* A pressed on a Wii Remote or a GameCube controller in port 1 (its SI
+ * buffer, which the SI goes on filling with interrupts off: A is bit 24 of
+ * the first word; in Wii mode the SI sits at 0xCD006400). */
+#define GC_SI_C0INBUFH 0xCD006404u
+static int gc_crash_a(struct gc_rt_context* ctx) {
+    uint32_t i;
+    if (gc_read32(GC_SI_C0INBUFH) & 0x01000000u) return 1;
+    if (ctx->bt) {
+        struct gc_bt* bt = (struct gc_bt*)(uintptr_t)ctx->bt;
+        gc_bt_poll(ctx, bt);
+        for (i = 0; i < GC_BT_REMOTES; ++i)
+            if (bt->remotes[i].used && bt->remotes[i].ready && (bt->remotes[i].core[1] & 0x08u)) return 1;
+    }
+    return 0;
+}
+/* The light flashes; A goes back to RiftWii when there is a way back. */
+static void gc_crash_wait(struct gc_rt_context* ctx) {
+    uint32_t start, now;
+    __asm__ volatile("mftb %0" : "=r"(start));
     for (;;) {
-        uint32_t start, now;
-        __asm__ volatile("mftb %0" : "=r"(start));
-        do {
-            __asm__ volatile("mftb %0" : "=r"(now));
-        } while (now - start < 10000000u);
-        gc_write32(GC_GPIO_OUT, gc_read32(GC_GPIO_OUT) ^ GC_GPIO_SLOT_LED);
+        __asm__ volatile("mftb %0" : "=r"(now));
+        if (now - start >= 10000000u) {
+            start = now;
+            gc_write32(GC_GPIO_OUT, gc_read32(GC_GPIO_OUT) ^ GC_GPIO_SLOT_LED);
+        }
+        if (ctx->leave_buf != 0 && ctx->leave_fd != 0xFFFFFFFFu && gc_crash_a(ctx)) gc_leave(ctx);
     }
 }
 
@@ -909,5 +1042,5 @@ void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_cont
     ctx->busy = 0;  /* a crash inside a read leaves it set; nothing else runs now */
     gc_trace(ctx, GC_TRACE_FATAL);
     gc_crash_screen(ctx);
-    gc_crash_flash_forever();
+    gc_crash_wait(ctx);
 }

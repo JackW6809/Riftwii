@@ -16,10 +16,12 @@
 
 #include <fat.h>
 
+#include "channel.hpp"
 #include "d2xsd.hpp"
 #include "gc_bt.h"
 #include "gc_card.h"
 #include "gc_rt.h"
+#include "loadersettings.hpp"
 #include "log.hpp"
 #include "riftwii/fat32.hpp"
 #include "riftwii/gccard.hpp"
@@ -822,6 +824,99 @@ std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_H
 
 }  // namespace
 
+// The way back from the game (gc_rt.c's gc_leave): the title holding
+// HOME launches, with its ticket view, and /dev/es opened here; IOS keeps
+// it open across the jump, as it keeps the SD card's. The RiftWii channel
+// when it is installed and Settings > Return to says RiftWii, else the
+// Homebrew Channel (its titles as StartHomebrewChannelTitle knows them),
+// else the Wii Menu.
+constexpr std::uint32_t kLeaveBytes = 0x100;
+constexpr u64 kWiiMenuTitle = 0x0000000100000002ull;
+
+// The first of the titles to go back to that has a ticket, with its
+// first ticket view; 0 when none has.
+static u64 way_back_title(GcWayBack& kind, tikview& view) {
+    std::vector<std::pair<u64, GcWayBack>> titles;
+    if (Settings().return_to == "riftwii") {
+        if (const u64 channel = ChannelTitle()) titles.emplace_back(channel, GcWayBack::Channel);
+    }
+    for (u64 hbc : {0x000100014C554C5Aull, 0x000100014F484243ull, 0x0001000148415858ull, 0x00010001AF1BF516ull})
+        titles.emplace_back(hbc, GcWayBack::HomebrewChannel);
+    titles.emplace_back(kWiiMenuTitle, GcWayBack::WiiMenu);
+    for (const auto& [title, what] : titles) {
+        u32 views = 0;
+        if (ES_GetNumTicketViews(title, &views) < 0 || views == 0) continue;
+        // ES_GetTicketViews fills as many as asked: room for one is enough.
+        static tikview found[4] ATTRIBUTE_ALIGN(32);
+        if (ES_GetTicketViews(title, found, 1) < 0) continue;
+        view = found[0];
+        kind = what;
+        return title;
+    }
+    kind = GcWayBack::None;
+    return 0;
+}
+
+// The crash screen's message (SetGcCrashCard), packed as gc_rt.h says.
+static std::vector<std::uint8_t> g_crash_card;
+
+GcWayBack FindGcWayBack() {
+    GcWayBack kind;
+    static tikview view ATTRIBUTE_ALIGN(32);
+    way_back_title(kind, view);
+    return kind;
+}
+
+void SetGcCrashCard(std::vector<std::uint8_t> coverage) {
+    static_assert(kGcCrashCardW == GC_CRASH_CARD_W && kGcCrashCardH == GC_CRASH_CARD_H, "gc_rt.h's card size");
+    g_crash_card.clear();
+    if (coverage.size() != static_cast<std::size_t>(kGcCrashCardW) * kGcCrashCardH) return;
+    g_crash_card.assign(GC_CRASH_CARD_BYTES, 0);
+    for (std::size_t i = 0; i < coverage.size(); ++i) {
+        // Four levels: the edges keep some of their smoothing.
+        const unsigned level = (coverage[i] + 42u) / 85u;
+        g_crash_card[i / 4] |= static_cast<std::uint8_t>(level << (6 - 2 * (i % 4)));
+    }
+}
+
+static void prepare_leave(gc_rt_context* ctx, std::uint32_t buf, bool test) {
+    ctx->leave_fd = 0xFFFFFFFFu;
+    ctx->leave_buf = 0;
+    ctx->leave_hold = 2 * 60750000u;  // two seconds of the timebase (the bus clock / 4)
+    ctx->leave_since = 0;
+    auto* bytes = reinterpret_cast<std::uint8_t*>(buf);
+    std::memset(bytes, 0, kLeaveBytes);
+    GcWayBack kind;
+    static tikview view ATTRIBUTE_ALIGN(32);
+    if (const u64 title = way_back_title(kind, view)) {
+        const s32 fd = IOS_Open("/dev/es", 0);
+        if (fd < 0) {
+            logf("GameCube: no way back to RiftWii: /dev/es did not open (%d)\n", fd);
+            return;
+        }
+        for (unsigned i = 0; i < 8; ++i) bytes[i] = static_cast<std::uint8_t>(title >> (56 - 8 * i));
+        std::memcpy(bytes + 0x20, &view, sizeof(tikview));
+        DCFlushRange(bytes, kLeaveBytes);
+        ctx->leave_fd = static_cast<std::uint32_t>(fd);
+        ctx->leave_buf = buf;
+        logf("GameCube: holding HOME for two seconds goes to %08x-%08x\n", static_cast<u32>(title >> 32),
+             static_cast<u32>(title));
+        return;
+    }
+    logf("GameCube: no way back to RiftWii: none of the titles to go back to is installed\n");
+    // The test of the way back (sd:/riftwii/gc/leave) goes on regardless,
+    // to the Wii Menu with no ticket view: IOS refuses, and the game must
+    // carry on.
+    if (!test) return;
+    const s32 fd = IOS_Open("/dev/es", 0);
+    if (fd < 0) return;
+    for (unsigned i = 0; i < 8; ++i) bytes[i] = static_cast<std::uint8_t>(kWiiMenuTitle >> (56 - 8 * i));
+    DCFlushRange(bytes, kLeaveBytes);
+    ctx->leave_fd = static_cast<std::uint32_t>(fd);
+    ctx->leave_buf = buf;
+    logf("GameCube: the test of the way back goes on without a ticket view, to be refused\n");
+}
+
 bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string& error) {
     logf("GameCube (native): %s (%s)\n", image.id.c_str(), image.path.c_str());
     // Test presses for Dolphin runs with no controller to press with
@@ -829,6 +924,10 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // system's (before it is opened raw).
     struct stat st_press;
     const bool test_presses = stat("sd:/riftwii/gc/press", &st_press) == 0;
+    // A test of the way back (gc_rt.h's GC_FLAG_LEAVE).
+    const bool test_leave = stat("sd:/riftwii/gc/leave", &st_press) == 0;
+    // And of the crash screen (GC_FLAG_CRASH).
+    const bool test_crash = stat("sd:/riftwii/gc/crash", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     // The game's view of the disc: the image, then the packs' window
@@ -888,7 +987,9 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const std::uint32_t trace_addr = (stream_addr - 512) & ~31u;
     const std::uint32_t bt_addr = (trace_addr - sizeof(gc_bt)) & ~31u;
     const std::uint32_t card_addr = (bt_addr - sizeof(gc_card)) & ~31u;
-    const std::uint32_t runs_addr = (card_addr - runs_bytes) & ~31u;
+    const std::uint32_t leave_addr = (card_addr - kLeaveBytes) & ~31u;
+    const std::uint32_t crash_addr = (leave_addr - GC_CRASH_CARD_BYTES) & ~31u;
+    const std::uint32_t runs_addr = (crash_addr - runs_bytes) & ~31u;
     const std::uint32_t stubs_addr = (runs_addr - kStubBytes) & ~31u;
     const std::uint32_t moved_addr = (stubs_addr - kMovedBytes) & ~31u;
     const std::uint32_t blob_addr = (moved_addr - h.size) & ~31u;
@@ -1003,6 +1104,13 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // The card, opened and selected; the blob reads it after the jump.
     // IOS lets one owner have the slot: the file system lets go first (as
     // a Wii game's launch does), and the log goes on on screen only.
+    // While the log still reaches the card: what holding HOME goes to.
+    prepare_leave(ctx, leave_addr, test_leave);
+    ctx->crash_card = 0;
+    if (g_crash_card.size() == GC_CRASH_CARD_BYTES) {
+        std::memcpy(reinterpret_cast<void*>(crash_addr), g_crash_card.data(), GC_CRASH_CARD_BYTES);
+        ctx->crash_card = crash_addr;
+    }
     logf("Releasing the SD card (the log ends here; the rest is on screen)\n");
     LogClose();
     fatUnmount("sd:");
@@ -1092,6 +1200,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     if (pad_read != 0) {
         replay_hook(pad_read, h.hook_pad_read, h.replay_pad_read, h.continue_pad_read);
         if (test_presses) ctx->flags |= GC_FLAG_PRESS;
+        if (test_leave) ctx->flags |= GC_FLAG_LEAVE;
+        if (test_crash) ctx->flags |= GC_FLAG_CRASH;
     }
     // The memory card: the EXI functions to the blob (gc_card.h).
     if (!card_image.empty()) {

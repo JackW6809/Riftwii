@@ -114,11 +114,21 @@ enum gc_trace_word {
 #define GC_TRACE_BEAT 6u
 #define GC_TRACE_FATAL 7u   /* the game crashed: beat_pc/lr/msr are the crash's SRR0, LR, SRR1 */
 #define GC_TRACE_COMMAND 8u /* a DVDLow command that is not a read */
+#define GC_TRACE_LEAVE 9u   /* the player held HOME: ES_LaunchTitle is next */
 /* The last records of the trace go round; the others stay. */
 #define GC_TRACE_RING 16u
 
+/* The crash screen's message, as the menu drew it (gcnative.hpp's
+ * SetGcCrashCard): 2 bits of coverage a pixel, four pixels a byte, the
+ * leftmost in the top bits. */
+#define GC_CRASH_CARD_W 512u
+#define GC_CRASH_CARD_H 96u
+#define GC_CRASH_CARD_BYTES (GC_CRASH_CARD_W * GC_CRASH_CARD_H / 4u)
+
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
+#define GC_FLAG_CRASH 4u  /* tests of the crash screen: the 600th pad read takes a program exception */
+#define GC_FLAG_LEAVE 2u  /* tests of the way back: port 1 holds L, R, Z and Start from the 1800th pad read */
 
 /* Disc audio streaming (the drive's own ADPCM, 48 kHz stereo): what the
  * drive would have played into the AI is decoded here and mixed into the
@@ -215,6 +225,13 @@ struct gc_rt_context {
     uint32_t guard_copy[64];
     uint32_t bt;              /* struct gc_bt (loader-placed), 0: no Wii Remotes */
     uint32_t card;            /* struct gc_card (loader-placed), 0: the real slot A */
+    /* The way back to RiftWii: holding HOME (or L, R, Z and Start) for
+     * leave_hold ticks launches the title in leave_buf through /dev/es. */
+    uint32_t leave_fd;        /* /dev/es, opened by the loader; 0xFFFFFFFF: no way back */
+    uint32_t leave_buf;       /* 32-byte aligned: the title ID at 0, its ticket view (0xD8 bytes) at 0x20 */
+    uint32_t leave_hold;      /* timebase ticks */
+    uint32_t leave_since;     /* when the hold began (low bit set), 0: not held */
+    uint32_t crash_card;      /* the message, GC_CRASH_CARD_BYTES (loader-placed), 0: none */
     uint8_t aram_scratch[32] __attribute__((aligned(32)));  /* the hardware's own ARAM DMA goes here */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));

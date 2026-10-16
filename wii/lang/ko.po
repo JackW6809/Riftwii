@@ -1449,6 +1449,27 @@ msgstr "{1} 읽고 {2} 쓰는 중"
 msgid "{1} not built"
 msgstr "{1}을(를) 만들지 못했습니다"
 
+msgid "Hold HOME for two seconds to leave the game."
+msgstr "HOME을 2초 동안 누르면 게임을 나갑니다."
+
+msgid "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."
+msgstr "게임큐브 컨트롤러에서는 L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다."
+
+msgid "Classic and GameCube controllers: as on a GameCube."
+msgstr "클래식 컨트롤러와 게임큐브 컨트롤러: 게임큐브와 같습니다."
+
+msgid "The game stopped. Press A to go back to RiftWii."
+msgstr "게임이 멈췄습니다. A를 누르면 RiftWii로 돌아갑니다."
+
+msgid "The game stopped. Press A to go back to the Homebrew Channel."
+msgstr "게임이 멈췄습니다. A를 누르면 Homebrew Channel로 돌아갑니다."
+
+msgid "The game stopped. Press A to go back to the Wii Menu."
+msgstr "게임이 멈췄습니다. A를 누르면 Wii 메뉴로 돌아갑니다."
+
+msgid "The game stopped. Turn the Wii off and on again."
+msgstr "게임이 멈췄습니다. Wii를 껐다가 다시 켜세요."
+
 msgid "1 block"
 msgstr "1블록"
 
@@ -1577,9 +1598,6 @@ msgstr "Wii 리모컨만 가로로: 2는 A, 1은 B, A는 X, HOME은 Y, 트리거
 
 msgid "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick."
 msgstr "눈차크와 함께: A, B, 1은 X, 2는 Y, C는 L, Z는 R, -는 Z, +는 스타트, 스틱으로 움직이고 십자 버튼은 C스틱입니다."
-
-msgid "A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller."
-msgstr "클래식 컨트롤러나 게임큐브 컨트롤러: 게임큐브 컨트롤러와 같은 버튼입니다."
 
 msgid "SD image made"
 msgstr "SD 이미지 생성됨"

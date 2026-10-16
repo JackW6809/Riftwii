@@ -124,6 +124,8 @@ struct gc_rt_context;
  * remote's state (status: the game's PADStatus[4]). */
 void gc_bt_poll(struct gc_rt_context* ctx, struct gc_bt* bt);
 void gc_bt_fill(const struct gc_bt* bt, uint8_t* status);
+/* 1 while a ready Wii Remote's HOME, or its Classic Controller's, is held. */
+int gc_bt_home_held(const struct gc_bt* bt);
 /* A reply from IOS that came while another request was being waited
  * for: marked done if it is one of these. */
 void gc_bt_on_reply(struct gc_bt* bt, uint32_t reply);

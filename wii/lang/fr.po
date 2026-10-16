@@ -1449,6 +1449,27 @@ msgstr "Lecture de {1} et écriture de {2}"
 msgid "{1} not built"
 msgstr "{1} non créé"
 
+msgid "Hold HOME for two seconds to leave the game."
+msgstr "Maintenez HOME deux secondes pour quitter le jeu."
+
+msgid "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."
+msgstr "Sur une manette GameCube, maintenez L, R, Z et Start deux secondes pour quitter le jeu."
+
+msgid "Classic and GameCube controllers: as on a GameCube."
+msgstr "Manettes classique et GameCube : comme sur une GameCube."
+
+msgid "The game stopped. Press A to go back to RiftWii."
+msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir à RiftWii."
+
+msgid "The game stopped. Press A to go back to the Homebrew Channel."
+msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir à la Homebrew Channel."
+
+msgid "The game stopped. Press A to go back to the Wii Menu."
+msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir au Menu Wii."
+
+msgid "The game stopped. Turn the Wii off and on again."
+msgstr "Le jeu s'est arrêté. Éteignez la Wii puis rallumez-la."
+
 msgid "1 block"
 msgstr "1 bloc"
 
@@ -1577,9 +1598,6 @@ msgstr "Wiimote seule, tenue à l'horizontale : 2 est A, 1 est B, A est X, HOME 
 
 msgid "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick."
 msgstr "Avec un Nunchuk : A, B, 1 est X, 2 est Y, C est L, Z est R, - est Z, + est Start ; le stick déplace et la croix directionnelle est le stick C."
-
-msgid "A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller."
-msgstr "Une manette classique ou une manette GameCube : ses boutons, comme sur une manette GameCube."
 
 msgid "SD image made"
 msgstr "Image SD créée"
