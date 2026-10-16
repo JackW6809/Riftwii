@@ -234,6 +234,36 @@ From a USB drive or the SD card where you can:
 - [ ] **Wii Fit Plus** with a Balance Board.
 - [ ] **Metroid Prime Trilogy** with a cheat on, inside one of its games.
 
+## 14. GameCube games
+
+Super Mario Sunshine as `sd:/games/GMSE01/game.iso` with Super Mario
+Eclipse's patch in `sd:/riftwii/patches`, and any other GameCube game in
+`sd:/games/<ID>/game.iso`. After each launch, keep `sd:/riftwii/boot.log`
+and `sd:/riftwii/gc/trace.bin`.
+
+- [ ] **Home**: GameCube games have the GC badge; Eclipse has BUILD until
+  it is built; Settings > Games from > GameCube lists only them; search
+  "gc" finds them.
+- [ ] **Build**: Eclipse's page says Build and play; the Build box shows
+  both covers; building shows the time left; Stop asks, B twice keeps
+  building; the game starts once built, and Play starts it at once next
+  time.
+- [ ] **Controls**: the controls card shows once before the first start,
+  with the controllers connected; a Wii Remote (sideways), a Nunchuk, a
+  Classic Controller and a GameCube controller in a Wii port all play.
+- [ ] **Sound and music**: in-game sound and the disc's streamed music.
+- [ ] **Memory card**: save in the game, restart it, the save loads; the
+  Saves tile lists it with its icon; copy it out as `.gci`, delete it,
+  add it back; Options > Memory card > Shared uses `shared.raw`.
+- [ ] **Leaving**: hold HOME for two seconds (L, R, Z and Start on a
+  GameCube controller): RiftWii's channel, or the Homebrew Channel.
+- [ ] **A crash** (`sd:/riftwii/gc/crash` makes one 600 pad reads in): the
+  message shows, A goes back, the next start offers the report.
+- [ ] **Options**: Disc reads Fast loads sooner; 480p on a component
+  cable (the game asks first); 16:9 widens the 3D; a PAL game's language
+  changes its menus.
+- [ ] **Packs**: Luigi's Mansion with a pack that changes a file.
+
 ## Known issues
 
 - Some games freeze or go black after HOME > Wii Menu instead of going

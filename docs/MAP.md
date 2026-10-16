@@ -264,6 +264,7 @@ document it.
 | `shotfile`, `pngencode` | Screenshot files and a PNG writer |
 | `problemreport` | A problem report's text |
 | `gamefault` | A game's crash record, as text |
+| `gccrash` | A GameCube game's crash, from its loader's trace, as text |
 
 ## `runtime/`: code that runs inside the game
 
