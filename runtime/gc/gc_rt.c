@@ -553,10 +553,14 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
             wait = drive > spent ? drive - spent : 0;
         }
         ctx->last_read_end = offset + length;
+        /* The record goes to the card before the completion is armed: a
+         * write with interrupts off runs well past the 30 microseconds,
+         * and Luigi's Mansion (USA, 2001 SDK) then never saw its read
+         * finish (every thread waiting, Start freezing the title). */
+        if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
         gc_complete_after(ctx, cb, ok ? GC_DI_TC : GC_DI_DE, wait);
     }
     gc_stream_fetch(ctx);  /* the card is free again: the music ring's top-up */
-    if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
 }
 
