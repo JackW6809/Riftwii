@@ -4547,6 +4547,13 @@ static std::string GcLeaveLine()
 
 // 480p picked while the Wii's own 480p setting is off: said once, as the
 // setting being off may mean no cable takes it. True: Turn on.
+// Before a game's memory card changes between its own and the shared one.
+static bool AskGcCardSwitch()
+{
+	return ShowPopup(tr("Memory card"), tr("Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own."),
+		tr("Switch"), tr("Cancel")) == 0;
+}
+
 static bool AskGc480p()
 {
 	const std::string body = std::string(tr("Only with a component or HDMI cable: without one the picture stays black.")) +
@@ -6728,7 +6735,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 	HideButton(backBtn);
 	GuiPrompts prompts;
 	const int promptBack = prompts.Add("B", tr("Back"));
-	prompts.Add("A", tr("Change"));
+	const int promptChange = prompts.Add("A", tr("Change"));
 
 	HaltGui();
 	GuiWindow w(screenwidth, screenheight);
@@ -6757,6 +6764,9 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 		if (row != shownRow && row >= 0 && static_cast<std::size_t>(row) < refs.size()) {
 			shownRow = row;
 			const RowRef& ref = refs[static_cast<std::size_t>(row)];
+			// A dimmed row only says why it cannot change.
+			const bool fixedRow = static_cast<std::size_t>(row) < rows.size() && rows[static_cast<std::size_t>(row)].dim;
+			prompts.SetAction(promptChange, fixedRow ? tr("About this") : tr("Change"));
 			if (ref.what == RowRef::What::Width)
 				say(tr("How wide the picture is drawn. 720 fills the screen from side to side."));
 			else if (ref.what == RowRef::What::Deflicker)
@@ -6785,7 +6795,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::GcDiscReads)
 				say(tr("Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."));
 			else if (ref.what == RowRef::What::GcCard)
-				say(tr("Own: a card for this game alone. Shared: one card for all games (Japanese games have a shared card of their own). Switching copies no saves: they stay on the other card; move them with Copy to the SD card and Add a save from the SD card on the Saves page."));
+				say(tr("Own: a card for this game alone. Shared: one card for all games."));
 			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id))
 				say(tr("480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."));
 			else if (ref.what == RowRef::What::GcProgressive)
@@ -6837,7 +6847,11 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::Language) game.language = StepValue(kGameLanguages, game.language, direction);
 			else if (ref.what == RowRef::What::Cios) game.cios = StepValue(kCiosChoices, game.cios, direction);
 			else if (ref.what == RowRef::What::GcDiscReads) game.gc_disc_reads = game.gc_disc_reads == "fast" ? "drive" : "fast";
-			else if (ref.what == RowRef::What::GcCard) game.gc_card = game.gc_card == "shared" ? "own" : "shared";
+			else if (ref.what == RowRef::What::GcCard) {
+				// Asked when switching, where it matters: the saves stay behind.
+				if (AskGcCardSwitch()) game.gc_card = game.gc_card == "shared" ? "own" : "shared";
+				else changed = false;
+			}
 			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id)) {
 				// The row is dimmed: nothing to change, only why.
 				say(tr("480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."));

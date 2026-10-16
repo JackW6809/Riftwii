@@ -1554,14 +1554,23 @@ msgstr "セーブはSDカード上の共有メモリーカードに保存され�
 msgid "Memory card"
 msgstr "メモリーカード"
 
+msgid "About this"
+msgstr "説明"
+
+msgid "Own: a card for this game alone. Shared: one card for all games."
+msgstr "専用: このゲームだけのカードです。共有: すべてのゲームで1枚のカードを使います。"
+
+msgid "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own."
+msgstr "切り替えてもセーブはコピーされず、もう一方のカードに残ります。セーブのページの「SDカードにコピー」と「SDカードからセーブを追加」で移せます。日本のゲームは専用の共有カードを使います。"
+
+msgid "Switch"
+msgstr "切り替える"
+
 msgid "Shared"
 msgstr "共有"
 
 msgid "This game's own"
 msgstr "このゲーム専用"
-
-msgid "Own: a card for this game alone. Shared: one card for all games (Japanese games have a shared card of their own). Switching copies no saves: they stay on the other card; move them with Copy to the SD card and Add a save from the SD card on the Saves page."
-msgstr "専用: このゲームだけのカードです。共有: すべてのゲームで1枚のカードを使います(日本のゲームは専用の共有カードを使います)。切り替えてもセーブはコピーされず、もう一方のカードに残ります。セーブのページの「SDカードにコピー」と「SDカードからセーブを追加」で移せます。"
 
 msgid "Adds a .gci save file from {1}."
 msgstr "{1}から.gciのセーブファイルを追加します。"
