@@ -18,6 +18,7 @@ struct GcImage {
     std::string path;  // sd:/games/.../game.iso
     std::string id;    // ID6 from its header
     std::string patch_source;  // set: `path` is a patch (gcpatch.hpp) to make the game from this original
+    bool shared_card = false;  // the memory card is the shared one, not the game's own (the Memory card option)
     bool drive_timing = true;  // reads take a GameCube drive's time (the game's Disc reads option)
 };
 

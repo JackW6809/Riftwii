@@ -598,7 +598,34 @@ static void test_icons() {
     EXPECT_FALSE(gc_card_icon(card, 50, rgba, error));
 }
 
+static void test_icon_texture() {
+    Bytes rgba(4096, 0);
+    // Pixel (5, 2): opaque red; pixel (0, 0): half see-through green.
+    rgba[(2 * 32 + 5) * 4 + 0] = 0xFF;
+    rgba[(2 * 32 + 5) * 4 + 3] = 0xFF;
+    rgba[1] = 0xF0;
+    rgba[3] = 0x80;
+    const Bytes tiles = gc_icon_rgb5a3(rgba);
+    EXPECT_EQ(tiles.size(), 2048u);
+    // Pixel (5, 2) is in tile column 1, row 0 (tile 1), at (1, 2) inside it.
+    const std::size_t red = (1 * 16 + 2 * 4 + 1) * 2;
+    EXPECT_EQ(be16(&tiles[red]), 0xFC00);
+    EXPECT_EQ(be16(&tiles[0]), 0x40F0);
+    EXPECT_TRUE(gc_icon_rgb5a3(Bytes(100)).empty());
+}
+
+static void test_card_paths() {
+    EXPECT_EQ(gc_card_path("GMSE01", false), std::string("sd:/riftwii/gc/cards/GMSE01.raw"));
+    EXPECT_EQ(gc_card_path("GMSE01", true), std::string("sd:/riftwii/gc/cards/shared.raw"));
+    EXPECT_EQ(gc_card_path("GMSP01", true), std::string("sd:/riftwii/gc/cards/shared.raw"));
+    EXPECT_EQ(gc_card_path("GMSJ01", true), std::string("sd:/riftwii/gc/cards/shared-jp.raw"));
+    EXPECT_EQ(gc_card_path("GM/../J", false), std::string("sd:/riftwii/gc/cards/GMJ.raw"));
+    EXPECT_FALSE(gc_card_shift_jis("GMS"));
+}
+
 int main() {
+    test_card_paths();
+    test_icon_texture();
     test_format();
     test_import_export_delete();
     test_directory_full();

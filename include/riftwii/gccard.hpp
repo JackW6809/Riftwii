@@ -109,4 +109,20 @@ bool gc_card_import(std::vector<std::uint8_t>& card, const std::vector<std::uint
 bool gc_card_icon(const std::vector<std::uint8_t>& card, unsigned slot, std::vector<std::uint8_t>& rgba,
                   std::string& error);
 
+// A 32x32 RGBA8 icon (gc_card_icon's) as a GX RGB5A3 texture, 4x4 tiles,
+// 2048 bytes, for the menu to draw. Empty when `rgba` is not 4096 bytes.
+std::vector<std::uint8_t> gc_icon_rgb5a3(const std::vector<std::uint8_t>& rgba);
+
+// Which file is a game's memory card, by its ID (letters and digits kept;
+// anything else is dropped so an ID never climbs out of the folder).
+// Not shared: sd:/riftwii/gc/cards/<ID>.raw. Shared: one card for all the
+// games of the same text encoding, shared.raw or, for a Japanese game
+// (region letter J, the ID's fourth character, the one the loader
+// formats as Shift-JIS), shared-jp.raw. A card holds one encoding's
+// file names, so Western and Japanese games cannot share one file.
+std::string gc_card_path(const std::string& game_id, bool shared);
+
+// Whether the game's card is Shift-JIS (a Japanese game's region letter).
+bool gc_card_shift_jis(const std::string& game_id);
+
 }  // namespace riftwii

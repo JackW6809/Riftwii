@@ -449,6 +449,7 @@ bool LaunchGcGame(const GcImage& wanted, const std::vector<PackageChoices>& pack
         LaunchModel choices;
         choices.restore(text.str());
         image.drive_timing = choices.game.gc_disc_reads != "fast";
+        image.shared_card = choices.game.gc_card == "shared";
     }
     logf("GameCube: %s (%s), disc reads %s\n", image.id.c_str(), image.path.c_str(),
          image.drive_timing ? "at a GameCube drive's speed" : "at the SD card's speed");

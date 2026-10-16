@@ -635,4 +635,43 @@ bool gc_card_icon(const std::vector<std::uint8_t>& card, unsigned slot, std::vec
     return true;
 }
 
+std::vector<std::uint8_t> gc_icon_rgb5a3(const std::vector<std::uint8_t>& rgba) {
+    constexpr unsigned kSide = kGcIconSide;
+    std::vector<std::uint8_t> tiles;
+    if (rgba.size() != static_cast<std::size_t>(kSide) * kSide * 4) return tiles;
+    tiles.reserve(static_cast<std::size_t>(kSide) * kSide * 2);
+    for (unsigned tile_y = 0; tile_y < kSide; tile_y += 4) {
+        for (unsigned tile_x = 0; tile_x < kSide; tile_x += 4) {
+            for (unsigned y = tile_y; y < tile_y + 4; ++y) {
+                for (unsigned x = tile_x; x < tile_x + 4; ++x) {
+                    const std::uint8_t* p = &rgba[(static_cast<std::size_t>(y) * kSide + x) * 4];
+                    const unsigned r = p[0], g = p[1], b = p[2], a = p[3];
+                    // Opaque pixels keep 5 bits a colour; see-through ones
+                    // trade a bit each for a 3-bit alpha.
+                    const unsigned v = a >= 0xE0 ? 0x8000u | (r >> 3) << 10 | (g >> 3) << 5 | (b >> 3)
+                                                 : (a >> 5) << 12 | (r >> 4) << 8 | (g >> 4) << 4 | (b >> 4);
+                    tiles.push_back(static_cast<std::uint8_t>(v >> 8));
+                    tiles.push_back(static_cast<std::uint8_t>(v));
+                }
+            }
+        }
+    }
+    return tiles;
+}
+
+bool gc_card_shift_jis(const std::string& game_id) {
+    return game_id.size() > 3 && game_id[3] == 'J';
+}
+
+std::string gc_card_path(const std::string& game_id, bool shared) {
+    std::string file;
+    if (shared) {
+        file = gc_card_shift_jis(game_id) ? "shared-jp" : "shared";
+    } else {
+        for (char c : game_id)
+            if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) file += c;
+    }
+    return "sd:/riftwii/gc/cards/" + file + ".raw";
+}
+
 }  // namespace riftwii

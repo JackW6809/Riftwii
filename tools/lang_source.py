@@ -1370,6 +1370,13 @@ T = {
     "{1} of {2} blocks free.": ("{1} de {2} bloques libres.", "{2}ブロック中{1}ブロックが空いています。", "{1} de {2} blocos livres.", "{1} blocchi liberi su {2}."),
     "Add a save": ("Añadir una partida", "セーブを追加", "Adicionar um save", "Aggiungi un salvataggio"),
     "Add a save from the SD card": ("Añadir una partida desde la tarjeta SD", "SDカードからセーブを追加", "Adicionar um save do cartão SD", "Aggiungi un salvataggio dalla scheda SD"),
+    "Shared Memory Card": ("Tarjeta de memoria compartida", "共有メモリーカード", "Cartão de memória compartilhado", "Memory Card condivisa"),
+    "The shared memory card is made the first time a game that uses it starts: {1}.": ("La tarjeta de memoria compartida se crea la primera vez que arranca un juego que la usa: {1}.", "共有メモリーカードは、それを使うゲームを初めて起動したときに作られます: {1}", "O cartão de memória compartilhado é criado na primeira vez que um jogo que o usa é iniciado: {1}.", "La Memory Card condivisa viene creata la prima volta che si avvia un gioco che la usa: {1}."),
+    "Saves go to the shared memory card on the SD card: {1}.": ("Las partidas van a la tarjeta de memoria compartida de la tarjeta SD: {1}.", "セーブはSDカード上の共有メモリーカードに保存されます: {1}", "Os saves vão para o cartão de memória compartilhado no cartão SD: {1}.", "I salvataggi vanno nella Memory Card condivisa sulla scheda SD: {1}."),
+    "Memory card": ("Tarjeta de memoria", "メモリーカード", "Cartão de memória", "Memory Card"),
+    "Shared": ("Compartida", "共有", "Compartilhado", "Condivisa"),
+    "This game's own": ("La de este juego", "このゲーム専用", "Só deste jogo", "Solo di questo gioco"),
+    "Own: a card for this game alone. Shared: one card for all games (Japanese games have a shared card of their own). Switching copies no saves: they stay on the other card; move them with Copy to the SD card and Add a save from the SD card on the Saves page.": ("Propia: una tarjeta solo para este juego. Compartida: una tarjeta para todos los juegos (los juegos japoneses tienen su propia tarjeta compartida). Al cambiar no se copian partidas: se quedan en la otra tarjeta; muévelas con Copiar a la tarjeta SD y Añadir una partida desde la tarjeta SD en la página de partidas.", "専用: このゲームだけのカードです。共有: すべてのゲームで1枚のカードを使います(日本のゲームは専用の共有カードを使います)。切り替えてもセーブはコピーされず、もう一方のカードに残ります。セーブのページの「SDカードにコピー」と「SDカードからセーブを追加」で移せます。", "Própria: um cartão só para este jogo. Compartilhado: um cartão para todos os jogos (os jogos japoneses têm o seu próprio cartão compartilhado). Trocar não copia saves: eles ficam no outro cartão; mova-os com Copiar para o cartão SD e Adicionar um save do cartão SD na página de saves.", "Propria: una scheda solo per questo gioco. Condivisa: una scheda per tutti i giochi (i giochi giapponesi hanno la loro scheda condivisa). Cambiando non si copia nulla: i salvataggi restano sull'altra scheda; spostali con Copia sulla scheda SD e Aggiungi un salvataggio dalla scheda SD nella pagina dei salvataggi."),
     "Adds a .gci save file from {1}.": ("Añade un archivo de partida .gci de {1}.", "{1}から.gciのセーブファイルを追加します。", "Adiciona um ficheiro de save .gci de {1}.", "Aggiunge un file di salvataggio .gci da {1}."),
     "As a .gci file, for Dolphin": ("Como archivo .gci, para Dolphin", ".gciファイルとして(Dolphin用)", "Como ficheiro .gci, para o Dolphin", "Come file .gci, per Dolphin"),
     "Copy to the SD card": ("Copiar a la tarjeta SD", "SDカードにコピー", "Copiar para o cartão SD", "Copia sulla scheda SD"),
@@ -2871,6 +2878,20 @@ KO = {
         "저장 데이터 추가",
     "Add a save from the SD card":
         "SD 카드에서 저장 데이터 추가",
+    "Shared Memory Card":
+        "공유 메모리 카드",
+    "The shared memory card is made the first time a game that uses it starts: {1}.":
+        "공유 메모리 카드는 이를 사용하는 게임을 처음 시작할 때 만들어집니다: {1}.",
+    "Saves go to the shared memory card on the SD card: {1}.":
+        "저장 데이터는 SD 카드의 공유 메모리 카드에 저장됩니다: {1}.",
+    "Memory card":
+        "메모리 카드",
+    "Shared":
+        "공유",
+    "This game's own":
+        "이 게임 전용",
+    "Own: a card for this game alone. Shared: one card for all games (Japanese games have a shared card of their own). Switching copies no saves: they stay on the other card; move them with Copy to the SD card and Add a save from the SD card on the Saves page.":
+        "전용: 이 게임만을 위한 카드입니다. 공유: 모든 게임이 카드 하나를 씁니다(일본 게임은 별도의 공유 카드를 씁니다). 바꿔도 저장 데이터는 복사되지 않고 다른 카드에 남습니다. 저장 페이지의 SD 카드에 복사와 SD 카드에서 저장 데이터 추가로 옮길 수 있습니다.",
     "Adds a .gci save file from {1}.":
         "{1}에서 .gci 저장 파일을 추가합니다.",
     "As a .gci file, for Dolphin":
@@ -4546,6 +4567,20 @@ FR = {
         "Ajouter une sauvegarde",
     "Add a save from the SD card":
         "Ajouter une sauvegarde depuis la carte SD",
+    "Shared Memory Card":
+        "Carte mémoire partagée",
+    "The shared memory card is made the first time a game that uses it starts: {1}.":
+        "La carte mémoire partagée est créée au premier lancement d'un jeu qui l'utilise : {1}.",
+    "Saves go to the shared memory card on the SD card: {1}.":
+        "Les sauvegardes vont sur la carte mémoire partagée de la carte SD : {1}.",
+    "Memory card":
+        "Carte mémoire",
+    "Shared":
+        "Partagée",
+    "This game's own":
+        "Propre à ce jeu",
+    "Own: a card for this game alone. Shared: one card for all games (Japanese games have a shared card of their own). Switching copies no saves: they stay on the other card; move them with Copy to the SD card and Add a save from the SD card on the Saves page.":
+        "Propre : une carte pour ce jeu seul. Partagée : une carte pour tous les jeux (les jeux japonais ont leur propre carte partagée). Changer ne copie aucune sauvegarde : elles restent sur l'autre carte ; déplacez-les avec Copier sur la carte SD et Ajouter une sauvegarde depuis la carte SD dans la page des sauvegardes.",
     "Adds a .gci save file from {1}.":
         "Ajoute un fichier de sauvegarde .gci depuis {1}.",
     "As a .gci file, for Dolphin":

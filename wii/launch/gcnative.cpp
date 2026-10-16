@@ -1045,16 +1045,13 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
              why.empty() ? "" : ": ", why.c_str());
     }
 
-    // The memory card in slot A (gc_card.h): one file per game,
-    // sd:/riftwii/gc/cards/<ID>.raw, made and formatted the first time. Its whole image goes to MEM2 at the
+    // The memory card in slot A (gc_card.h): one file per game, or the shared one
+    // (gc_card_path), made and formatted the first time. Its whole image goes to MEM2 at the
     // jump, and the blob writes what the game saves back to its sectors.
     std::vector<std::uint8_t> card_image;
     std::vector<gc_card_run> card_runs;
     {
-        std::string id;
-        for (char c : image.id)
-            if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) id += c;
-        const std::string path = "sd:/riftwii/gc/cards/" + id + ".raw";
+        const std::string path = gc_card_path(image.id, image.shared_card);
         mkdir("sd:/riftwii/gc/cards", 0777);
         card_image.assign(GC_CARD_BYTES, 0xFF);
         bool ready = false;
@@ -1066,7 +1063,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         const bool blank = !ready || std::all_of(card_image.begin(), card_image.begin() + 0x200,
                                                  [](std::uint8_t b) { return b == 0xFF; });
         if (blank) {
-            const bool shift_jis = image.id.size() > 3 && image.id[3] == 'J';
+            const bool shift_jis = gc_card_shift_jis(image.id);
             format_card(card_image, shift_jis);
             logf("GameCube: a newly formatted memory card, %s (%u KB)\n", path.c_str(), GC_CARD_BYTES / 1024);
             std::FILE* f = std::fopen(path.c_str(), "wb");

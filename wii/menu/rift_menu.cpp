@@ -3711,7 +3711,7 @@ static std::string SaveNote(const riftwii::LaunchModel& model)
 struct RowRef {
 	enum class What { Mods, Saves, Cheats, Width, Deflicker, Borders, VideoMode, RegionVideo, Aspect, Rumble, Speaker,
 		RegionStrings, Language, Cios, Server, Favorite, Pack, Option, Note,
-		AddCodes, ForgetCodes, MakeImage, Cover, Memory, About, GcDiscReads, GcControls } what = What::Note;
+		AddCodes, ForgetCodes, MakeImage, Cover, Memory, About, GcDiscReads, GcCard, GcControls } what = What::Note;
 	std::size_t pkg = 0, opt = 0;
 };
 
@@ -4020,6 +4020,13 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		discReads.on = game.gc_disc_reads == "fast";
 		rows.push_back(discReads);
 		refs.push_back({W::GcDiscReads});
+		FlowRow card;
+		card.kind = FlowRow::Kind::Option;
+		card.label = tr("Memory card");
+		card.value = game.gc_card == "shared" ? tr("Shared") : tr("This game's own");
+		card.on = game.gc_card == "shared";
+		rows.push_back(card);
+		refs.push_back({W::GcCard});
 		FlowRow controls;
 		controls.kind = FlowRow::Kind::Action;
 		controls.label = tr("Controls");
@@ -4343,14 +4350,50 @@ static const char* const kGcSavesDir = "sd:/riftwii/gc/saves";
 
 static std::string GameTitle(const FrontendState& state);
 
-// sd:/riftwii/gc/cards/<ID>.raw, named as the loader names it (gcnative.cpp).
-static std::string GcCardPath(const std::string& id)
+// The game's card, named as the loader names it (gcnative.cpp): its own
+// file, or the shared one when the game's Memory card option says so.
+static bool GcCardShared(const FrontendState& state)
 {
-	std::string clean;
-	for (char c : id)
-		if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) clean += c;
-	return "sd:/riftwii/gc/cards/" + clean + ".raw";
+	return state.model.game.gc_card == "shared";
 }
+
+static std::string GcCardPath(const FrontendState& state)
+{
+	return riftwii::gc_card_path(state.game_id, GcCardShared(state));
+}
+
+// The icons of a card's saves as textures (32x32 RGB5A3, 2 KB each) for
+// the rows of the Memory Card page; freed with the page.
+class GcIconTextures {
+public:
+	GcIconTextures() = default;
+	GcIconTextures(const GcIconTextures&) = delete;
+	GcIconTextures& operator=(const GcIconTextures&) = delete;
+	~GcIconTextures() { Clear(); }
+	void Clear()
+	{
+		for (u8* buffer : buffers) free(buffer);
+		buffers.clear();
+	}
+	// The save's first icon frame, or null: no icon, or one that does not
+	// fit in its save (a damaged card), or no memory left for it.
+	const u8* Make(const std::vector<std::uint8_t>& card, unsigned slot)
+	{
+		std::vector<std::uint8_t> rgba;
+		std::string why;
+		if (!riftwii::gc_card_icon(card, slot, rgba, why)) return nullptr;
+		const std::vector<std::uint8_t> tiles = riftwii::gc_icon_rgb5a3(rgba);
+		if (tiles.empty()) return nullptr;
+		u8* buffer = static_cast<u8*>(memalign(32, tiles.size()));
+		if (!buffer) return nullptr;
+		memcpy(buffer, tiles.data(), tiles.size());
+		DCFlushRange(buffer, tiles.size());
+		buffers.push_back(buffer);
+		return buffer;
+	}
+private:
+	std::vector<u8*> buffers;
+};
 
 // A whole file of at most `limit` bytes.
 static bool ReadSmallFile(const std::string& path, std::size_t limit, std::vector<std::uint8_t>& out)
@@ -4583,12 +4626,14 @@ static bool PickGciFile(std::string& path)
 // The game's memory card: its saves, how full it is, and adding a save.
 static void MenuGcCard(FrontendState& state)
 {
-	const std::string path = GcCardPath(state.game_id);
+	const std::string path = GcCardPath(state);
+	const bool shared = GcCardShared(state);
 	std::vector<std::uint8_t> card;
 	// A card is 2 MB; the library takes 4 to 128 Mbit ones.
 	if (!ReadSmallFile(path, 16u << 20, card)) {
 		ShowPopup(tr("No memory card yet"),
-			tr("This game's memory card is made the first time the game starts: {1}.", {path}), tr("OK"));
+			shared ? tr("The shared memory card is made the first time a game that uses it starts: {1}.", {path})
+				: tr("This game's memory card is made the first time the game starts: {1}.", {path}), tr("OK"));
 		return;
 	}
 	riftwii::GcCardInfo info;
@@ -4599,12 +4644,16 @@ static void MenuGcCard(FrontendState& state)
 		return;
 	}
 	std::vector<FlowRow> rows;
+	GcIconTextures icons;
 	const auto rebuild = [&] {
 		rows.clear();
+		icons.Clear();
 		for (const riftwii::GcSave& save : info.saves) {
 			FlowRow row;
 			row.kind = FlowRow::Kind::Action;
-			row.label = FlatCapped(GcSaveName(save), 34);
+			row.icon_column = true;
+			if (save.intact) row.icon = icons.Make(card, save.slot);
+			row.label = FlatCapped(GcSaveName(save), 30);
 			row.value = save.block_count == 1 ? std::string(tr("1 block"))
 				: tr("{1} blocks", {std::to_string(save.block_count)});
 			row.dim = !save.intact;
@@ -4613,6 +4662,7 @@ static void MenuGcCard(FrontendState& state)
 		FlowRow add;
 		add.kind = FlowRow::Kind::Action;
 		add.label = tr("Add a save from the SD card");
+		add.icon_column = true;
 		rows.push_back(add);
 	};
 	rebuild();
@@ -4694,7 +4744,7 @@ static void MenuGcCard(FrontendState& state)
 		}
 		return false;
 	};
-	RunRowPage(tr("Memory Card"), GameTitle(state), rows, note, act);
+	RunRowPage(shared ? tr("Shared Memory Card") : tr("Memory Card"), GameTitle(state), rows, note, act);
 }
 
 // What a GameCube game's crash screen says (gcnative.hpp's
@@ -6173,8 +6223,11 @@ static std::string PlayTileNote(const FrontendState& state)
 // The Saves tile's note for a GameCube game.
 static std::string GcSaveNote(const FrontendState& state)
 {
-	return tr("Saves go to this game's own memory card on the SD card: {1}.", {GcCardPath(state.game_id)}) + " " +
-		tr("Press A to see its saves.");
+	const std::string card = GcCardPath(state);
+	const std::string where = GcCardShared(state)
+		? tr("Saves go to the shared memory card on the SD card: {1}.", {card})
+		: tr("Saves go to this game's own memory card on the SD card: {1}.", {card});
+	return where + " " + tr("Press A to see its saves.");
 }
 
 // The band's line of facts: the ID, the year, the genre, how many play,
@@ -6209,6 +6262,7 @@ static int ChangedGameSettings(const riftwii::GameSettings& g)
 	if (g.region_video == "on") ++changed;
 	if (g.region_strings == "on") ++changed;
 	if (g.gc_disc_reads == "fast") ++changed;
+	if (g.gc_card == "shared") ++changed;
 	if (g.rumble == "off") ++changed;
 	if (g.speaker == "off") ++changed;
 	return changed;
@@ -6368,6 +6422,8 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 				say(tr("Downloads this game's box art from GameTDB now."));
 			else if (ref.what == RowRef::What::GcDiscReads)
 				say(tr("Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."));
+			else if (ref.what == RowRef::What::GcCard)
+				say(tr("Own: a card for this game alone. Shared: one card for all games (Japanese games have a shared card of their own). Switching copies no saves: they stay on the other card; move them with Copy to the SD card and Add a save from the SD card on the Saves page."));
 			else if (ref.what == RowRef::What::GcControls)
 				say(std::string(tr("Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.")) + " " +
 					tr("On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."));
@@ -6411,6 +6467,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::Language) game.language = StepValue(kGameLanguages, game.language, direction);
 			else if (ref.what == RowRef::What::Cios) game.cios = StepValue(kCiosChoices, game.cios, direction);
 			else if (ref.what == RowRef::What::GcDiscReads) game.gc_disc_reads = game.gc_disc_reads == "fast" ? "drive" : "fast";
+			else if (ref.what == RowRef::What::GcCard) game.gc_card = game.gc_card == "shared" ? "own" : "shared";
 			else if (ref.what == RowRef::What::GcControls) {
 				ShowGcControls(false);
 				changed = false;
