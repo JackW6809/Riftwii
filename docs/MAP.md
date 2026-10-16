@@ -59,7 +59,7 @@ and `vendor-*` is third-party code.
 | Downloads: game names, covers, cheats, updates | `wii/online/online.cpp`, `src/net/http.cpp`, `wii/online/netsock.cpp`, `wii/online/tls.cpp`, `src/data/titles.cpp`, `src/art/coverart.cpp`, `src/net/update.cpp` |
 | Packs served from a PC (RiiFS) | `wii/online/netpacks.cpp`, `src/net/riifs.cpp`, `src/net/riifs_sync.cpp`, `docs/RIIFS.md` |
 | Returning to RiftWii (or another title) when a game exits | `src/patching/returnto.cpp`, `apply_return_to` in `wii/launch/boot.cpp`, `wii/core/restart.cpp` |
-| GameCube games (RiftWii's own loader, in Wii mode) | `wii/launch/gclaunch.cpp`, `wii/launch/gcnative.cpp`, `wii/launch/gcpatch.cpp`, `runtime/gc/`, `src/patching/vcdiff.cpp` |
+| GameCube games (RiftWii's own loader, in Wii mode) | `wii/launch/gclaunch.cpp`, `wii/launch/gcnative.cpp`, `wii/launch/gcpatch.cpp`, `runtime/gc/`, `src/patching/vcdiff.cpp`, `src/patching/gcoverlay.cpp` |
 | Being started by another loader | `wii/launch/headless.cpp`, `src/patching/launchargs.cpp`, `docs/HEADLESS.md` |
 | The Wii Menu channel | `channel/`, `wii/launch/channel.cpp`, `tools/make_channel.py`, `docs/CHANNEL.md` |
 | Memory the menu may use | `wii/core/memlimits.cpp` |
@@ -140,7 +140,7 @@ The build compiles every folder into one, so no two files share a name.
 | `wfc.cpp` | Patching the game for an online server |
 | `headless.cpp` | Launches another loader asks for |
 | `autorun.cpp` | Unattended test runs (`sd:/riftwii/autorun.txt`) |
-| `gclaunch.cpp` | GameCube games: finding them on the card and starting them |
+| `gclaunch.cpp` | GameCube games: finding them on the card, planning their packs, starting them |
 | `gcnative.cpp` | GameCube games in Wii mode: the game patched to read the SD card, its sound, controls and memory card through the `runtime/gc` blob |
 | `gcpatch.cpp` | Patch-only GameCube mods (xdelta): listed as the game they make, prepared once |
 
@@ -213,6 +213,7 @@ document it.
 | `returnto` | Returning to RiftWii from a game |
 | `launchargs` | Arguments from another loader |
 | `vcdiff` | Applying VCDIFF (xdelta) patches |
+| `gcoverlay` | GameCube packs: their files laid out past the image, the new FST, and the runs the GameCube loader serves the disc from |
 
 ### `src/disc/`: wii discs, executables, banners and fonts
 

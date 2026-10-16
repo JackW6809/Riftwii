@@ -22,6 +22,7 @@
 #include "gc_rt.h"
 #include "log.hpp"
 #include "riftwii/fat32.hpp"
+#include "riftwii/gcoverlay.hpp"
 #include "riftwii/redirect.hpp"
 #include "riftwii/sha1.hpp"
 #include "riftwii_gc_bin.h"
@@ -816,7 +817,7 @@ std::uint32_t find_exi_functions(const Code& code, std::uint32_t (&out)[GC_EXI_H
 
 }  // namespace
 
-bool LaunchGcNative(const GcImage& image, std::string& error) {
+bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string& error) {
     logf("GameCube (native): %s (%s)\n", image.id.c_str(), image.path.c_str());
     // Test presses for Dolphin runs with no controller to press with
     // (sd:/riftwii/gc/press), read while the card is still the file
@@ -825,8 +826,10 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     const bool test_presses = stat("sd:/riftwii/gc/press", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
-    std::vector<PlacedRun> placed;
-    if (!place_on_fragments(file.fragments, 0, file.entry.size, placed, error)) return false;
+    // The game's view of the disc: the image, then the packs' window
+    // (gcoverlay.hpp) when there are packs.
+    std::vector<GcRun> placed;
+    if (!gc_disc_runs(file.fragments, file.entry.size, pack, placed, error)) return false;
 
     std::FILE* f = std::fopen(image.path.c_str(), "rb");
     if (!f) {
@@ -838,10 +841,15 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     bool ok = read_at(f, 0, boot.data(), boot.size()) && read_at(f, 0x440, bi2.data(), bi2.size());
     if (!ok) error = "cannot read " + image.path;
     ok = ok && read_dol(f, be32(&boot[0x420]), dol, error);
+    // With packs, the header and FST are the plan's (the files moved to
+    // its window), and the game reads that FST from memory.
+    if (pack) std::copy(pack->header.begin(), pack->header.end(), boot.begin() + 0x420);
     const std::uint32_t fst_size = be32(&boot[0x428]);
     const std::uint32_t fst_max = std::max(be32(&boot[0x42C]), fst_size);
     std::vector<std::uint8_t> fst(fst_size);
-    if (ok && (fst.empty() || !read_at(f, be32(&boot[0x424]), fst.data(), fst.size()))) {
+    if (pack) {
+        fst = pack->fst;
+    } else if (ok && (fst.empty() || !read_at(f, be32(&boot[0x424]), fst.data(), fst.size()))) {
         error = "cannot read the game's FST";
         ok = false;
     }
@@ -893,14 +901,21 @@ bool LaunchGcNative(const GcImage& image, std::string& error) {
     std::memcpy(reinterpret_cast<void*>(blob_addr), riftwii_gc_bin, h.size);
     auto* ctx = reinterpret_cast<gc_rt_context*>(blob_addr + h.context_offset);
     auto* runs = reinterpret_cast<gc_rt_run*>(runs_addr);
-    std::uint32_t disc = 0;
     for (std::size_t i = 0; i < placed.size(); ++i) {
-        runs[i].disc = disc;
-        runs[i].length = static_cast<std::uint32_t>(placed[i].length);
-        runs[i].source = static_cast<std::uint32_t>(placed[i].source);
-        runs[i].skip = placed[i].skip;
-        runs[i].kind = GC_RUN_SD;
-        disc += runs[i].length;
+        const GcRun& r = placed[i];
+        runs[i].disc = static_cast<std::uint32_t>(r.disc);
+        runs[i].length = static_cast<std::uint32_t>(r.length);
+        runs[i].skip = r.skip;
+        if (r.kind == GcRun::Kind::Sd) {
+            runs[i].kind = GC_RUN_SD;
+            runs[i].source = static_cast<std::uint32_t>(r.sector);
+        } else if (r.kind == GcRun::Kind::Fst) {
+            runs[i].kind = GC_RUN_MEM;
+            runs[i].source = fst_addr + static_cast<std::uint32_t>(r.fst_offset);
+        } else {
+            runs[i].kind = GC_RUN_ZERO;
+            runs[i].source = 0;
+        }
     }
     std::memcpy(reinterpret_cast<void*>(fst_addr), fst.data(), fst.size());
     std::memcpy(reinterpret_cast<void*>(bi2_addr), bi2.data(), bi2.size());

@@ -7,10 +7,22 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
+#include <map>
+#include <memory>
+#include <sstream>
 
 #include "gcnative.hpp"
 #include "gcpatch.hpp"
 #include "log.hpp"
+#include "netpacks.hpp"
+#include "riftwii/apply.hpp"
+#include "riftwii/expand.hpp"
+#include "riftwii/fst.hpp"
+#include "riftwii/gcoverlay.hpp"
+#include "riftwii/patch.hpp"
+#include "riftwii/redirect.hpp"
+#include "sdfile.hpp"
 
 namespace riftwii::wii {
 namespace {
@@ -36,6 +48,268 @@ bool read_gc_id(const std::string& path, std::string& id) {
     std::fclose(f);
     if (!ok || be32(head + 0x1C) != 0xC2339F3Du) return false;
     id.assign(reinterpret_cast<const char*>(head), 6);
+    return true;
+}
+
+// The image read as a whole; disc files are ranges of it.
+class IsoFile {
+public:
+    explicit IsoFile(const std::string& path) : f_(std::fopen(path.c_str(), "rb")) {}
+    ~IsoFile() { close(); }
+    bool ok() const { return f_ != nullptr; }
+    void close() {
+        if (f_) std::fclose(f_);
+        f_ = nullptr;
+    }
+    std::uint64_t size() {
+        if (fseeko(f_, 0, SEEK_END) != 0) return 0;
+        return static_cast<std::uint64_t>(ftello(f_));
+    }
+    bool read(std::uint64_t offset, std::uint8_t* out, std::size_t length) {
+        if (fseeko(f_, static_cast<off_t>(offset), SEEK_SET) != 0) return false;
+        return std::fread(out, 1, length, f_) == length;
+    }
+
+private:
+    std::FILE* f_;
+};
+
+class IsoRange final : public ByteSource {
+public:
+    IsoRange(IsoFile& iso, std::uint64_t offset, std::uint64_t size) : iso_(iso), offset_(offset), size_(size) {}
+    std::uint64_t size() const override { return size_; }
+    bool read(std::uint64_t offset, std::uint8_t* destination, std::size_t length) const override {
+        if (offset > size_ || length > size_ - offset) return false;
+        return iso_.read(offset_ + offset, destination, length);
+    }
+    std::uint64_t disc_offset() const { return offset_; }
+
+private:
+    IsoFile& iso_;
+    std::uint64_t offset_, size_;
+};
+
+class SdSource final : public ByteSource {
+public:
+    explicit SdSource(const Fat32File& file) : file_(file) {}
+    std::uint64_t size() const override { return file_.entry.size; }
+    bool read(std::uint64_t offset, std::uint8_t* destination, std::size_t length) const override {
+        return read_sd_file(file_, offset, destination, length);
+    }
+    const Fat32File& file() const { return file_; }
+
+private:
+    const Fat32File& file_;
+};
+
+// Disc files from the image, the packs' files from the card (read raw,
+// so their sectors are known for the overlay).
+class GcProvider final : public ContentProvider {
+public:
+    GcProvider(IsoFile& iso, const Fst& fst) : iso_(iso), fst_(fst) {}
+
+    OpenStatus open_disc(const std::string& disc_path, std::unique_ptr<ByteSource>& out, std::string& error) override {
+        std::uint32_t index = fst_.find(disc_path, false);
+        if (index == Fst::npos) index = fst_.find(disc_path, true);
+        if (index == Fst::npos) {
+            error = "no such disc file '" + disc_path + "'";
+            return OpenStatus::NotFound;
+        }
+        const FstEntry& e = fst_.entries()[index];
+        if (e.is_directory) {
+            error = "'" + disc_path + "' is a directory";
+            return OpenStatus::Invalid;
+        }
+        out = std::make_unique<IsoRange>(iso_, e.offset, e.size);
+        return OpenStatus::Ok;
+    }
+
+    OpenStatus open_external(const std::string& sd_path, std::unique_ptr<ByteSource>& out, std::string& error) override {
+        std::string abs = sd_path.compare(0, 3, "sd:") == 0 ? sd_path.substr(3) : sd_path;
+        if (abs.empty() || abs[0] != '/') abs = "/" + abs;
+        const std::string key = "sd:" + abs;
+        auto found = files_.find(key);
+        if (found == files_.end()) {
+            Fat32File file;
+            bool missing = false;
+            if (!resolve_sd_file(key, file, missing, error)) {
+                const OpenStatus status = missing ? OpenStatus::NotFound : OpenStatus::IoError;
+                error = "external file '" + sd_path + "' " + to_string(status) + ": " + error;
+                return status;
+            }
+            if (file.entry.is_directory) {
+                error = "'" + key + "' is a directory";
+                return OpenStatus::Invalid;
+            }
+            found = files_.emplace(key, std::move(file)).first;
+        }
+        out = std::make_unique<SdSource>(found->second);
+        return OpenStatus::Ok;
+    }
+
+    OpenStatus list_external(const std::string& sd_dir, std::vector<ExternalEntry>& out, std::string& error) override {
+        std::string abs = sd_dir.compare(0, 3, "sd:") == 0 ? sd_dir.substr(3) : sd_dir;
+        if (abs.empty() || abs[0] != '/') abs = "/" + abs;
+        std::vector<Fat32Entry> entries;
+        bool missing = false;
+        if (!list_sd_directory("sd:" + abs, entries, missing, error))
+            return missing ? OpenStatus::NotFound : OpenStatus::IoError;
+        out.clear();
+        for (const Fat32Entry& e : entries) {
+            ExternalEntry x;
+            x.name = e.name;
+            x.is_directory = e.is_directory;
+            out.push_back(std::move(x));
+        }
+        return OpenStatus::Ok;
+    }
+
+private:
+    IsoFile& iso_;
+    const Fst& fst_;
+    std::map<std::string, Fat32File> files_;  // outlives every SdSource
+};
+
+// One composed file as overlay pieces: untouched bytes from the image,
+// the packs' bytes from their card sectors, zeros.
+bool to_pieces(const AppliedFile& file, std::vector<GcPiece>& out, std::string& error) {
+    out.clear();
+    for (const FlatExtent& x : file.flatten()) {
+        if (x.length == 0) continue;
+        if (x.kind == FlatExtent::Kind::Zero) {
+            GcPiece p;
+            p.kind = GcPiece::Kind::Zero;
+            p.length = x.length;
+            out.push_back(p);
+        } else if (x.kind == FlatExtent::Kind::Original) {
+            const auto* range = dynamic_cast<const IsoRange*>(x.source);
+            if (!range) {
+                error = "an untouched piece is not from the image";
+                return false;
+            }
+            GcPiece p;
+            p.kind = GcPiece::Kind::Image;
+            p.source = range->disc_offset() + x.source_offset;
+            p.length = x.length;
+            out.push_back(p);
+        } else {
+            const auto* sd = dynamic_cast<const SdSource*>(x.source);
+            if (!sd) {
+                error = "a pack's piece is not on the SD card";
+                return false;
+            }
+            std::vector<PlacedRun> runs;
+            if (!place_on_fragments(sd->file().fragments, x.source_offset, x.length, runs, error)) return false;
+            for (const PlacedRun& r : runs) {
+                GcPiece p;
+                p.kind = GcPiece::Kind::Device;
+                p.source = r.source;
+                p.skip = r.skip;
+                p.length = r.length;
+                out.push_back(p);
+            }
+        }
+    }
+    return true;
+}
+
+bool read_text(const std::string& path, std::string& text) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return false;
+    std::stringstream all;
+    all << in.rdbuf();
+    text = all.str();
+    return true;
+}
+
+// The packs' files as overlay files, in the order the Wii path applies them.
+bool plan_packs(const std::vector<PackageChoices>& packages, const std::uint8_t* boot, const Fst& fst,
+                GcProvider& provider, std::vector<GcFile>& out, std::string& error) {
+    DiscIdentity disc;
+    disc.id.assign(reinterpret_cast<const char*>(boot), 6);
+    disc.number = boot[6];
+    disc.revision = boot[7];
+    std::vector<FilePatch> files;
+    for (const PackageChoices& pack : packages) {
+        const std::string& xml = pack.xml_sd_path;
+        std::string text;
+        if (!read_text(xml, text)) {
+            error = "cannot open " + xml;
+            return false;
+        }
+        Package package;
+        if (!parse_package(text, package, error, PackFolderOf(xml))) {
+            error = xml + ": " + error;
+            return false;
+        }
+        for (const auto& c : pack.choices) {
+            if (!select_choice(package, c.first, c.second, error)) {
+                error = xml + ": " + error;
+                return false;
+            }
+        }
+        PlanOptions allowed;
+        allowed.allow_filename_targets = true;
+        allowed.allow_folders = true;
+        Plan plan;
+        if (!plan_package(package, disc, allowed, plan, error)) {
+            error = xml + ": " + error;
+            return false;
+        }
+        // Never a partly applied mod: what GameCube games cannot take yet
+        // stops the launch.
+        if (!plan.memory.empty() || !plan.savegames.empty() || !plan.shifts.empty()) {
+            error = xml + ": memory, savegame and shift patches are not supported for GameCube games yet";
+            return false;
+        }
+        std::vector<std::string> notes;
+        std::vector<FilePatch> expanded;
+        if (!expand_plan(plan, fst, provider, expanded, notes, error)) {
+            error = xml + ": " + error;
+            return false;
+        }
+        for (const std::string& n : notes) logf("GameCube: %s\n", n.c_str());
+        logf("GameCube: %s: %u file patch(es)\n", xml.c_str(), static_cast<unsigned>(expanded.size()));
+        files.insert(files.end(), expanded.begin(), expanded.end());
+    }
+
+    // Patches on the same file apply in order, one on top of the other.
+    std::vector<std::string> order;
+    std::map<std::string, std::vector<FilePatch>> groups;
+    for (const FilePatch& patch : files) {
+        std::vector<std::string> targets;
+        if (patch.is_filename) {
+            std::vector<std::uint32_t> named = fst.find_files_named(patch.disc, true);
+            for (std::uint32_t i : named) {
+                std::string path;
+                if (fst.path_of(i, path)) targets.push_back(path);
+            }
+        } else {
+            targets.push_back(patch.disc);
+        }
+        for (const std::string& t : targets) {
+            FilePatch one = patch;
+            one.disc = t;
+            one.is_filename = false;
+            if (!groups.count(t)) order.push_back(t);
+            groups[t].push_back(one);
+        }
+    }
+    out.clear();
+    for (const std::string& disc_path : order) {
+        std::unique_ptr<AppliedFile> applied;
+        if (!apply_patches(groups[disc_path], provider, applied, error)) return false;
+        GcFile f;
+        f.disc_path = disc_path;
+        f.create = fst.find(disc_path, true) == Fst::npos;
+        if (!to_pieces(*applied, f.pieces, error)) {
+            error = disc_path + ": " + error;
+            return false;
+        }
+        logf("GameCube: %s%s, %llu bytes in %u piece(s)\n", f.create ? "created " : "", disc_path.c_str(),
+             static_cast<unsigned long long>(applied->size()), static_cast<unsigned>(f.pieces.size()));
+        out.push_back(std::move(f));
+    }
     return true;
 }
 
@@ -124,17 +398,54 @@ void ScanGcImages(std::vector<ImageGame>& out) {
     ScanGcPatches(out);
 }
 
-bool LaunchGcGame(const GcImage& wanted, const std::vector<PackageChoices>& packages, std::string& error) {
-    // Never a partly applied mod: the GameCube loader serves the image as
-    // it is and has no way to apply a pack's files yet.
-    if (!packages.empty()) {
-        error = "packs are not supported for GameCube games yet; switch the game's packs off to play it";
+namespace {
+
+// The packs as a plan over the image (riftwii/gcoverlay.hpp): their files
+// read from the image and the card, laid out past the image's end.
+bool plan_gc_packs(const GcImage& image, const std::vector<PackageChoices>& packages, GcOverlayPlan& plan,
+                   std::string& error) {
+    IsoFile iso(image.path);
+    if (!iso.ok()) {
+        error = "cannot open " + image.path;
         return false;
     }
+    const std::uint64_t iso_size = iso.size();
+    std::vector<std::uint8_t> boot(0x440);
+    if (!iso.read(0, boot.data(), boot.size())) {
+        error = "cannot read " + image.path;
+        return false;
+    }
+    std::vector<std::uint8_t> fst_bytes(be32(&boot[0x428]));
+    if (fst_bytes.empty() || !iso.read(be32(&boot[0x424]), fst_bytes.data(), fst_bytes.size())) {
+        error = "cannot read the game's FST";
+        return false;
+    }
+    Fst fst;
+    if (!Fst::parse(fst_bytes.data(), fst_bytes.size(), false, fst, error)) {
+        error = "the game's FST: " + error;
+        return false;
+    }
+    GcProvider provider(iso, fst);
+    std::vector<GcFile> files;
+    if (!plan_packs(packages, boot.data(), fst, provider, files, error)) return false;
+    if (!plan_gc_overlay(boot, fst_bytes, iso_size, files, plan, error)) return false;
+    logf("GameCube: the packs change %u file(s); the new FST is %u bytes at 0x%llx\n",
+         static_cast<unsigned>(files.size()), static_cast<unsigned>(plan.fst.size()),
+         static_cast<unsigned long long>(plan.fst_offset));
+    return true;
+}
+
+}  // namespace
+
+bool LaunchGcGame(const GcImage& wanted, const std::vector<PackageChoices>& packages, std::string& error) {
     GcImage image = wanted;
     if (!image.patch_source.empty() && !PrepareGcPatch(image, error)) return false;
     logf("GameCube: %s (%s)\n", image.id.c_str(), image.path.c_str());
-    return LaunchGcNative(image, error);
+    if (packages.empty()) return LaunchGcNative(image, nullptr, error);
+    // A pack that cannot be applied whole stops the launch (plan_packs).
+    GcOverlayPlan plan;
+    if (!plan_gc_packs(image, packages, plan, error)) return false;
+    return LaunchGcNative(image, &plan, error);
 }
 
 }  // namespace riftwii::wii

@@ -10,7 +10,8 @@
 
 // GameCube games on the SD card, started in Wii mode by RiftWii's own
 // loader (gcnative.hpp). Patch-only mods (gcpatch.hpp) are listed as the
-// game they make. Packs are not supported for them yet.
+// game they make. Packs are applied without touching the image: their
+// files are served from a window past its end (riftwii/gcoverlay.hpp).
 namespace riftwii::wii {
 
 struct GcImage {
@@ -27,8 +28,10 @@ bool FindGcImage(const std::string& game, const std::string& path, GcImage& out)
 // game list: opened (header read), never needing d2x.
 void ScanGcImages(std::vector<ImageGame>& out);
 
-// Starts the game (prepared from its patch first, when it is one).
-// Refuses any packs. Returns only on failure.
+// Starts the game (prepared from its patch first, when it is one) with
+// the packs, in order, each with the choices picked over its defaults
+// (none: the game as it is). Packs with memory, savegame or shift patches
+// stop the launch. Returns only on failure.
 bool LaunchGcGame(const GcImage& image, const std::vector<PackageChoices>& packages, std::string& error);
 
 }  // namespace riftwii::wii
