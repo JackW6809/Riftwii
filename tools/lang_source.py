@@ -1353,6 +1353,20 @@ T = {
     "Building {1}": ("Creando {1}", "{1}を作成中", "A criar {1}", "Creazione di {1}"),
     "Reading {1} and writing {2}": ("Leyendo {1} y escribiendo {2}", "{1}を読み込み、{2}を書き込み中", "A ler {1} e a escrever {2}", "Lettura di {1} e scrittura di {2}"),
     "{1} not built": ("{1} no se creó", "{1}は作られませんでした", "{1} não foi criado", "{1} non creato"),
+    "This game's own options: how its disc is read, and its controls.": ("Las opciones propias de este juego: cómo se lee su disco y sus controles.", "このゲーム専用のオプション: ディスクの読み込み方と操作。", "As opções próprias deste jogo: como o disco é lido e os controlos.", "Le opzioni proprie di questo gioco: come viene letto il disco e i comandi."),
+    "Not made yet": ("Aún no creado", "まだ作られていません", "Ainda não criado", "Non ancora creato"),
+    "Home lists the GameCube games only, from sd:/games.": ("Inicio muestra solo los juegos de GameCube, de sd:/games.", "ホームにはsd:/gamesのゲームキューブのゲームだけを表示します。", "O Início mostra só os jogos de GameCube, de sd:/games.", "La Home mostra solo i giochi GameCube, da sd:/games."),
+    "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso.": ("Un juego de GameCube va en la tarjeta SD, como sd:/games/<su ID>/game.iso.", "ゲームキューブのゲームはSDカードにsd:/games/<ID>/game.isoとして入れます。", "Um jogo de GameCube vai no cartão SD, como sd:/games/<o seu ID>/game.iso.", "Un gioco GameCube va sulla scheda SD, come sd:/games/<il suo ID>/game.iso."),
+    "Disc reads": ("Lectura del disco", "ディスクの読み込み", "Leitura do disco", "Lettura del disco"),
+    "Fast": ("Rápida", "高速", "Rápida", "Veloce"),
+    "Like a GameCube": ("Como una GameCube", "ゲームキューブと同じ", "Como uma GameCube", "Come un GameCube"),
+    "Controls": ("Controles", "操作", "Controlos", "Comandi"),
+    "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it.": ("Como una GameCube: cada lectura tarda lo mismo que en la unidad de una GameCube, con lo que cuentan algunos juegos. Rápida: las lecturas van a la velocidad de la tarjeta SD y la carga es más corta; pruébala si el juego funciona bien así.", "ゲームキューブと同じ: 読み込みごとにゲームキューブのドライブと同じ時間がかかります。これを前提にするゲームもあります。高速: SDカードの速さで読み込むので、ロードが短くなります。ゲームが問題なく動くなら試してください。", "Como uma GameCube: cada leitura demora o mesmo que na unidade de uma GameCube, com o que alguns jogos contam. Rápida: as leituras vêm à velocidade do cartão SD, por isso o carregamento é mais curto; experimente se o jogo funcionar bem assim.", "Come un GameCube: ogni lettura dura quanto sull'unità di un GameCube, su cui alcuni giochi contano. Veloce: le letture vanno alla velocità della scheda SD, quindi i caricamenti sono più brevi; provala se il gioco funziona bene così."),
+    "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.": ("Qué botones del mando de Wii, el Nunchuk y el mando clásico hacen de los del mando de GameCube.", "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかを表示します。", "Que botões do Comando Wii, do Nunchuk e do Comando Clássico fazem de botões do comando GameCube.", "Quali pulsanti del telecomando Wii, del Nunchuk e del controller classico fanno da pulsanti del controller GameCube."),
+    "GameCube controls": ("Controles de GameCube", "ゲームキューブの操作", "Controlos de GameCube", "Comandi GameCube"),
+    "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.": ("Mando de Wii solo, en horizontal: 2 es A, 1 es B, A es X, HOME es Y, el gatillo es R, - es Z, + es Start; la cruceta mueve.", "Wiiリモコンだけを横持ち: 2がA、1がB、AがX、HOMEがY、トリガーがR、-がZ、+がスタート。十字ボタンで移動します。", "Comando Wii sozinho, na horizontal: 2 é A, 1 é B, A é X, HOME é Y, o gatilho é R, - é Z, + é Start; a cruz direcional move.", "Telecomando Wii da solo, in orizzontale: 2 è A, 1 è B, A è X, HOME è Y, il grilletto è R, - è Z, + è Start; la croce direzionale muove."),
+    "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.": ("Con un Nunchuk: A, B, 1 es X, 2 es Y, C es L, Z es R, - es Z, + es Start; la palanca mueve y la cruceta es el stick C.", "ヌンチャク付き: A、B、1がX、2がY、CがL、ZがR、-がZ、+がスタート。スティックで移動し、十字ボタンがCスティックです。", "Com um Nunchuk: A, B, 1 é X, 2 é Y, C é L, Z é R, - é Z, + é Start; o manípulo move e a cruz direcional é o stick C.", "Con un Nunchuk: A, B, 1 è X, 2 è Y, C è L, Z è R, - è Z, + è Start; la levetta muove e la croce direzionale è lo stick C."),
+    "A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller.": ("Un mando clásico o un mando de GameCube: sus botones, como en un mando de GameCube.", "クラシックコントローラかゲームキューブコントローラ: ゲームキューブコントローラと同じボタンです。", "Um Comando Clássico ou um comando GameCube: os seus botões, como num comando GameCube.", "Un controller classico o un controller GameCube: i suoi pulsanti, come su un controller GameCube."),
     "SD image made": ("Imagen SD creada", "SDイメージを作成しました", "Imagem SD criada", "Immagine SD creata"),
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.": ("{1} está en sd:/riftwii y la build que contiene está activada: el juego usa la imagen como su tarjeta SD.", "{1}はsd:/riftwiiにあり、中のビルドはオンになっています: ゲームはこのイメージをSDカードとして使います。", "{1} está em sd:/riftwii e a build dentro dela está ativada: o jogo usa a imagem como seu cartão SD.", "{1} è in sd:/riftwii e la build al suo interno è attivata: il gioco usa l'immagine come sua scheda SD."),
     "Remove from the list": ("Quitar de la lista", "一覧から削除", "Remover da lista", "Rimuovi dall'elenco"),
@@ -2782,6 +2796,34 @@ KO = {
         "{1} 읽고 {2} 쓰는 중",
     "{1} not built":
         "{1}을(를) 만들지 못했습니다",
+    "This game's own options: how its disc is read, and its controls.":
+        "이 게임만의 옵션: 디스크 읽기 방식과 조작.",
+    "Not made yet":
+        "아직 만들어지지 않음",
+    "Home lists the GameCube games only, from sd:/games.":
+        "홈에 sd:/games의 게임큐브 게임만 표시합니다.",
+    "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso.":
+        "게임큐브 게임은 SD 카드에 sd:/games/<ID>/game.iso로 넣습니다.",
+    "Disc reads":
+        "디스크 읽기",
+    "Fast":
+        "빠르게",
+    "Like a GameCube":
+        "게임큐브처럼",
+    "Controls":
+        "조작",
+    "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it.":
+        "게임큐브처럼: 읽을 때마다 게임큐브 드라이브와 같은 시간이 걸리며, 일부 게임은 이를 전제로 합니다. 빠르게: SD 카드 속도로 읽어 로딩이 짧아집니다. 게임이 잘 돌아가면 사용해 보세요.",
+    "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.":
+        "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지 보여 줍니다.",
+    "GameCube controls":
+        "게임큐브 조작",
+    "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.":
+        "Wii 리모컨만 가로로: 2는 A, 1은 B, A는 X, HOME은 Y, 트리거는 R, -는 Z, +는 스타트, 십자 버튼으로 움직입니다.",
+    "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.":
+        "눈차크와 함께: A, B, 1은 X, 2는 Y, C는 L, Z는 R, -는 Z, +는 스타트, 스틱으로 움직이고 십자 버튼은 C스틱입니다.",
+    "A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller.":
+        "클래식 컨트롤러나 게임큐브 컨트롤러: 게임큐브 컨트롤러와 같은 버튼입니다.",
     "SD image made":
         "SD 이미지 생성됨",
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.":
@@ -4347,6 +4389,34 @@ FR = {
         "Lecture de {1} et écriture de {2}",
     "{1} not built":
         "{1} non créé",
+    "This game's own options: how its disc is read, and its controls.":
+        "Les options propres à ce jeu : la lecture de son disque et ses commandes.",
+    "Not made yet":
+        "Pas encore créé",
+    "Home lists the GameCube games only, from sd:/games.":
+        "L'accueil n'affiche que les jeux GameCube, depuis sd:/games.",
+    "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso.":
+        "Un jeu GameCube se met sur la carte SD, en sd:/games/<son ID>/game.iso.",
+    "Disc reads":
+        "Lecture du disque",
+    "Fast":
+        "Rapide",
+    "Like a GameCube":
+        "Comme une GameCube",
+    "Controls":
+        "Commandes",
+    "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it.":
+        "Comme une GameCube : chaque lecture prend autant de temps que sur le lecteur d'une GameCube, ce sur quoi certains jeux comptent. Rapide : les lectures se font à la vitesse de la carte SD, le chargement est donc plus court ; essayez-la si le jeu fonctionne bien ainsi.",
+    "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.":
+        "Quels boutons de la Wiimote, du Nunchuk et de la manette classique font office de ceux de la manette GameCube.",
+    "GameCube controls":
+        "Commandes GameCube",
+    "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.":
+        "Wiimote seule, tenue à l'horizontale : 2 est A, 1 est B, A est X, HOME est Y, la gâchette est R, - est Z, + est Start ; la croix directionnelle déplace.",
+    "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.":
+        "Avec un Nunchuk : A, B, 1 est X, 2 est Y, C est L, Z est R, - est Z, + est Start ; le stick déplace et la croix directionnelle est le stick C.",
+    "A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller.":
+        "Une manette classique ou une manette GameCube : ses boutons, comme sur une manette GameCube.",
     "SD image made":
         "Image SD créée",
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.":

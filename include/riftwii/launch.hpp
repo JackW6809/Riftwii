@@ -111,6 +111,9 @@ struct GameSettings {
     std::string rumble = "on";          // "off": gx_rumble_off
     std::string speaker = "on";         // "off": gx_speaker_off
     std::string region_strings = "off"; // "on": the Region strings fix (gx_country_strings)
+    // A GameCube game's disc reads: "drive" take a GameCube drive's time
+    // (some games count on it), "fast" come at the SD card's speed.
+    std::string gc_disc_reads = "drive";
 };
 
 class LaunchModel {

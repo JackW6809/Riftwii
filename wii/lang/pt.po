@@ -1449,6 +1449,48 @@ msgstr "A ler {1} e a escrever {2}"
 msgid "{1} not built"
 msgstr "{1} não foi criado"
 
+msgid "This game's own options: how its disc is read, and its controls."
+msgstr "As opções próprias deste jogo: como o disco é lido e os controlos."
+
+msgid "Not made yet"
+msgstr "Ainda não criado"
+
+msgid "Home lists the GameCube games only, from sd:/games."
+msgstr "O Início mostra só os jogos de GameCube, de sd:/games."
+
+msgid "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso."
+msgstr "Um jogo de GameCube vai no cartão SD, como sd:/games/<o seu ID>/game.iso."
+
+msgid "Disc reads"
+msgstr "Leitura do disco"
+
+msgid "Fast"
+msgstr "Rápida"
+
+msgid "Like a GameCube"
+msgstr "Como uma GameCube"
+
+msgid "Controls"
+msgstr "Controlos"
+
+msgid "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."
+msgstr "Como uma GameCube: cada leitura demora o mesmo que na unidade de uma GameCube, com o que alguns jogos contam. Rápida: as leituras vêm à velocidade do cartão SD, por isso o carregamento é mais curto; experimente se o jogo funcionar bem assim."
+
+msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
+msgstr "Que botões do Comando Wii, do Nunchuk e do Comando Clássico fazem de botões do comando GameCube."
+
+msgid "GameCube controls"
+msgstr "Controlos de GameCube"
+
+msgid "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves."
+msgstr "Comando Wii sozinho, na horizontal: 2 é A, 1 é B, A é X, HOME é Y, o gatilho é R, - é Z, + é Start; a cruz direcional move."
+
+msgid "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick."
+msgstr "Com um Nunchuk: A, B, 1 é X, 2 é Y, C é L, Z é R, - é Z, + é Start; o manípulo move e a cruz direcional é o stick C."
+
+msgid "A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller."
+msgstr "Um Comando Clássico ou um comando GameCube: os seus botões, como num comando GameCube."
+
 msgid "SD image made"
 msgstr "Imagem SD criada"
 

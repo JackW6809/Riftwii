@@ -440,7 +440,18 @@ bool plan_gc_packs(const GcImage& image, const std::vector<PackageChoices>& pack
 bool LaunchGcGame(const GcImage& wanted, const std::vector<PackageChoices>& packages, std::string& error) {
     GcImage image = wanted;
     if (!image.patch_source.empty() && !PrepareGcPatch(image, error)) return false;
-    logf("GameCube: %s (%s)\n", image.id.c_str(), image.path.c_str());
+    // The game's own options, from the file the menu keeps them in (the
+    // choices file, riftwii/launch.hpp's restore).
+    {
+        std::ifstream in("sd:/riftwii/choices/" + image.id + ".txt");
+        std::stringstream text;
+        text << in.rdbuf();
+        LaunchModel choices;
+        choices.restore(text.str());
+        image.drive_timing = choices.game.gc_disc_reads != "fast";
+    }
+    logf("GameCube: %s (%s), disc reads %s\n", image.id.c_str(), image.path.c_str(),
+         image.drive_timing ? "at a GameCube drive's speed" : "at the SD card's speed");
     if (packages.empty()) return LaunchGcNative(image, nullptr, error);
     // A pack that cannot be applied whole stops the launch (plan_packs).
     GcOverlayPlan plan;

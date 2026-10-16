@@ -1449,6 +1449,48 @@ msgstr "{1} 읽고 {2} 쓰는 중"
 msgid "{1} not built"
 msgstr "{1}을(를) 만들지 못했습니다"
 
+msgid "This game's own options: how its disc is read, and its controls."
+msgstr "이 게임만의 옵션: 디스크 읽기 방식과 조작."
+
+msgid "Not made yet"
+msgstr "아직 만들어지지 않음"
+
+msgid "Home lists the GameCube games only, from sd:/games."
+msgstr "홈에 sd:/games의 게임큐브 게임만 표시합니다."
+
+msgid "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso."
+msgstr "게임큐브 게임은 SD 카드에 sd:/games/<ID>/game.iso로 넣습니다."
+
+msgid "Disc reads"
+msgstr "디스크 읽기"
+
+msgid "Fast"
+msgstr "빠르게"
+
+msgid "Like a GameCube"
+msgstr "게임큐브처럼"
+
+msgid "Controls"
+msgstr "조작"
+
+msgid "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."
+msgstr "게임큐브처럼: 읽을 때마다 게임큐브 드라이브와 같은 시간이 걸리며, 일부 게임은 이를 전제로 합니다. 빠르게: SD 카드 속도로 읽어 로딩이 짧아집니다. 게임이 잘 돌아가면 사용해 보세요."
+
+msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
+msgstr "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지 보여 줍니다."
+
+msgid "GameCube controls"
+msgstr "게임큐브 조작"
+
+msgid "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves."
+msgstr "Wii 리모컨만 가로로: 2는 A, 1은 B, A는 X, HOME은 Y, 트리거는 R, -는 Z, +는 스타트, 십자 버튼으로 움직입니다."
+
+msgid "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick."
+msgstr "눈차크와 함께: A, B, 1은 X, 2는 Y, C는 L, Z는 R, -는 Z, +는 스타트, 스틱으로 움직이고 십자 버튼은 C스틱입니다."
+
+msgid "A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller."
+msgstr "클래식 컨트롤러나 게임큐브 컨트롤러: 게임큐브 컨트롤러와 같은 버튼입니다."
+
 msgid "SD image made"
 msgstr "SD 이미지 생성됨"
 

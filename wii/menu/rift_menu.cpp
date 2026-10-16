@@ -607,7 +607,13 @@ static std::string ReturnToNote()
 }
 static const char* HomeSourceName(const std::string& v)
 {
-	return v == "sd" ? tr("SD card") : v == "usb" ? tr("USB drive") : tr("SD and USB");
+	return v == "sd" ? tr("SD card") : v == "usb" ? tr("USB drive") : v == "gamecube" ? tr("GameCube") : tr("SD and USB");
+}
+
+static std::string HomeSourceNote(const std::string& v)
+{
+	if (v == "gamecube") return tr("Home lists the GameCube games only, from sd:/games.");
+	return tr("Which drive's games Home lists. With a game on both, one drive's copy is enough.");
 }
 
 static const char* HomeSortName(const std::string& v)
@@ -768,19 +774,30 @@ static std::string TrimSearch(const std::string& typed)
 }
 
 // Every word of `typed` is in the name or the game ID, in any order.
-static bool WordsMatch(const std::string& typed, const std::string& name, const std::string& id)
+// A searched word that names the GameCube: "gc", or "gamecube" or the
+// start of it ("game" alone is too common: it is in many names).
+static bool NamesGameCube(const std::string& word)
+{
+	if (strcasecmp(word.c_str(), "gc") == 0) return true;
+	return word.size() >= 5 && strncasecmp("gamecube", word.c_str(), word.size()) == 0;
+}
+
+// Every typed word is in the name or the ID; for a GameCube game, a word
+// may name the GameCube instead.
+static bool WordsMatch(const std::string& typed, const std::string& name, const std::string& id, bool gamecube = false)
 {
 	std::istringstream words(typed);
 	std::string word;
 	while (words >> word) {
+		if (gamecube && NamesGameCube(word)) continue;
 		if (!strcasestr(name.c_str(), word.c_str()) && !strcasestr(id.c_str(), word.c_str())) return false;
 	}
 	return true;
 }
 
-static bool MatchesSearch(const std::string& name, const std::string& id)
+static bool MatchesSearch(const std::string& name, const std::string& id, bool gamecube)
 {
-	return WordsMatch(g_search, name, id);
+	return WordsMatch(g_search, name, id, gamecube);
 }
 
 struct HomeEntry {
@@ -809,14 +826,17 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 	}
 	struct Row { std::string name; HomeEntry entry; const riftwii::wii::ImageGame* game; };
 	std::vector<Row> rows;
-	// Settings > Games from: one drive's games only.
+	// Settings > Games from: one drive's games only, or the GameCube games
+	// (all on the SD card).
 	const std::string& source = riftwii::wii::Settings().home_source;
-	if (source != "sd")
+	if (source != "sd" && source != "gamecube")
 		for (std::size_t i = 0; i < state.usb_catalog.games.size(); ++i)
 			rows.push_back({GameName(state.usb_catalog.games[i]), {HomeEntry::Kind::Usb, i}, &state.usb_catalog.games[i]});
 	if (source != "usb")
-		for (std::size_t i = 0; i < state.sd_catalog.games.size(); ++i)
+		for (std::size_t i = 0; i < state.sd_catalog.games.size(); ++i) {
+			if (source == "gamecube" && !state.sd_catalog.games[i].gamecube) continue;
 			rows.push_back({GameName(state.sd_catalog.games[i]), {HomeEntry::Kind::Sd, i}, &state.sd_catalog.games[i]});
+		}
 	std::stable_sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) {
 		// A leading "The" is not sorted on (The Legend of Zelda under L).
 		const int by = strcasecmp(a.name.c_str() + riftwii::sort_name_start(a.name),
@@ -849,14 +869,15 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 	}
 	for (const Row& r : rows) {
 		const bool mods = g_packs.has_packs(r.game->id);
-		if (searching && !MatchesSearch(r.name, r.game->id)) continue;
+		if (searching && !MatchesSearch(r.name, r.game->id, r.game->gamecube)) continue;
 		if (!searching && g_filter == Filter::Mods && !mods) continue;
 		if (!searching && g_filter == Filter::Favorites && riftwii::wii::Settings().favorites.count(r.game->id) == 0) continue;
 		GridItem item;
 		item.title = r.name;
 		item.id = r.game->id;
-		item.badge = r.entry.kind == HomeEntry::Kind::Usb ? "USB" : "SD";
+		item.badge = r.entry.kind == HomeEntry::Kind::Usb ? "USB" : r.game->gamecube ? "GC" : "SD";
 		item.mods = mods;
+		item.to_build = !r.game->gc_patch_source.empty();
 		item.hue = skin::HueFor(r.game->id);
 		items.push_back(std::move(item));
 		entries.push_back(r.entry);
@@ -1669,11 +1690,14 @@ private:
 // the empty tiles of the second row.
 class EmptyHomeNote : public GuiElement {
 public:
-	static constexpr int kW = 440, kH = 108, kTop = 150;
-	EmptyHomeNote() : text(tr("No games found yet. Put your games (WBFS, ISO or RVZ) in a folder named wbfs or games at the top of the SD card or USB drive, then pick Look for games again in Settings."), 16, skin::kInk) {
+	static constexpr int kW = 440, kH = 146, kTop = 136;
+	EmptyHomeNote()
+		: words(std::string(tr("No games found yet. Put your games (WBFS, ISO or RVZ) in a folder named wbfs or games at the top of the SD card or USB drive, then pick Look for games again in Settings.")) +
+			" " + tr("A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso.")),
+		  text(words.c_str(), 16, skin::kInk) {
 		// Without a parent, x is where the centre goes on the screen.
 		text.SetAlignment(ALIGN_H::CENTRE, ALIGN_V::TOP);
-		text.SetWrap(true, kW - 40, 4);
+		text.SetWrap(true, kW - 40, 6);
 	}
 	void Draw() override {
 		if (!IsVisible()) return;
@@ -1686,6 +1710,7 @@ public:
 	}
 
 private:
+	std::string words;  // first: the text is made from it
 	GuiText text;
 };
 
@@ -3454,7 +3479,7 @@ static int MenuSource(FrontendState& state)
 						if (e.kind == HomeEntry::Kind::Disc) continue;
 						const riftwii::wii::ImageGame& g = e.kind == HomeEntry::Kind::Usb
 							? state.usb_catalog.games[e.index] : state.sd_catalog.games[e.index];
-						if (WordsMatch(trial, GameName(g), g.id)) {
+						if (WordsMatch(trial, GameName(g), g.id, g.gamecube)) {
 							next += *c;
 							break;
 						}
@@ -3669,7 +3694,7 @@ static std::string SaveNote(const riftwii::LaunchModel& model)
 struct RowRef {
 	enum class What { Mods, Saves, Cheats, Width, Deflicker, Borders, VideoMode, RegionVideo, Aspect, Rumble, Speaker,
 		RegionStrings, Language, Cios, Server, Favorite, Pack, Option, Note,
-		AddCodes, ForgetCodes, MakeImage, Cover, Memory, About } what = What::Note;
+		AddCodes, ForgetCodes, MakeImage, Cover, Memory, About, GcDiscReads, GcControls } what = What::Note;
 	std::size_t pkg = 0, opt = 0;
 };
 
@@ -3968,6 +3993,24 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		refs.push_back({W::Note});
 	};
 	if (!settingsOnly) show({W::Mods, W::About, W::Saves, W::Cheats, W::Favorite, W::Cover});
+	if (state.use_sd && state.sd_index < state.sd_catalog.games.size() && state.sd_catalog.games[state.sd_index].gamecube) {
+		// A GameCube game: none of the Wii's picture or online settings
+		// reach it; its own instead.
+		FlowRow discReads;
+		discReads.kind = FlowRow::Kind::Option;
+		discReads.label = tr("Disc reads");
+		discReads.value = game.gc_disc_reads == "fast" ? tr("Fast") : tr("Like a GameCube");
+		discReads.on = game.gc_disc_reads == "fast";
+		rows.push_back(discReads);
+		refs.push_back({W::GcDiscReads});
+		FlowRow controls;
+		controls.kind = FlowRow::Kind::Action;
+		controls.label = tr("Controls");
+		rows.push_back(controls);
+		refs.push_back({W::GcControls});
+		if (settingsOnly) show({W::Cover});
+		return;
+	}
 	heading(tr("Picture"));
 	show({W::Width, W::Deflicker, W::Borders, W::VideoMode, W::RegionVideo, W::Aspect});
 	heading(tr("Other"));
@@ -4224,6 +4267,40 @@ static bool PrepareGcGameInMenu(FrontendState& state)
 	// The entry now is the prepared image, so the launch starts it as any other.
 	game.path = image.path;
 	game.gc_patch_source.clear();
+	return true;
+}
+
+// Which buttons are the GameCube controller's (runtime/gc/gc_bt.c's
+// bt_fill_one). `starting`: shown before a game starts, with Play and
+// Back; true when Play was pressed. Otherwise only OK.
+static bool ShowGcControls(bool starting)
+{
+	const std::string body = std::string(tr("Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.")) +
+		"\n" + tr("With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.") +
+		"\n" + tr("A Classic Controller or a GameCube controller: its buttons, as on a GameCube controller.");
+	if (!starting) {
+		ShowPopup(tr("GameCube controls"), body, tr("OK"));
+		return true;
+	}
+	return ShowPopup(tr("GameCube controls"), body, tr("Play"), tr("Back")) == 0;
+}
+
+// The controls before the first GameCube game starts from this card
+// (sd:/riftwii/gc/controls_seen.txt remembers). False: Back.
+static bool ShowGcControlsOnce(const FrontendState& state)
+{
+	static const char* const kMarker = "sd:/riftwii/gc/controls_seen.txt";
+	if (!SelectedGcGame(state)) return true;
+	struct stat st;
+	// Without a card nothing could remember it: it would show every start.
+	if (stat("sd:/", &st) != 0 || stat(kMarker, &st) == 0) return true;
+	if (!ShowGcControls(true)) return false;
+	mkdir("sd:/riftwii", 0777);
+	mkdir("sd:/riftwii/gc", 0777);
+	if (FILE* f = std::fopen(kMarker, "w")) {
+		std::fprintf(f, "shown\n");
+		std::fclose(f);
+	}
 	return true;
 }
 
@@ -5709,6 +5786,7 @@ static int ChangedGameSettings(const riftwii::GameSettings& g)
 		if (*v != "global") ++changed;
 	if (g.region_video == "on") ++changed;
 	if (g.region_strings == "on") ++changed;
+	if (g.gc_disc_reads == "fast") ++changed;
 	if (g.rumble == "off") ++changed;
 	if (g.speaker == "off") ++changed;
 	return changed;
@@ -5866,6 +5944,10 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 				say(tr("The language the game is told the console uses. Pick one the game has: some games stop without it."));
 			else if (ref.what == RowRef::What::Cover)
 				say(tr("Downloads this game's box art from GameTDB now."));
+			else if (ref.what == RowRef::What::GcDiscReads)
+				say(tr("Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it."));
+			else if (ref.what == RowRef::What::GcControls)
+				say(tr("Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."));
 			else if (ref.what == RowRef::What::Memory) {
 				const riftwii::ExtrasBudget budget = riftwii::wii::EstimateExtras(state);
 				std::string text = tr("Taken from the game's own memory by what RiftWii adds to this launch: {1}.", {budget.list()});
@@ -5905,6 +5987,11 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::RegionStrings) game.region_strings = game.region_strings == "on" ? "off" : "on";
 			else if (ref.what == RowRef::What::Language) game.language = StepValue(kGameLanguages, game.language, direction);
 			else if (ref.what == RowRef::What::Cios) game.cios = StepValue(kCiosChoices, game.cios, direction);
+			else if (ref.what == RowRef::What::GcDiscReads) game.gc_disc_reads = game.gc_disc_reads == "fast" ? "drive" : "fast";
+			else if (ref.what == RowRef::What::GcControls) {
+				ShowGcControls(false);
+				changed = false;
+			}
 			else if (ref.what == RowRef::What::Server && riftwii::game_has_no_online(state.game_id)) {
 				say(tr("This game has no online play, so it needs no server."));
 				changed = false;
@@ -6168,7 +6255,8 @@ static int MenuHome(FrontendState& state)
 				case GameTile::Saves: say(SelectedGcGame(state) ? GcSaveNote(state) : SaveNote(state.model)); break;
 				case GameTile::Favorite: say(tr("Favourites have their own view on Home: press 1 there until it shows.")); break;
 				case GameTile::Options:
-					say(tr("This game's own picture, language, online server and the rest. The ones not changed follow Settings."));
+					say(SelectedGcGame(state) ? std::string(tr("This game's own options: how its disc is read, and its controls."))
+								  : std::string(tr("This game's own picture, language, online server and the rest. The ones not changed follow Settings.")));
 					break;
 				case GameTile::About:
 					say(tr("What GameTDB says about the game: when it came out, how many can play, the controllers it takes and its story."));
@@ -6277,6 +6365,8 @@ static int MenuHome(FrontendState& state)
 				ShowPopup(tr("This code mod can't start"), codes_error, tr("OK"));
 			} else if (!PrepareGcGameInMenu(state)) {
 				// stopped or failed: the popup said why; stays on the page
+			} else if (!ShowGcControlsOnce(state)) {
+				// Back: stays on the page (a game just made stays made)
 			} else if (!LaunchNote(state).empty() && !state.warning_shown) {
 				state.warning_shown = true;
 				// In a popup: the status line holds two rows, which cut
@@ -6951,7 +7041,7 @@ static int MenuSettingsSection(FrontendState& state, SettingsSection section, bo
 			case kShots: return tr("Experimental. In a game, hold 1 and press HOME (GameCube controller: hold L and R, press Down). Pictures go to sd:/riftwii/screenshots when RiftWii next starts. Some games and mods don't work with it.");
 			case kDiscTile: return DiscTileNote();
 			case kPlayHistory: return tr("Counts the games you start from RiftWii, for Recently played, Home order and a game's page. Off: nothing more is counted, and the counts are not shown.");
-			case kHomeSource: return tr("Which drive's games Home lists. With a game on both, one drive's copy is enough.");
+			case kHomeSource: return HomeSourceNote(settings.home_source);
 			case kHomeSort: return tr("The order of the games on Home. Last played and Most played put the games you played from RiftWii first, the rest after them A to Z.");
 			case kMusic: return (riftwii::wii::MenuMusicFound() || settings.menu_music != "on") ? tr("Music while the menu is open: music.ogg from sd:/riftwii, or the one in RiftWii's own folder.") : tr("Music is on, but there is none to play: put a music.ogg in sd:/riftwii, or pick a theme with music.");
 			case kServer: return tr("The online server the game uses in place of Nintendo's, which closed. Custom uses wfc_domain in settings.txt.");
@@ -7086,11 +7176,11 @@ static int MenuSettingsSection(FrontendState& state, SettingsSection section, bo
 					rebuild();
 					break;
 				case kHomeSource: {
-					static const char* const kSourceChoices[] = {"all", "sd", "usb"};
+					static const char* const kSourceChoices[] = {"all", "sd", "usb", "gamecube"};
 					int at = 0;
-					while (at < 3 && settings.home_source != kSourceChoices[at]) ++at;
-					settings.home_source = kSourceChoices[((at % 3) + 3 + direction) % 3];
-					saveAndNote(tr("Which drive's games Home lists. With a game on both, one drive's copy is enough."));
+					while (at < 4 && settings.home_source != kSourceChoices[at]) ++at;
+					settings.home_source = kSourceChoices[((at % 4) + 4 + direction) % 4];
+					saveAndNote(HomeSourceNote(settings.home_source));
 					rebuild();
 					break;
 				}

@@ -353,6 +353,7 @@ std::string LaunchModel::save() const {
     if (game.rumble == "off") text += "*riftwii*\trumble\toff\n";
     if (game.speaker == "off") text += "*riftwii*\tspeaker\toff\n";
     if (game.region_strings == "on") text += "*riftwii*\tregionstrings\ton\n";
+    if (game.gc_disc_reads == "fast") text += "*riftwii*\tgcdiscreads\tfast\n";
     for (const LaunchPackage& p : packages) {
         // Only this game's packs: the file is per game ID, and another
         // game's pack could not be turned on here anyway.
@@ -423,6 +424,8 @@ void LaunchModel::restore(const std::string& text) {
                 game.speaker = value == "off" ? "off" : "on";
             } else if (key == "regionstrings") {
                 game.region_strings = value == "on" ? "on" : "off";
+            } else if (key == "gcdiscreads") {
+                game.gc_disc_reads = value == "fast" ? "fast" : "drive";
             }
             continue;
         }

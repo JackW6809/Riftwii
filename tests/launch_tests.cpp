@@ -369,6 +369,8 @@ static void test_saves() {
     model.game.rumble = "off";
     model.game.speaker = "off";
     model.game.region_strings = "on";
+    EXPECT_TRUE(model.save().find("gcdiscreads") == std::string::npos);
+    model.game.gc_disc_reads = "fast";
     riftwii::LaunchModel prefs;
     prefs.add("a.xml", "sd:/riivolution/a.xml", kModA, &disc);
     prefs.restore(model.save());
@@ -376,6 +378,7 @@ static void test_saves() {
     EXPECT_EQ(prefs.game.rumble, std::string("off"));
     EXPECT_EQ(prefs.game.speaker, std::string("off"));
     EXPECT_EQ(prefs.game.region_strings, std::string("on"));
+    EXPECT_EQ(prefs.game.gc_disc_reads, std::string("fast"));
     prefs.restore("*riftwii*\taspect\t21:9\n");
     EXPECT_EQ(prefs.game.aspect, std::string("global"));  // unknown: Settings' choice
     // "Game's own" picked on the page is kept, over Settings' choice.
