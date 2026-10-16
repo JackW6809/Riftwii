@@ -115,7 +115,9 @@ gc_continue_pad_read:
  * original then runs from its replay slot on that buffer for 32 bytes,
  * with the game's own ARAM address, so the hardware still raises its
  * interrupt but writes nothing of the game's (gc_on_ar_dma says why the
- * buffer holds what it does).
+ * buffer holds what it does). The original is called rather than jumped
+ * to, so gc_after_ar_dma runs once it has started the hardware: it waits
+ * for the transfer's interrupt to be pending before the game goes on.
  * Frame: 8 r3, 12 r4, 16 r5, 20 r6. */
     .globl gc_hook_ar_dma
 gc_hook_ar_dma:
@@ -138,10 +140,15 @@ gc_hook_ar_dma:
     lwz 3, 0x08(1)
     lwz 5, 0x10(1)
     li 6, 32
+    bl gc_replay_ar_dma
+    bl 7f
+7:  mflr 3
+    addi 3, 3, gc_context_data - 7b
+    bl gc_after_ar_dma
     lwz 0, 0x24(1)
     mtlr 0
     addi 1, 1, 0x20
-    b gc_replay_ar_dma
+    blr
 
     .balign 16
     .globl gc_replay_ar_dma
@@ -424,4 +431,4 @@ gc_exi_table:
     .globl gc_context_data
 gc_context_data:
     .long 0x52574743
-    .fill 279, 4, 0
+    .fill 287, 4, 0

@@ -196,8 +196,12 @@ start-up leaves it, and jumps to the game.
   callbacks; a GameCube drive's timing unless Disc reads is Fast; disc
   audio streaming mixed into the game's AI DMA; ARAM kept in MEM2 at
   `0x90000000` (a Wii's ARAM DMA moves nothing in Wii mode), with the
-  game's ARAM addresses raised so its own sound program reads MEM2; the
-  options; the trace; the way back; the crash screen.
+  game's ARAM addresses raised so its own sound program reads MEM2, and
+  each `ARStartDMA` called with interrupts off returning only once its
+  interrupt is pending (a Wii's
+  instant transfers otherwise let ARQ's chained chunks finish in the
+  middle of the game's own bookkeeping); the options; the trace; the way
+  back; the crash screen.
 - `gc_bt.c`: a Bluetooth driver for Wii Remotes, Nunchuks and Classic
   Controllers, filled into the pad ports with no GameCube controller.
 - `gc_card.c`: memory card slot A, from an image in MEM2 at `0x91000000`

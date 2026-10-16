@@ -447,6 +447,9 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_PROJECTIONS] = ctx->projections;
     w[GC_TR_ORTHOGRAPHICS] = ctx->orthographics;
     for (i = 0; i < GC_PROJECTION_CALLERS * 4; ++i) w[GC_TR_PROJECTION_CALLERS + i] = ctx->projection_callers[i];
+    w[GC_TR_AR_WAITS] = ctx->ar_waits;
+    w[GC_TR_AR_WAIT_LONGEST] = ctx->ar_wait_longest;
+    w[GC_TR_AR_WAIT_TIMEOUTS] = ctx->ar_wait_timeouts;
     w[GC_TR_PENDING_CB] = ctx->pending_cb;
     w[GC_TR_ALARMS] = ctx->alarms;
     w[GC_TR_BEATS] = ctx->beats;
@@ -1093,6 +1096,64 @@ uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, u
         gc_flush((uint32_t)(uintptr_t)scratch, 32);
     }
     return gc_physical((uint32_t)(uintptr_t)ctx->aram_scratch);
+}
+
+/* After the game's own ARStartDMA has started the hardware's 32 bytes:
+ * with interrupts off, wait until the transfer's interrupt is pending, so
+ * it is taken the moment the caller turns them back on.
+ *
+ * A Wii finishes those 32 bytes almost at once, and the interrupt used to
+ * come a few instructions after the call, wherever the game had got to.
+ * The SDK's ARQ queue starts a request's next 4 KB chunk from the ARAM
+ * interrupt, so a long request's chunks finish one after another while
+ * the thread that posted it runs on, a few instructions between each,
+ * and the request's callback lands somewhere after ARQPostRequest has
+ * returned. JSystem's ARAM streaming does `count++` (load, add, store,
+ * interrupts on) right after posting, and its callback does `count--`: a
+ * callback between that load and store was lost, the count stayed at its
+ * limit and the game waited for it forever (Super Mario Eclipse after
+ * about 560 transfers, Luigi's Mansion after 272, with Disc reads Like a
+ * GameCube, on a Wii only). A GameCube's ARAM takes long enough that the
+ * increment always comes first; Dolphin's JIT never stops between the
+ * load and the store.
+ *
+ * With the interrupt pending before the hook returns, the whole chain
+ * runs inside the OSRestoreInterrupts at the end of ARQPostRequest: each
+ * chunk's interrupt is taken straight after the last one's rfi, before
+ * the thread runs another instruction, and the callback comes before the
+ * caller's own bookkeeping, always, as a short request's already did.
+ * Only registers are read here (the DSP's control register and the PI's
+ * cause): nothing is masked, delayed or written. When the caller has
+ * interrupts on, the interrupt is taken as it comes and nothing waits. */
+#define GC_DSP_CSR 0xCC00500Au
+#define GC_DSP_CSR_ARINT 0x0020u      /* an ARAM transfer finished (cleared by the game's handler) */
+#define GC_DSP_CSR_ARINTMSK 0x0040u   /* ... and raises the DSP interrupt */
+#define GC_DSP_CSR_DMA_BUSY 0x0200u   /* an ARAM transfer is going (ARGetDMAStatus) */
+#define GC_PI_CAUSE 0xCC003000u
+#define GC_PI_CAUSE_DSP 0x00000040u
+#define GC_MSR_EE 0x8000u
+#define GC_AR_WAIT_TICKS 6075u        /* 100 us of a Wii's timebase; 32 bytes take far less */
+void gc_after_ar_dma(struct gc_rt_context* ctx) {
+    uint32_t msr, start, now, waited;
+    __asm__ volatile("mfmsr %0" : "=r"(msr));
+    if (msr & GC_MSR_EE) return;
+    __asm__ volatile("mftb %0" : "=r"(start));
+    for (;;) {
+        const uint16_t csr = *(volatile uint16_t*)(uintptr_t)GC_DSP_CSR;
+        const int finished = (csr & GC_DSP_CSR_DMA_BUSY) == 0 && (csr & GC_DSP_CSR_ARINT) != 0;
+        /* With the game's ARAM interrupt masked there is nothing to wait
+         * for beyond the transfer itself. */
+        const int raised = (csr & GC_DSP_CSR_ARINTMSK) == 0 || (gc_read32(GC_PI_CAUSE) & GC_PI_CAUSE_DSP) != 0;
+        __asm__ volatile("mftb %0" : "=r"(now));
+        waited = now - start;
+        if (finished && raised) break;
+        if (waited > GC_AR_WAIT_TICKS) {
+            ctx->ar_wait_timeouts++;
+            break;
+        }
+    }
+    ctx->ar_waits++;
+    if (waited > ctx->ar_wait_longest) ctx->ar_wait_longest = waited;
 }
 
 /* The loader's record just before the jump: the first one written through

@@ -23,7 +23,8 @@ WHERE = {1: 'read', 2: 'pad', 3: 'ai', 4: 'ar', 5: 'jump', 6: 'beat', 7: 'fatal'
 DECIMAL = {'seq', 'commands', 'reads', 'read_bytes', 'sd_requests', 'failures', 'pad_reads', 'stream_mixes',
            'stream_refills', 'ai_dmas', 'ar_dmas', 'alarms', 'beats', 'guard_hits', 'bt_events', 'bt_acl',
            'card_reads', 'card_flushes', 'card_dirty', 'vi_configures', 'projections', 'stream_starved',
-           'stream_fetch_busy', 'stream_buffered', 'orthographics'}
+           'stream_fetch_busy', 'stream_buffered', 'orthographics', 'ar_waits', 'ar_wait_longest',
+           'ar_wait_timeouts'}
 
 
 def word_names():

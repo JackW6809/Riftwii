@@ -64,7 +64,7 @@ struct gc_rt_header {
     uint32_t hook_pad_read;   /* PADRead(status): the original, then the test presses (GC_FLAG_PRESS) */
     uint32_t replay_pad_read;
     uint32_t continue_pad_read;
-    uint32_t hook_ar_dma;     /* ARStartDMA(type, main, aram, length): copied by the CPU, then the original */
+    uint32_t hook_ar_dma;     /* ARStartDMA(type, main, aram, length): copied by the CPU, the original, then gc_after_ar_dma */
     uint32_t replay_ar_dma;
     uint32_t continue_ar_dma;
     uint32_t trace_now;       /* trace(where): a record from the loader, just before the jump */
@@ -115,6 +115,9 @@ enum gc_trace_word {
     GC_TR_STREAM_STARVED, GC_TR_STREAM_FETCH_BUSY,
     GC_TR_STREAM_BUFFERED, /* ADPCM bytes in the ring ahead of the decoder */
     GC_TR_ORTHOGRAPHICS, /* orthographic projections seen with 16:9 on (left alone) */
+    GC_TR_AR_WAITS, /* ARAM transfers whose interrupt was waited for (gc_after_ar_dma) */
+    GC_TR_AR_WAIT_LONGEST, /* the longest of those waits, timebase ticks */
+    GC_TR_AR_WAIT_TIMEOUTS, /* waits given up: the interrupt did not show in time */
     GC_TR_PROJECTION_CALLERS, /* 16 words: gc_rt_context.projection_callers */
     GC_TR_WORDS = GC_TR_PROJECTION_CALLERS + 16
 };
@@ -279,6 +282,11 @@ struct gc_rt_context {
     uint32_t vi_mode;         /* GC_TR_VI_MODE */
     uint32_t projections;     /* perspective projections seen (16:9 on) */
     uint32_t orthographics;   /* orthographic ones, left alone */
+    /* gc_after_ar_dma: each ARAM interrupt made pending before the game
+     * goes on. */
+    uint32_t ar_waits;
+    uint32_t ar_wait_longest;
+    uint32_t ar_wait_timeouts;
     uint32_t vi_copy[16];     /* the progressive copy of the game's GXRenderModeObj (0x3C bytes) */
     uint32_t projection[16];  /* the widened copy of the game's projection matrix */
     uint32_t projection_callers[GC_PROJECTION_CALLERS * 4];
@@ -291,7 +299,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x460u
+#define GC_RT_CONTEXT_BYTES 0x480u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
@@ -303,6 +311,7 @@ uint32_t gc_on_audio_status(struct gc_rt_context* ctx, uint32_t sub, uint32_t cb
 uint32_t gc_on_audio_stream(struct gc_rt_context* ctx, uint32_t sub, uint32_t length, uint32_t offset, uint32_t cb);
 void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where);
 uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
+void gc_after_ar_dma(struct gc_rt_context* ctx);
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
 uint32_t gc_on_vi_configure(struct gc_rt_context* ctx, uint32_t mode);
 uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type, uint32_t caller);
