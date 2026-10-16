@@ -112,7 +112,7 @@ struct GameSettings {
     std::string speaker = "on";         // "off": gx_speaker_off
     std::string region_strings = "off"; // "on": the Region strings fix (gx_country_strings)
     // A GameCube game's disc reads: "drive" take a GameCube drive's time
-    // (some games count on it), "fast" come at the SD card's speed.
+    // (some games count on it), "fast" skip its seeks and take only its transfer time.
     std::string gc_disc_reads = "fast";
     // A GameCube game's memory card: "own" is the game's own file, "shared"
     // one card for all the games of its encoding (gc_card_path).

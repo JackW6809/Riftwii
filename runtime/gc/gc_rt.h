@@ -218,11 +218,21 @@ struct gc_rt_context {
     uint32_t bounce;          /* 32-byte aligned, bounce_bytes (a multiple of 512) */
     uint32_t bounce_bytes;
     uint32_t delay_ticks;     /* how soon the callback runs */
-    uint32_t drive_timing;    /* 1: a read's callback waits as long as a GameCube drive would take (gc_drive_ticks) */
+    uint32_t drive_timing;    /* 1: a read takes as long as a GameCube drive would (gc_drive_ticks); 0 (Fast): as its transfer alone */
     /* State. */
     uint32_t last_read_end;   /* where the last read ended on the disc, for the seek */
     uint32_t pending_cb;      /* the callback the alarm runs, 0: none */
     uint32_t pending_type;
+    /* The read under way (gc_on_read): the alarm copies it from the SD
+     * card a piece at a time, after the game's DVDLowRead has returned. */
+    uint32_t read_state;      /* GC_READ_* */
+    uint32_t read_addr;       /* where the rest goes */
+    uint32_t read_length;     /* what is still to copy */
+    uint32_t read_offset;     /* the rest's place on the disc */
+    uint32_t read_cb;         /* the game's callback once all of it is there */
+    uint32_t read_failed;     /* 1: a piece could not be read (the callback gets an error) */
+    uint32_t read_started;    /* timebase when the game asked */
+    uint32_t read_drive_ticks; /* how long a GameCube drive takes for it (no seek when Fast) */
     /* Counters, for the log and a memory dump. */
     uint32_t commands;
     uint32_t reads;
@@ -306,7 +316,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x480u
+#define GC_RT_CONTEXT_BYTES 0x4A0u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC

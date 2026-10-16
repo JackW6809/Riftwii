@@ -1689,8 +1689,8 @@ msgstr "このゲームに伝える本体の言語です。本体の設定は変
 msgid "Controls"
 msgstr "操作"
 
-msgid "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."
-msgstr "高速: SDカードの速さで読み込みます。ゲームキューブと同じ(試験的): 読み込みごとにゲームキューブのドライブと同じ時間がかかります。これを前提にするゲームもわずかにあります。今のところWiiでは一部のゲームが止まることがあります。"
+msgid "Fast: reads skip the drive's seeks and take only its transfer time. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."
+msgstr "高速: ドライブのシークを省き、転送の時間だけかかります。ゲームキューブと同じ(試験的): 読み込みごとにゲームキューブのドライブと同じ時間がかかります。これを前提にするゲームもわずかにあります。今のところWiiでは一部のゲームが止まることがあります。"
 
 msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
 msgstr "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかを表示します。"

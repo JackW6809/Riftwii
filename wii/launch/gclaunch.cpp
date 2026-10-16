@@ -477,7 +477,7 @@ bool LaunchGcGame(const GcImage& wanted,const std::vector<PackageChoices>& packa
              console.game_language.c_str(), console.wii_language);
     }
     logf("GameCube: %s (%s), disc reads %s\n", image.id.c_str(), image.path.c_str(),
-         image.drive_timing ? "at a GameCube drive's speed" : "at the SD card's speed");
+         image.drive_timing ? "at a GameCube drive's speed" : "without a drive's seeks (Fast)");
     logf("GameCube: picture %s, %s; language %s\n", image.progressive ? "480p" : "the game's own",
          image.widescreen ? "16:9" : "the game's own aspect",
          image.language >= 0 ? kGcLanguages[image.language] : "the console's");

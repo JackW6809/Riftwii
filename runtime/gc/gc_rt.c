@@ -510,12 +510,20 @@ static void gc_complete(struct gc_rt_context* ctx, uint32_t cb, uint32_t type) {
  * from about 2 MB/s at its start to about 3 MB/s at its end. A read
  * served at the SD card's speed finished in microseconds, and some games
  * count on the drive's time (Nintendont emulates it too). A rough model,
- * not a measured one. */
+ * not a measured one.
+ *
+ * Fast disc reads leave out the seek only. With the SD card's own speed
+ * setting the pace, Luigi's Mansion crashed in Dolphin in its first load
+ * after the file select, as its loads came back sooner than any drive's
+ * (an object not yet set at 0x801c4198, or its allocator's null stored to
+ * at 0x801c4068, depending on the SD card's speed); with the transfer's
+ * time kept it went on into the mansion with the SD card as fast as
+ * Dolphin's and slowed to 8 ms a request. */
 #define GC_TICKS_PER_US_X4 243u  /* 60.75 ticks a microsecond */
 static uint32_t gc_drive_ticks(struct gc_rt_context* ctx, uint32_t offset, uint32_t length) {
     const uint32_t distance = offset > ctx->last_read_end ? offset - ctx->last_read_end : ctx->last_read_end - offset;
     uint32_t seek_us = 0, rate_x10, transfer_us, us;
-    if (distance >= 0x10000u) {
+    if (distance >= 0x10000u && ctx->drive_timing) {  /* Fast: no seek */
         seek_us = 20000u + (distance >> 14);
         if (seek_us > 105000u) seek_us = 105000u;
     }
@@ -525,6 +533,11 @@ static uint32_t gc_drive_ticks(struct gc_rt_context* ctx, uint32_t offset, uint3
     if (us > 4000000u) us = 4000000u;
     return us / 4u * GC_TICKS_PER_US_X4 + (us % 4u) * GC_TICKS_PER_US_X4 / 4u;
 }
+
+/* A read's progress (ctx->read_state, gc_on_read). */
+#define GC_READ_NONE 0u
+#define GC_READ_COPYING 1u
+#define GC_READ_PIECE 0x10000u  /* 64 KB a turn of the alarm: one SD request, a few ms */
 
 /* The heartbeat (gc_rt.h): once more, half a second from now. */
 static void gc_beat_arm(struct gc_rt_context* ctx) {
@@ -537,39 +550,82 @@ static void gc_beat_arm(struct gc_rt_context* ctx) {
  * a trace record too (reads write their own). */
 static void gc_command_seen(struct gc_rt_context* ctx, int traced) {
     ctx->commands++;
+    ctx->read_state = GC_READ_NONE;  /* a read still copying is given up: the game moved on (a reset) */
     if (ctx->commands == 1 && ctx->beat_ticks != 0) gc_beat_arm(ctx);
     if (traced && ctx->commands <= 32) gc_trace(ctx, GC_TRACE_COMMAND);
 }
 
 static void gc_stream_fetch(struct gc_rt_context* ctx);
 
+/* DVDLowRead(addr, length, offset, cb). A drive takes the command and the
+ * SDK's DVDLowRead returns at once: the thread that asked sleeps, and the
+ * thread that queued the load runs on while the drive works. So the SD
+ * card is not read here but from the alarm, a piece at a time
+ * (gc_read_step). Read here, the copy kept the asking thread running for
+ * as long as the SD card took, and what became ready meanwhile (the main
+ * thread, at a retrace) then ran ahead of the thread that had queued the
+ * load, so the read's callback could come before that thread had set up
+ * what the callback uses. Luigi's Mansion (a Wii with fast disc reads,
+ * and Dolphin with the SD card slowed to 8 ms a request): its loading
+ * thread (priority 10) called a load's completion function at 0x80020104,
+ * which the queuing code stores at 0x80020428 only after queuing the load
+ * at 0x800203ec, and jumped to whatever the heap had there. */
 uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, uint32_t offset, uint32_t cb) {
+    gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
     gc_command_seen(ctx, 0);
     ctx->reads++;
     ctx->read_bytes += length;
     ctx->last_offset = offset;
-    {
-        uint32_t start, end, wait = 0;
-        int ok;
-        __asm__ volatile("mftb %0" : "=r"(start));
-        ok = gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset);
-        __asm__ volatile("mftb %0" : "=r"(end));
-        if (ctx->drive_timing) {
-            /* What the drive would still need after the time the card took. */
-            const uint32_t drive = gc_drive_ticks(ctx, offset, length);
-            const uint32_t spent = end - start;
-            wait = drive > spent ? drive - spent : 0;
-        }
-        ctx->last_read_end = offset + length;
-        /* The record goes to the card before the completion is armed: a
-         * write with interrupts off runs well past the 30 microseconds,
-         * and Luigi's Mansion (USA, 2001 SDK) then never saw its read
-         * finish (every thread waiting, Start freezing the title). */
-        if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
-        gc_complete_after(ctx, cb, ok ? GC_DI_TC : GC_DI_DE, wait);
-    }
-    gc_stream_fetch(ctx);  /* the card is free again: the music ring's top-up */
+    __asm__ volatile("mftb %0" : "=r"(ctx->read_started));
+    ctx->read_drive_ticks = gc_drive_ticks(ctx, offset, length);  /* without the seek when Fast */
+    ctx->last_read_end = offset + length;
+    ctx->read_addr = addr;
+    ctx->read_length = length;
+    ctx->read_offset = offset;
+    ctx->read_cb = cb;
+    ctx->read_failed = 0;
+    ctx->pending_cb = 0;
+    /* The music ring's top-up, from the game's own context while the card
+     * is free (gc_rt_stream); the copy starts once it is done. */
+    gc_stream_fetch(ctx);
+    ctx->read_state = GC_READ_COPYING;
+    set_alarm(ctx->alarm, ctx->delay_ticks, ctx->alarm_entry);
     return 1;
+}
+
+/* From the alarm (interrupts off): the next piece of the read under way.
+ * Between pieces the interrupts have their turn (the game's audio), as
+ * they do while a drive's DMA runs. With all of it there, the game's
+ * callback runs once the drive would have finished too. */
+static void gc_read_step(struct gc_rt_context* ctx) {
+    gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
+    const uint32_t piece = ctx->read_length < GC_READ_PIECE ? ctx->read_length : GC_READ_PIECE;
+    uint32_t now, spent, wait;
+    if (piece != 0 && !ctx->read_failed) {
+        if (ctx->busy) {
+            /* The IPC buffers are taken (the way back is starting): later. */
+            set_alarm(ctx->alarm, ctx->delay_ticks, ctx->alarm_entry);
+            return;
+        }
+        if (gc_read_disc(ctx, (uint8_t*)(uintptr_t)ctx->read_addr, piece, ctx->read_offset)) {
+            ctx->read_addr += piece;
+            ctx->read_offset += piece;
+            ctx->read_length -= piece;
+        } else {
+            ctx->read_failed = 1;
+        }
+        if (ctx->read_length != 0 && !ctx->read_failed) {
+            set_alarm(ctx->alarm, ctx->delay_ticks, ctx->alarm_entry);
+            return;
+        }
+    }
+    ctx->read_state = GC_READ_NONE;
+    if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
+    /* What the drive would still need after the time the SD card took. */
+    __asm__ volatile("mftb %0" : "=r"(now));
+    spent = now - ctx->read_started;
+    wait = ctx->read_drive_ticks > spent ? ctx->read_drive_ticks - spent : 0;
+    gc_complete_after(ctx, ctx->read_cb, ctx->read_failed ? GC_DI_DE : GC_DI_TC, wait);
 }
 
 uint32_t gc_on_disk_id(struct gc_rt_context* ctx, uint32_t id, uint32_t cb) {
@@ -621,6 +677,10 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
     }
     if (ctx->card && alarm == (uint32_t)(uintptr_t)((struct gc_card*)(uintptr_t)ctx->card)->alarm) {
         gc_card_on_alarm(ctx, (struct gc_card*)(uintptr_t)ctx->card, os_context);
+        return;
+    }
+    if (ctx->read_state == GC_READ_COPYING) {
+        gc_read_step(ctx);
         return;
     }
     {

@@ -193,7 +193,9 @@ start-up leaves it, and jumps to the game.
 **The blob** (`runtime/gc/`, position independent, no heap or libc):
 - `gc_rt.c`: disc reads from the image's SD sectors (and the packs'
   window), with polled IPC and the game's own `OSSetAlarm` for the
-  callbacks; a GameCube drive's timing unless Disc reads is Fast; disc
+  callbacks, the SD card read from the alarm once `DVDLowRead` has
+  returned, as a drive works while the game runs on; a GameCube drive's
+  timing (its seeks left out when Disc reads is Fast); disc
   audio streaming mixed into the game's AI DMA; ARAM kept in MEM2 at
   `0x90000000` (a Wii's ARAM DMA moves nothing in Wii mode), with the
   game's ARAM addresses raised so its own sound program reads MEM2

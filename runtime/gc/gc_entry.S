@@ -459,5 +459,6 @@ gc_exi_table:
     .balign 32
     .globl gc_context_data
 gc_context_data:
+    /* struct gc_rt_context, GC_RT_CONTEXT_BYTES (0x4A0) long: the magic, then zeros */
     .long 0x52574743
-    .fill 287, 4, 0
+    .fill 295, 4, 0
