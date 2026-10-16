@@ -1395,9 +1395,6 @@ msgstr "まだ非対応"
 msgid "Build and play"
 msgstr "作ってプレイ"
 
-msgid "About {1} minutes"
-msgstr "約{1}分"
-
 msgid "Cheats don't work in GameCube games yet."
 msgstr "ゲームキューブのゲームではまだチートを使えません。"
 
@@ -1449,6 +1446,36 @@ msgstr "{1}を読み込み、{2}を書き込み中"
 msgid "{1} not built"
 msgstr "{1}は作られませんでした"
 
+msgid "Working out the time left..."
+msgstr "残り時間を計算しています..."
+
+msgid "Stop building {1}?"
+msgstr "{1}の作成を中止しますか?"
+
+msgid "What is built so far is deleted. It can be built again later, from the start."
+msgstr "ここまでに作った分は削除されます。あとで最初から作り直せます。"
+
+msgid "{1} could not be built: {2}. Nothing was kept."
+msgstr "{1}を作れませんでした: {2}。何も保存されませんでした。"
+
+msgid "About a minute"
+msgstr "約1分"
+
+msgid "About {1}-{2} minutes"
+msgstr "約{1}〜{2}分"
+
+msgid "The game stopped. Press A to go back to RiftWii and send a problem report."
+msgstr "ゲームが止まりました。Aを押すとRiftWiiに戻り、問題の報告を送れます。"
+
+msgid "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts."
+msgstr "ゲームが止まりました。Aを押すとHomebrew Channelに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。"
+
+msgid "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."
+msgstr "ゲームが止まりました。Aを押すとWiiメニューに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。"
+
+msgid "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
+msgstr "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。"
+
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "HOMEを2秒押し続けるとゲームをやめます。"
 
@@ -1457,18 +1484,6 @@ msgstr "ゲームキューブコントローラでは、L、R、Z、スタート
 
 msgid "Classic and GameCube controllers: as on a GameCube."
 msgstr "クラシックコントローラとゲームキューブコントローラ: ゲームキューブと同じです。"
-
-msgid "The game stopped. Press A to go back to RiftWii."
-msgstr "ゲームが止まりました。Aを押すとRiftWiiに戻ります。"
-
-msgid "The game stopped. Press A to go back to the Homebrew Channel."
-msgstr "ゲームが止まりました。Aを押すとHomebrew Channelに戻ります。"
-
-msgid "The game stopped. Press A to go back to the Wii Menu."
-msgstr "ゲームが止まりました。Aを押すとWiiメニューに戻ります。"
-
-msgid "The game stopped. Turn the Wii off and on again."
-msgstr "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。"
 
 msgid "1 block"
 msgstr "1ブロック"

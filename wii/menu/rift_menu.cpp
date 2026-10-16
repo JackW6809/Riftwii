@@ -1950,6 +1950,20 @@ private:
 	int x, y, w, h;
 };
 
+// One of the skin's pictures at (x, y), `scale`d, in a popup.
+class SkinMark : public GuiElement {
+public:
+	SkinMark(const skin::Tex& tex, int x, int y, float scale) : tex(tex), x(x), y(y), scale(scale) {}
+	void Draw() override
+	{
+		if (tex.data) skin::Draw(tex, x, y, 255, scale);
+	}
+private:
+	const skin::Tex& tex;
+	int x, y;
+	float scale;
+};
+
 // A long job's progress in a popup box (making a GameCube game, an SD
 // image): the game's cover on the left; beside it the share done, large,
 // the bar under it, the time left under the bar and, last, what is being
@@ -1981,7 +1995,8 @@ public:
 		bar.Set(fraction);
 		percentTxt.SetText((std::to_string(static_cast<int>(fraction * 100)) + "%").c_str());
 		const u64 ms = diff_msec(start, gettime());
-		std::string time;
+		// Until there is a rate, a placeholder: an empty line looked unfinished.
+		std::string time = tr("Working out the time left...");
 		if (ms > 10000 && done > 0 && total > done) {
 			const std::uint64_t secs = (total - done) * ms / done / 1000;
 			time = secs >= 90 ? tr("{1} minutes left", {std::to_string((secs + 59) / 60)})
@@ -4043,13 +4058,13 @@ static std::string SizeText(std::uint64_t bytes)
 	return std::to_string(tenths / 10) + "." + std::to_string(tenths % 10) + " GB";
 }
 
-// Stop pressed in `box` while `what` is being made: asked once more, as
-// what is made so far is thrown away. True: stop.
-static bool ConfirmStop(PopupBox& box, const std::string& what)
+// Stop pressed in `box`: asked once more, with `question` and `body`, as
+// the work so far is thrown away. Stop is the first button (A, or the
+// pointer): the second takes B and HOME, so a B pressed twice in a hurry
+// keeps the work going. True: stop.
+static bool ConfirmStop(PopupBox& box, const std::string& question, const std::string& body)
 {
-	const bool stop = ShowPopup(tr("Stop making {1}?", {what}),
-		tr("What is made so far is deleted. It can be made again later, from the start."),
-		tr("Keep going"), tr("Stop")) == 1;
+	const bool stop = ShowPopup(question, body, tr("Stop"), tr("Keep going")) == 0;
 	box.Reactivate();
 	return stop;
 }
@@ -4094,7 +4109,9 @@ static bool MakeSdImage(const FrontendState& state, const riftwii::LaunchPackage
 			progress.Set(written, plan.plan.image_bytes);
 			progress.SetStage(SizeText(written) + " / " + SizeText(plan.plan.image_bytes) + "\n" +
 				FlatCapped(shown.empty() ? std::string(tr("Free space")) : shown, 44));
-			const bool stop = box.Pressed() && ConfirmStop(box, plan.image);
+			const bool stop = box.Pressed() &&
+				ConfirmStop(box, tr("Stop making {1}?", {plan.image}),
+					tr("What is made so far is deleted. It can be made again later, from the start."));
 			ResumeGui();
 			return !stop;
 		}, error);
@@ -4145,12 +4162,17 @@ static const riftwii::wii::ImageGame* GcOriginal(const FrontendState& state, con
 	return nullptr;
 }
 
-// Making a game from its patch reads the original and writes the new game
-// on the same card: about 4 MB a second (Super Mario Eclipse, 1.4 GB, in
-// 5 to 6 minutes).
-static unsigned GcBuildMinutes(std::uint64_t bytes)
+// Building a game from its patch reads the original and writes the new
+// game on the same card: about 4 MB a second here (Super Mario Eclipse,
+// 1.4 GB, in 5 to 6 minutes), but SD cards differ a lot (an old class 4
+// card, a nearly full one), so a range: 5 down to 2.5 MB a second. The
+// progress window says the measured time once it runs.
+static std::string GcBuildTime(std::uint64_t bytes)
 {
-	return static_cast<unsigned>(bytes / (4ull << 20) / 60) + 1;
+	const unsigned fast = static_cast<unsigned>((bytes / (5ull << 20) + 59) / 60);
+	const unsigned slow = static_cast<unsigned>((bytes * 2 / (5ull << 20) + 59) / 60);
+	if (slow <= 1) return tr("About a minute");
+	return tr("About {1}-{2} minutes", {std::to_string(std::max(1u, fast)), std::to_string(slow)});
 }
 
 // Room and time for the Play tile and the box that asks: "1.4 GB · about
@@ -4184,16 +4206,17 @@ static bool AskGcBuild(const std::string& name, const std::string& originalName,
 		title = tr("Build this game first?");
 		body = tr("Build {1} from your {2}? This happens once.", {name, originalName});
 	}
-	body += "\n\n" + tr("Needs {1}", {SizeText(need)}) + " \xC2\xB7 " +
-		tr("About {1} minutes", {std::to_string(GcBuildMinutes(need))}) + " \xC2\xB7 " + tr("Once only");
+	// The facts only when they are known: without the original there is no size.
+	if (originalThere)
+		body += "\n\n" + tr("Needs {1}", {SizeText(need)}) + " \xC2\xB7 " + GcBuildTime(need) + " \xC2\xB7 " + tr("Once only");
 	const bool canBuild = originalThere && roomy;
 	PopupBox box(title, body, canBuild ? tr("Build it") : tr("OK"), canBuild ? tr("Not now") : "");
 	// The covers on the right, the text beside them.
 	const int coversX = 584 + box.Extra() - 2 * 64 - 28;
 	SmallCover from(originalId, coversX, 164, 64, 90);
 	SmallCover to(id, coversX + 64 + 28, 164, 64, 90);
-	GuiText arrow(">", 24, skin::kInkSoft);
-	Place(arrow, coversX + 64 + 8, 196);
+	// The theme's own right arrow (the banner view's), at about the gap's width.
+	SkinMark arrow(skin::arrowRight, coversX + 64 + 1, 196, 0.6f);
 	// The text runs from 56 - Extra() to 16 short of the covers; Add counts
 	// Extra() in itself.
 	box.Add(&from, coversX - 16 - 56);
@@ -4247,7 +4270,9 @@ static bool PrepareGcGameInMenu(FrontendState& state)
 				// screen does not dim over the bar.
 				lastActive = now;
 				progress.Set(done, total);
-				const bool stop = box.Pressed() && ConfirmStop(box, name);
+				const bool stop = box.Pressed() &&
+					ConfirmStop(box, tr("Stop building {1}?", {name}),
+						tr("What is built so far is deleted. It can be built again later, from the start."));
 				ResumeGui();
 				return !stop;
 			});
@@ -4261,7 +4286,7 @@ static bool PrepareGcGameInMenu(FrontendState& state)
 		}
 		// Most failures are the card's (a write, a read): worth another go.
 		if (ShowPopup(tr("{1} not built", {name}),
-			    tr("{1} could not be made: {2}. Nothing was kept.", {name, FlatCapped(error, 140)}),
+			    tr("{1} could not be built: {2}. Nothing was kept.", {name, FlatCapped(error, 140)}),
 			    tr("Try again"), tr("OK")) != 0)
 			return false;
 		image = riftwii::wii::GcImage{game.path, game.id, game.gc_patch_source};
@@ -4677,13 +4702,13 @@ static void MakeGcCrashCard()
 {
 	std::string text;
 	switch (riftwii::wii::FindGcWayBack()) {
-		case riftwii::wii::GcWayBack::Channel: text = tr("The game stopped. Press A to go back to RiftWii."); break;
-		case riftwii::wii::GcWayBack::HomebrewChannel: text = tr("The game stopped. Press A to go back to the Homebrew Channel."); break;
-		case riftwii::wii::GcWayBack::WiiMenu: text = tr("The game stopped. Press A to go back to the Wii Menu."); break;
-		default: text = tr("The game stopped. Turn the Wii off and on again."); break;
+		case riftwii::wii::GcWayBack::Channel: text = tr("The game stopped. Press A to go back to RiftWii and send a problem report."); break;
+		case riftwii::wii::GcWayBack::HomebrewChannel: text = tr("The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts."); break;
+		case riftwii::wii::GcWayBack::WiiMenu: text = tr("The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."); break;
+		default: text = tr("The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."); break;
 	}
 	std::vector<std::uint8_t> coverage(static_cast<std::size_t>(riftwii::wii::kGcCrashCardW) * riftwii::wii::kGcCrashCardH, 0);
-	const int lines = RenderTextCoverage(text.c_str(), 26, coverage.data(), riftwii::wii::kGcCrashCardW,
+	const int lines = RenderTextCoverage(text.c_str(), 24, coverage.data(), riftwii::wii::kGcCrashCardW,
 		riftwii::wii::kGcCrashCardH);
 	logf("GameCube: the crash screen's message drawn (%d line(s))\n", lines);
 	riftwii::wii::SetGcCrashCard(lines > 0 ? std::move(coverage) : std::vector<std::uint8_t>());
@@ -6232,7 +6257,7 @@ static void BuildGameTiles(const FrontendState& state, std::vector<TileSpec>& ti
 		play = tr("Build and play");
 		const std::uint64_t bytes = GcBuildBytes(*toBuild);
 		if (bytes != 0)
-			playValue = SizeText(bytes) + " \xC2\xB7 " + tr("About {1} minutes", {std::to_string(GcBuildMinutes(bytes))});
+			playValue = SizeText(bytes) + " \xC2\xB7 " + GcBuildTime(bytes);
 	}
 
 	// The lower rows: two tiles across the tiles' width, 12 apart.

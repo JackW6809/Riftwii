@@ -1335,7 +1335,6 @@ T = {
     "Memory Card": ("Tarjeta de memoria", "メモリーカード", "Cartão de memória", "Memory Card"),
     "Not yet": ("Aún no", "まだ非対応", "Ainda não", "Non ancora"),
     "Build and play": ("Crear y jugar", "作ってプレイ", "Criar e jogar", "Crea e gioca"),
-    "About {1} minutes": ("Unos {1} minutos", "約{1}分", "Cerca de {1} minutos", "Circa {1} minuti"),
     "Cheats don't work in GameCube games yet.": ("Los trucos aún no funcionan en los juegos de GameCube.", "ゲームキューブのゲームではまだチートを使えません。", "Os cheats ainda não funcionam nos jogos de GameCube.", "I trucchi non funzionano ancora nei giochi GameCube."),
     "Made from {1} on first start, once; every start after that is immediate.": ("Se crea a partir de {1} en el primer inicio, una sola vez; los inicios siguientes son inmediatos.", "最初の起動時に{1}から一度だけ作られます。次回からはすぐに始まります。", "É criado a partir de {1} no primeiro arranque, uma só vez; os arranques seguintes são imediatos.", "Viene creato da {1} al primo avvio, una volta sola; gli avvii successivi sono immediati."),
     "Saves go to this game's own memory card on the SD card: {1}.": ("Las partidas se guardan en la tarjeta de memoria propia de este juego, en la tarjeta SD: {1}.", "セーブはSDカード上のこのゲーム専用のメモリーカードに保存されます: {1}。", "Os saves vão para o cartão de memória próprio deste jogo, no cartão SD: {1}.", "I salvataggi vanno nella Memory Card di questo gioco, sulla scheda SD: {1}."),
@@ -1353,13 +1352,19 @@ T = {
     "Building {1}": ("Creando {1}", "{1}を作成中", "A criar {1}", "Creazione di {1}"),
     "Reading {1} and writing {2}": ("Leyendo {1} y escribiendo {2}", "{1}を読み込み、{2}を書き込み中", "A ler {1} e a escrever {2}", "Lettura di {1} e scrittura di {2}"),
     "{1} not built": ("{1} no se creó", "{1}は作られませんでした", "{1} não foi criado", "{1} non creato"),
+    "Working out the time left...": ("Calculando el tiempo restante...", "残り時間を計算しています...", "A calcular o tempo restante...", "Calcolo del tempo rimanente..."),
+    "Stop building {1}?": ("¿Dejar de crear {1}?", "{1}の作成を中止しますか?", "Parar de criar {1}?", "Interrompere la creazione di {1}?"),
+    "What is built so far is deleted. It can be built again later, from the start.": ("Lo creado hasta ahora se borra. Se puede volver a crear más tarde, desde el principio.", "ここまでに作った分は削除されます。あとで最初から作り直せます。", "O que foi criado até agora é apagado. Pode ser criado outra vez mais tarde, desde o início.", "Quanto creato finora viene eliminato. Si può ricreare più tardi, dall'inizio."),
+    "{1} could not be built: {2}. Nothing was kept.": ("No se pudo crear {1}: {2}. No se guardó nada.", "{1}を作れませんでした: {2}。何も保存されませんでした。", "Não foi possível criar {1}: {2}. Nada foi guardado.", "Impossibile creare {1}: {2}. Non è stato salvato nulla."),
+    "About a minute": ("Un minuto, más o menos", "約1分", "Cerca de um minuto", "Circa un minuto"),
+    "About {1}-{2} minutes": ("Unos {1}-{2} minutos", "約{1}〜{2}分", "Cerca de {1}-{2} minutos", "Circa {1}-{2} minuti"),
+    "The game stopped. Press A to go back to RiftWii and send a problem report.": ("El juego se ha detenido. Pulsa A para volver a RiftWii y enviar un informe del problema.", "ゲームが止まりました。Aを押すとRiftWiiに戻り、問題の報告を送れます。", "O jogo parou. Prima A para voltar ao RiftWii e enviar um relatório do problema.", "Il gioco si è fermato. Premi A per tornare a RiftWii e inviare una segnalazione del problema."),
+    "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Pulsa A para volver al Canal Homebrew. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Aを押すとHomebrew Channelに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Prima A para voltar ao Homebrew Channel. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Premi A per tornare all'Homebrew Channel. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
+    "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Pulsa A para volver al Menú de Wii. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Aを押すとWiiメニューに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Prima A para voltar ao Menu Wii. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Premi A per tornare al Menu Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
+    "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Desligue a Wii e volte a ligá-la. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
     "Hold HOME for two seconds to leave the game.": ("Mantén HOME dos segundos para salir del juego.", "HOMEを2秒押し続けるとゲームをやめます。", "Mantenha HOME premido dois segundos para sair do jogo.", "Tieni premuto HOME per due secondi per uscire dal gioco."),
     "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.": ("En un mando de GameCube, mantén L, R, Z y Start dos segundos para salir del juego.", "ゲームキューブコントローラでは、L、R、Z、スタートを2秒押し続けるとゲームをやめます。", "Num comando GameCube, mantenha L, R, Z e Start premidos dois segundos para sair do jogo.", "Su un controller GameCube, tieni premuti L, R, Z e Start per due secondi per uscire dal gioco."),
     "Classic and GameCube controllers: as on a GameCube.": ("Mandos clásico y de GameCube: como en una GameCube.", "クラシックコントローラとゲームキューブコントローラ: ゲームキューブと同じです。", "Comandos Clássico e GameCube: como numa GameCube.", "Controller classico e GameCube: come su un GameCube."),
-    "The game stopped. Press A to go back to RiftWii.": ("El juego se ha detenido. Pulsa A para volver a RiftWii.", "ゲームが止まりました。Aを押すとRiftWiiに戻ります。", "O jogo parou. Prima A para voltar ao RiftWii.", "Il gioco si è fermato. Premi A per tornare a RiftWii."),
-    "The game stopped. Press A to go back to the Homebrew Channel.": ("El juego se ha detenido. Pulsa A para volver al Canal Homebrew.", "ゲームが止まりました。Aを押すとHomebrew Channelに戻ります。", "O jogo parou. Prima A para voltar ao Homebrew Channel.", "Il gioco si è fermato. Premi A per tornare all'Homebrew Channel."),
-    "The game stopped. Press A to go back to the Wii Menu.": ("El juego se ha detenido. Pulsa A para volver al Menú de Wii.", "ゲームが止まりました。Aを押すとWiiメニューに戻ります。", "O jogo parou. Prima A para voltar ao Menu Wii.", "Il gioco si è fermato. Premi A per tornare al Menu Wii."),
-    "The game stopped. Turn the Wii off and on again.": ("El juego se ha detenido. Apaga la Wii y vuelve a encenderla.", "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。", "O jogo parou. Desligue a Wii e volte a ligá-la.", "Il gioco si è fermato. Spegni e riaccendi la Wii."),
     "1 block": ("1 bloque", "1ブロック", "1 bloco", "1 blocco"),
     "{1} blocks": ("{1} bloques", "{1}ブロック", "{1} blocos", "{1} blocchi"),
     "{1} of {2} blocks free.": ("{1} de {2} bloques libres.", "{2}ブロック中{1}ブロックが空いています。", "{1} de {2} blocos livres.", "{1} blocchi liberi su {2}."),
@@ -2796,8 +2801,6 @@ KO = {
         "아직 미지원",
     "Build and play":
         "만들고 플레이",
-    "About {1} minutes":
-        "약 {1}분",
     "Cheats don't work in GameCube games yet.":
         "게임큐브 게임에서는 아직 치트를 쓸 수 없습니다.",
     "Made from {1} on first start, once; every start after that is immediate.":
@@ -2832,20 +2835,32 @@ KO = {
         "{1} 읽고 {2} 쓰는 중",
     "{1} not built":
         "{1}을(를) 만들지 못했습니다",
+    "Working out the time left...":
+        "남은 시간을 계산하는 중...",
+    "Stop building {1}?":
+        "{1} 만들기를 중지할까요?",
+    "What is built so far is deleted. It can be built again later, from the start.":
+        "지금까지 만든 것은 삭제됩니다. 나중에 처음부터 다시 만들 수 있습니다.",
+    "{1} could not be built: {2}. Nothing was kept.":
+        "{1}을(를) 만들 수 없습니다: {2}. 아무것도 남기지 않았습니다.",
+    "About a minute":
+        "약 1분",
+    "About {1}-{2} minutes":
+        "약 {1}~{2}분",
+    "The game stopped. Press A to go back to RiftWii and send a problem report.":
+        "게임이 멈췄습니다. A를 누르면 RiftWii로 돌아가 문제 보고를 보낼 수 있습니다.",
+    "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.":
+        "게임이 멈췄습니다. A를 누르면 Homebrew Channel로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
+    "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.":
+        "게임이 멈췄습니다. A를 누르면 Wii 메뉴로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
+    "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
+        "게임이 멈췄습니다. Wii를 껐다가 다시 켜세요. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
     "Hold HOME for two seconds to leave the game.":
         "HOME을 2초 동안 누르면 게임을 나갑니다.",
     "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.":
         "게임큐브 컨트롤러에서는 L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다.",
     "Classic and GameCube controllers: as on a GameCube.":
         "클래식 컨트롤러와 게임큐브 컨트롤러: 게임큐브와 같습니다.",
-    "The game stopped. Press A to go back to RiftWii.":
-        "게임이 멈췄습니다. A를 누르면 RiftWii로 돌아갑니다.",
-    "The game stopped. Press A to go back to the Homebrew Channel.":
-        "게임이 멈췄습니다. A를 누르면 Homebrew Channel로 돌아갑니다.",
-    "The game stopped. Press A to go back to the Wii Menu.":
-        "게임이 멈췄습니다. A를 누르면 Wii 메뉴로 돌아갑니다.",
-    "The game stopped. Turn the Wii off and on again.":
-        "게임이 멈췄습니다. Wii를 껐다가 다시 켜세요.",
     "1 block":
         "1블록",
     "{1} blocks":
@@ -4461,8 +4476,6 @@ FR = {
         "Pas encore",
     "Build and play":
         "Créer et jouer",
-    "About {1} minutes":
-        "Environ {1} minutes",
     "Cheats don't work in GameCube games yet.":
         "Les codes de triche ne marchent pas encore dans les jeux GameCube.",
     "Made from {1} on first start, once; every start after that is immediate.":
@@ -4497,20 +4510,32 @@ FR = {
         "Lecture de {1} et écriture de {2}",
     "{1} not built":
         "{1} non créé",
+    "Working out the time left...":
+        "Calcul du temps restant...",
+    "Stop building {1}?":
+        "Arrêter de créer {1} ?",
+    "What is built so far is deleted. It can be built again later, from the start.":
+        "Ce qui a été créé jusqu'ici est supprimé. Il pourra être recréé plus tard, depuis le début.",
+    "{1} could not be built: {2}. Nothing was kept.":
+        "Impossible de créer {1} : {2}. Rien n'a été conservé.",
+    "About a minute":
+        "Environ une minute",
+    "About {1}-{2} minutes":
+        "Environ {1} à {2} minutes",
+    "The game stopped. Press A to go back to RiftWii and send a problem report.":
+        "Le jeu s'est arrêté. Appuyez sur A pour revenir à RiftWii et envoyer un rapport de problème.",
+    "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.":
+        "Le jeu s'est arrêté. Appuyez sur A pour revenir à la Homebrew Channel. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
+    "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.":
+        "Le jeu s'est arrêté. Appuyez sur A pour revenir au Menu Wii. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
+    "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
+        "Le jeu s'est arrêté. Éteignez la Wii puis rallumez-la. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
     "Hold HOME for two seconds to leave the game.":
         "Maintenez HOME deux secondes pour quitter le jeu.",
     "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.":
         "Sur une manette GameCube, maintenez L, R, Z et Start deux secondes pour quitter le jeu.",
     "Classic and GameCube controllers: as on a GameCube.":
         "Manettes classique et GameCube : comme sur une GameCube.",
-    "The game stopped. Press A to go back to RiftWii.":
-        "Le jeu s'est arrêté. Appuyez sur A pour revenir à RiftWii.",
-    "The game stopped. Press A to go back to the Homebrew Channel.":
-        "Le jeu s'est arrêté. Appuyez sur A pour revenir à la Homebrew Channel.",
-    "The game stopped. Press A to go back to the Wii Menu.":
-        "Le jeu s'est arrêté. Appuyez sur A pour revenir au Menu Wii.",
-    "The game stopped. Turn the Wii off and on again.":
-        "Le jeu s'est arrêté. Éteignez la Wii puis rallumez-la.",
     "1 block":
         "1 bloc",
     "{1} blocks":

@@ -1395,9 +1395,6 @@ msgstr "Pas encore"
 msgid "Build and play"
 msgstr "Créer et jouer"
 
-msgid "About {1} minutes"
-msgstr "Environ {1} minutes"
-
 msgid "Cheats don't work in GameCube games yet."
 msgstr "Les codes de triche ne marchent pas encore dans les jeux GameCube."
 
@@ -1449,6 +1446,36 @@ msgstr "Lecture de {1} et écriture de {2}"
 msgid "{1} not built"
 msgstr "{1} non créé"
 
+msgid "Working out the time left..."
+msgstr "Calcul du temps restant..."
+
+msgid "Stop building {1}?"
+msgstr "Arrêter de créer {1} ?"
+
+msgid "What is built so far is deleted. It can be built again later, from the start."
+msgstr "Ce qui a été créé jusqu'ici est supprimé. Il pourra être recréé plus tard, depuis le début."
+
+msgid "{1} could not be built: {2}. Nothing was kept."
+msgstr "Impossible de créer {1} : {2}. Rien n'a été conservé."
+
+msgid "About a minute"
+msgstr "Environ une minute"
+
+msgid "About {1}-{2} minutes"
+msgstr "Environ {1} à {2} minutes"
+
+msgid "The game stopped. Press A to go back to RiftWii and send a problem report."
+msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir à RiftWii et envoyer un rapport de problème."
+
+msgid "The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts."
+msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir à la Homebrew Channel. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage."
+
+msgid "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."
+msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir au Menu Wii. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage."
+
+msgid "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
+msgstr "Le jeu s'est arrêté. Éteignez la Wii puis rallumez-la. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage."
+
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "Maintenez HOME deux secondes pour quitter le jeu."
 
@@ -1457,18 +1484,6 @@ msgstr "Sur une manette GameCube, maintenez L, R, Z et Start deux secondes pour 
 
 msgid "Classic and GameCube controllers: as on a GameCube."
 msgstr "Manettes classique et GameCube : comme sur une GameCube."
-
-msgid "The game stopped. Press A to go back to RiftWii."
-msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir à RiftWii."
-
-msgid "The game stopped. Press A to go back to the Homebrew Channel."
-msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir à la Homebrew Channel."
-
-msgid "The game stopped. Press A to go back to the Wii Menu."
-msgstr "Le jeu s'est arrêté. Appuyez sur A pour revenir au Menu Wii."
-
-msgid "The game stopped. Turn the Wii off and on again."
-msgstr "Le jeu s'est arrêté. Éteignez la Wii puis rallumez-la."
 
 msgid "1 block"
 msgstr "1 bloc"
