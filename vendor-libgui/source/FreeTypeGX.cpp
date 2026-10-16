@@ -149,10 +149,12 @@ int RenderTextCoverage(const char* text, FT_UInt pixelSize, uint8_t* out, int wi
 		at = end;
 		while (*at == L' ' || *at == L'\n') ++at;
 	}
+	// Characters left over: the text did not fit in the height.
+	const bool allFit = !wide || !*at;
 	delete[] wide;
 	FT_Activate_Size(saved);
 	FT_Done_Size(mine);
-	return lines;
+	return allFit ? lines : -1;
 }
 
 void ChangeFontSize(FT_UInt pixelSize)

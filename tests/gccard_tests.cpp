@@ -415,9 +415,10 @@ static void test_damaged_cards() {
     set_bat_word(ends_early, 6, 0xFFFF);
     EXPECT_FALSE(read_ok(ends_early).saves[0].intact);
 
-    // The first save's chain runs into the second's: both are damaged.
-    // Deleting the first frees its whole walk, the shared blocks too, as
-    // no intact save holds them; the second stays listed as damaged.
+    // The first save's chain runs on into the second's (5 6 7 8 9, its
+    // count made 5): both follow to their ends but share 8 and 9, so both
+    // are listed as damaged. Deleting the first frees only 5 to 7: 8 and 9
+    // lie on the second's clean chain, which is whole again afterwards.
     Bytes crossed = card;
     set_bat_word(crossed, 7, 8);
     set_entry_word(crossed, 0, 0x38, 5);
@@ -427,8 +428,39 @@ static void test_damaged_cards() {
     EXPECT_TRUE(gc_card_delete(crossed, 0, error));
     info = read_ok(crossed);
     EXPECT_EQ(info.saves.size(), 1u);
-    EXPECT_EQ(info.free_blocks, 251u);
-    if (!info.saves.empty()) EXPECT_FALSE(info.saves[0].intact);
+    EXPECT_EQ(info.free_blocks, 249u);
+    if (!info.saves.empty()) EXPECT_TRUE(info.saves[0].intact);
+
+    // A damaged save whose walk breaks off inside a good save's chain
+    // (5 6, then 8, the second save's first block, where its count of 3
+    // wants an end): only the second's chain followed cleanly. Deleting
+    // the damaged one must leave 8 and 9 taken, and the second save whole
+    // and exported as it was; 7, cut off, stays taken.
+    Bytes into_good = card;
+    Bytes second_before;
+    EXPECT_TRUE(gc_card_export(card, 1, second_before, error));
+    set_bat_word(into_good, 6, 8);
+    info = read_ok(into_good);
+    EXPECT_FALSE(info.saves[0].intact);
+    EXPECT_FALSE(info.saves[1].intact);
+    EXPECT_TRUE(gc_card_delete(into_good, 0, error));
+    info = read_ok(into_good);
+    EXPECT_EQ(info.saves.size(), 1u);
+    EXPECT_EQ(info.free_blocks, 248u);
+    if (!info.saves.empty()) {
+        EXPECT_TRUE(info.saves[0].intact);
+        Bytes second_after;
+        EXPECT_TRUE(gc_card_export(into_good, info.saves[0].slot, second_after, error));
+        EXPECT_TRUE(second_after == second_before);
+    }
+    // An import afterwards takes free blocks only, never 8 or 9.
+    SaveSpec third;
+    third.name = "third";
+    third.blocks = 4;
+    EXPECT_TRUE(gc_card_import(into_good, make_gci(third), error));
+    Bytes second_again;
+    EXPECT_TRUE(gc_card_export(into_good, 1, second_again, error));
+    EXPECT_TRUE(second_again == second_before);
 
     // First block, block count out of range.
     Bytes entry_bad = card;
@@ -623,7 +655,32 @@ static void test_card_paths() {
     EXPECT_FALSE(gc_card_shift_jis("GMS"));
 }
 
+// A card's text as UTF-8: Shift-JIS on a Japanese card, Windows-1252 on
+// any other, '?' for what is not a character.
+static void test_card_text() {
+    // "ゼルダ" (katakana), "伝説" (first-level kanji), "ＡＢ" (full width).
+    EXPECT_EQ(gc_card_text_utf8("\x83\x5B\x83\x8B\x83\x5F", true), std::string("\xE3\x82\xBC\xE3\x83\xAB\xE3\x83\x80"));
+    EXPECT_EQ(gc_card_text_utf8("\x93\x60\x90\xE0", true), std::string("\xE4\xBC\x9D\xE8\xAA\xAC"));
+    EXPECT_EQ(gc_card_text_utf8("\x82\x60\x82\x61", true), std::string("\xEF\xBC\xA1\xEF\xBC\xA2"));
+    // Half-width katakana "ｱ", ASCII kept, the ideographic space.
+    EXPECT_EQ(gc_card_text_utf8("A\xB1z", true), std::string("A\xEF\xBD\xB1z"));
+    EXPECT_EQ(gc_card_text_utf8("\x81\x40", true), std::string("\xE3\x80\x80"));
+    // A lead byte at the end, a bad trail byte, second-level kanji (not in
+    // the table), a pair that is not a character, a control byte.
+    EXPECT_EQ(gc_card_text_utf8("ab\x82", true), std::string("ab?"));
+    EXPECT_EQ(gc_card_text_utf8("\x82\x20x", true), std::string("? x"));
+    EXPECT_EQ(gc_card_text_utf8("\x9F\x40", true), std::string("?"));
+    EXPECT_EQ(gc_card_text_utf8("\x85\x40", true), std::string("?"));
+    EXPECT_EQ(gc_card_text_utf8("\xFD\x01", true), std::string("??"));
+    // Windows-1252: Latin-1 letters, its own 0x80-0x9F, an unused byte.
+    EXPECT_EQ(gc_card_text_utf8("Pok\xE9mon", false), std::string("Pok\xC3\xA9mon"));
+    EXPECT_EQ(gc_card_text_utf8("\x80\x99", false), std::string("\xE2\x82\xAC\xE2\x84\xA2"));
+    EXPECT_EQ(gc_card_text_utf8("\x81", false), std::string("?"));
+    EXPECT_EQ(gc_card_text_utf8("", true), std::string());
+}
+
 int main() {
+    test_card_text();
     test_card_paths();
     test_icon_texture();
     test_format();

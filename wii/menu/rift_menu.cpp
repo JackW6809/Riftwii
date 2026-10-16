@@ -85,6 +85,7 @@
 #include "riftwii/apply.hpp"
 #include "riftwii/patch.hpp"
 #include "codebuilds.hpp"
+#include "gclaunch.hpp"
 #include "gcnative.hpp"
 #include "gcpatch.hpp"
 #include "vsdmake.hpp"
@@ -1816,13 +1817,21 @@ public:
 		while (choice < 0) {
 			usleep(20000);
 			HaltGui();
-			ClearStaleButtons({&okBtn.button, &cancelBtn.button});
-			if (hasCancel && cancelBtn.Clicked()) choice = 1;
-			else if (hasOk && okBtn.Clicked()) choice = 0;
+			choice = Poll();
 			if (choice < 0) ResumeGui();
 		}
 		return choice;
 	}
+	// For a box that does more while it waits (the GUI halted): Wait's
+	// answer once a button was pressed, else -1.
+	int Poll()
+	{
+		ClearStaleButtons({&okBtn.button, &cancelBtn.button});
+		if (hasCancel && cancelBtn.Clicked()) return 1;
+		if (hasOk && okBtn.Clicked()) return 0;
+		return -1;
+	}
+	void SetTitle(const std::string& title) { titleTxt.SetText(title.c_str()); }
 private:
 	int extra;  // first: the panel and the texts use it
 	Dim dim;
@@ -3729,9 +3738,14 @@ static std::string AspectName(const std::string& v)
 }
 static const char* const kGameLanguages[] = {"global", "console", "ja", "en", "de", "fr", "es", "it", "nl", "zh-hans",
 	"zh-hant", "ko"};
-// A GameCube game's language: its own (the console's), then
-// riftwii::kGcLanguages in the SRAM's order.
-static const char* const kGcLanguageChoices[] = {"game", "english", "german", "french", "spanish", "italian", "dutch"};
+// A GameCube game's picture and language: Settings' and the Wii's own
+// first (riftwii::GcConsoleSettings), then the game's choices; the
+// languages are the console's GameCube setting, then riftwii::kGcLanguages
+// in the SRAM's order.
+static const char* const kGcProgressiveChoices[] = {"global", "480p", "game"};
+static const char* const kGcWidescreenChoices[] = {"global", "16:9", "game"};
+static const char* const kGcLanguageChoices[] = {"global", "game", "english", "german", "french", "spanish", "italian",
+	"dutch"};
 static std::string GcLanguageName(const std::string& v)
 {
 	if (v == "english") return tr("English");
@@ -4044,24 +4058,35 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		FlowRow progressive;
 		progressive.kind = FlowRow::Kind::Option;
 		progressive.label = tr("Progressive scan");
+		// "global" is shown as what it comes to now, as a Wii game's rows
+		// show Settings' choice.
+		const riftwii::GcConsoleSettings console = riftwii::wii::GcConsoleNow();
 		// 480p is NTSC's: a PAL game keeps its own picture whatever is picked.
 		progressive.dim = riftwii::gc_pal_game(state.game_id);
-		progressive.on = game.gc_progressive == "480p" && !progressive.dim;
-		progressive.value = progressive.on ? "480p" : tr("Game's own");
+		progressive.on = game.gc_progressive != "global" && !progressive.dim;
+		const std::string progressiveNow = riftwii::gc_progressive_on(game, state.game_id, console)
+			? std::string("480p") : std::string(tr("Game's own"));
+		if (progressive.dim) progressive.value = tr("Not for PAL games");
+		else if (game.gc_progressive == "global") progressive.value = tr("Default ({1})", {progressiveNow});
+		else progressive.value = progressiveNow;
 		rows.push_back(progressive);
 		refs.push_back({W::GcProgressive});
 		FlowRow widescreen;
 		widescreen.kind = FlowRow::Kind::Option;
 		widescreen.label = tr("Widescreen");
-		widescreen.on = game.gc_widescreen == "16:9";
-		widescreen.value = widescreen.on ? "16:9" : tr("Game's own");
+		widescreen.on = game.gc_widescreen != "global";
+		const std::string widescreenNow = riftwii::gc_widescreen_on(game, console)
+			? std::string("16:9") : std::string(tr("Game's own"));
+		widescreen.value = game.gc_widescreen == "global" ? tr("Default ({1})", {widescreenNow}) : widescreenNow;
 		rows.push_back(widescreen);
 		refs.push_back({W::GcWidescreen});
 		FlowRow language;
 		language.kind = FlowRow::Kind::Option;
 		language.label = tr("Game language");
-		language.on = game.gc_language != "game";
-		language.value = GcLanguageName(game.gc_language);
+		language.on = game.gc_language != "global";
+		const int languageNumber = riftwii::gc_language_number(game, console);
+		const std::string languageNow = GcLanguageName(languageNumber >= 0 ? riftwii::kGcLanguages[languageNumber] : "game");
+		language.value = game.gc_language == "global" ? tr("Default ({1})", {languageNow}) : languageNow;
 		rows.push_back(language);
 		refs.push_back({W::GcLanguage});
 		FlowRow controls;
@@ -4372,6 +4397,8 @@ public:
 	}
 	void Draw() override
 	{
+		// Hidden while another controller's card is shown.
+		if (!IsVisible()) return;
 		const int column = (right - left) / 2;
 		const int rows = static_cast<int>((pairs.size() + 1) / 2);
 		for (std::size_t i = 0; i < pairs.size(); ++i) {
@@ -4402,44 +4429,129 @@ private:
 	int left, right;
 };
 
+// One kind of controller's GameCube buttons, and how it leaves the game.
+struct GcControlsCard {
+	std::string title;
+	std::vector<GcControlsTable::Pair> pairs;  // none: a GameCube controller's own
+	std::string leave;
+};
+
 // Which buttons are the GameCube controller's (runtime/gc/gc_bt.c's
 // bt_fill_one), one card per kind of controller connected now (a Wii
-// Remote alone when none is), each a table. `starting`: shown before a
-// game starts, the last card with Play and Back; true when Play was
-// pressed. Otherwise Next, then OK.
-static bool ShowGcControls(bool starting)
+// Remote alone when none is). A Wii Remote alone leaves with HOME and -
+// together, as its HOME alone is the game's Y.
+static std::vector<GcControlsCard> GcControlsCards()
 {
-	using Pair = GcControlsTable::Pair;
-	struct Card { std::string title; std::vector<Pair> pairs; };
-	std::vector<Card> cards;
+	std::vector<GcControlsCard> cards;
 	const ConnectedPads pads = PadsConnectedNow();
+	const std::string leaveHome = tr("Hold HOME for two seconds to leave the game.");
 	if (pads.classic)
 		cards.push_back({tr("Classic Controller"),
 			{{"a", "A"}, {"b", "B"}, {"x", "X"}, {"y", "Y"}, {"L", "L"}, {"R", "R"}, {"ZL", "Z"}, {"+", "Start"},
-				{tr("Left stick"), tr("Stick")}, {tr("Right stick"), tr("C-stick")}}});
+				{tr("Left stick"), tr("Stick")}, {tr("Right stick"), tr("C-stick")}}, leaveHome});
 	if (pads.nunchuk)
 		cards.push_back({tr("Wii Remote and Nunchuk"),
 			{{"A", "A"}, {"B", "B"}, {"1", "X"}, {"2", "Y"}, {"C", "L"}, {"Z", "R"}, {"-", "Z"}, {"+", "Start"},
-				{tr("Stick"), tr("Stick")}, {tr("D-pad"), tr("C-stick")}}});
+				{tr("Stick"), tr("Stick")}, {tr("D-pad"), tr("C-stick")}}, leaveHome});
 	if ((pads.remote && !pads.nunchuk && !pads.classic) || (!pads.remote && !pads.gamecube))
 		cards.push_back({tr("Wii Remote, held sideways"),
 			{{"2", "A"}, {"1", "B"}, {"A", "X"}, {"HOME", "Y"}, {"B", "R"}, {"-", "Z"}, {"+", "Start"},
-				{tr("D-pad"), tr("Stick")}}});
-	if (pads.gamecube) cards.push_back({tr("GameCube controller"), {}});
-	for (std::size_t i = 0; i < cards.size(); ++i) {
-		const bool last = i + 1 == cards.size();
-		const std::string ok = !last ? tr("Next") : starting ? tr("Play") : tr("OK");
-		PopupBox box(tr("GameCube controls: {1}", {cards[i].title}),
-			cards[i].pairs.empty() ? std::string(tr("Its buttons are the game's own, as on a GameCube.")) : std::string(),
-			ok, starting ? tr("Back") : "");
-		GcControlsTable table(cards[i].pairs, 56 - box.Extra(), 584 + box.Extra());
-		GuiText leave(tr("Hold HOME for two seconds to leave the game."), 15, skin::kInkSoft);
-		Place(leave, 56 - box.Extra(), 290);
-		box.Append(&table);
-		if (last) box.Append(&leave);
-		if (box.Wait() != 0) return false;
+				{tr("D-pad"), tr("Stick")}}, tr("Hold HOME and - for two seconds to leave the game.")});
+	if (pads.gamecube)
+		cards.push_back({tr("GameCube controller"), {}, tr("Hold L, R, Z and Start for two seconds to leave the game.")});
+	return cards;
+}
+
+// Dots under a popup's title, one per card, the one shown filled.
+static std::string CardDots(std::size_t count, std::size_t shown)
+{
+	std::string dots;
+	for (std::size_t i = 0; i < count; ++i) {
+		if (i) dots += " ";
+		dots += i == shown ? "\xE2\x97\x8F" : "\xE2\x97\x8B";  // U+25CF, U+25CB
 	}
-	return true;
+	return dots;
+}
+
+// The controls cards in one popup: Left and Right (or the arrows) turn to
+// the other controllers' cards, the dots say which is shown. `starting`:
+// before a game starts, with Play and Back; true when Play was pressed.
+// Otherwise OK alone.
+static bool ShowGcControls(bool starting)
+{
+	const std::vector<GcControlsCard> cards = GcControlsCards();
+	const std::string ownButtons = tr("Its buttons are the game's own, as on a GameCube.");
+	const auto title = [&](std::size_t i) { return std::string(tr("GameCube controls: {1}", {cards[i].title})); };
+	const auto body = [&](std::size_t i) { return cards[i].pairs.empty() ? ownButtons : std::string(); };
+	PopupBox box(title(0), body(0), starting ? tr("Play") : tr("OK"), starting ? tr("Back") : "");
+	// Every card's table and leave line made at once; only the shown
+	// card's are visible.
+	std::vector<std::unique_ptr<GcControlsTable>> tables;
+	std::vector<std::unique_ptr<GuiText>> leaves;
+	for (const GcControlsCard& card : cards) {
+		tables.emplace_back(new GcControlsTable(card.pairs, 56 - box.Extra(), 584 + box.Extra()));
+		leaves.emplace_back(new GuiText(card.leave.c_str(), 15, skin::kInkSoft));
+		Place(*leaves.back(), 56 - box.Extra(), 290);
+		box.Append(tables.back().get());
+		box.Append(leaves.back().get());
+	}
+	GuiText dots(CardDots(cards.size(), 0).c_str(), 14, skin::kInkSoft);
+	dots.SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
+	dots.SetPosition(-(56 - box.Extra()), 126);
+	SkinButton prevBtn(skin::arrowLeft, skin::arrowLeftOver, 2, 2 - box.Extra(), 200, nullptr,
+		WPAD_BUTTON_LEFT | WPAD_CLASSIC_BUTTON_LEFT, PAD_BUTTON_LEFT, WIIDRC_BUTTON_LEFT);
+	SkinButton nextBtn(skin::arrowRight, skin::arrowRightOver, 2, 594 + box.Extra(), 200, nullptr,
+		WPAD_BUTTON_RIGHT | WPAD_CLASSIC_BUTTON_RIGHT, PAD_BUTTON_RIGHT, WIIDRC_BUTTON_RIGHT);
+	if (cards.size() > 1) {
+		box.Append(&dots);
+		box.Append(&prevBtn.button);
+		box.Append(&nextBtn.button);
+	}
+	std::size_t shown = 0;
+	const auto show = [&](std::size_t i) {
+		shown = i;
+		for (std::size_t c = 0; c < cards.size(); ++c) {
+			tables[c]->SetVisible(c == i);
+			leaves[c]->SetVisible(c == i);
+		}
+		box.SetTitle(title(i));
+		box.SetBody(body(i));
+		dots.SetText(CardDots(cards.size(), i).c_str());
+	};
+	show(0);
+	ResumeGui();
+	int choice = -1;
+	while (choice < 0) {
+		usleep(20000);
+		HaltGui();
+		ClearStaleButtons({&prevBtn.button, &nextBtn.button});
+		if (prevBtn.Clicked() || nextBtn.Clicked()) {
+			const std::size_t n = cards.size();
+			show(prevBtn.Clicked() ? (shown + n - 1) % n : (shown + 1) % n);
+			prevBtn.button.ResetState();
+			nextBtn.button.ResetState();
+		}
+		choice = box.Poll();
+		if (choice < 0) ResumeGui();
+	}
+	return choice == 0;
+}
+
+// The leave line for the controller a player would hold first (the
+// controls cards' first one), for a note shown before the game starts.
+static std::string GcLeaveLine()
+{
+	const std::vector<GcControlsCard> cards = GcControlsCards();
+	return cards.empty() ? std::string(tr("Hold HOME for two seconds to leave the game.")) : cards.front().leave;
+}
+
+// 480p picked while the Wii's own 480p setting is off: said once, as the
+// setting being off may mean no cable takes it. True: Turn on.
+static bool AskGc480p()
+{
+	const std::string body = std::string(tr("Only with a component or HDMI cable: without one the picture stays black.")) +
+		" " + GcLeaveLine();
+	return ShowPopup(tr("Progressive scan"), body, tr("Turn on"), tr("Cancel")) == 0;
 }
 
 // The controls before the first GameCube game starts from this card
@@ -4532,33 +4644,62 @@ static bool ReadSmallFile(const std::string& path, std::size_t limit, std::vecto
 	return ok;
 }
 
+// What a card change is, which sets the order its blocks reach the SD card.
+enum class CardChange { Import, Delete };
+
 // Writes back only the card's blocks that changed: the library writes an
 // update into the copies not in use, so a write cut off halfway leaves the
 // old directory and block table in charge, which rewriting the whole file
-// would not.
+// would not. The groups go in the library's own order (gccard.cpp), each
+// flushed to the card before the next: for an import the save's blocks,
+// then the BAT, then the directory, so a directory entry never points at
+// blocks not written yet; for a delete the directory, then the BAT, so a
+// cut-off delete leaves blocks nobody uses rather than a save on free ones.
 static bool WriteChangedBlocks(const std::string& path, const std::vector<std::uint8_t>& before,
-			       const std::vector<std::uint8_t>& after)
+			       const std::vector<std::uint8_t>& after, CardChange change)
 {
 	if (before.size() != after.size()) return false;
 	FILE* f = std::fopen(path.c_str(), "r+b");
 	if (!f) return false;
 	constexpr std::size_t kBlock = 0x2000;
+	// Block 0 is the header (changed by neither), 1-2 the directory, 3-4
+	// the BAT, 5 on the saves.
+	enum Group { kData, kBat, kDirectory };
+	const auto groupOf = [](std::size_t block) {
+		if (block == 1 || block == 2) return kDirectory;
+		if (block == 3 || block == 4) return kBat;
+		return kData;
+	};
+	const std::vector<Group> order = change == CardChange::Import
+		? std::vector<Group>{kData, kBat, kDirectory}
+		: std::vector<Group>{kDirectory, kBat, kData};
 	bool ok = true;
-	for (std::size_t at = 0; ok && at < after.size(); at += kBlock) {
-		const std::size_t n = std::min(kBlock, after.size() - at);
-		if (memcmp(before.data() + at, after.data() + at, n) == 0) continue;
-		ok = std::fseek(f, static_cast<long>(at), SEEK_SET) == 0 && std::fwrite(after.data() + at, 1, n, f) == n;
+	for (Group group : order) {
+		bool wroteAny = false;
+		for (std::size_t at = 0; ok && at < after.size(); at += kBlock) {
+			if (groupOf(at / kBlock) != group) continue;
+			const std::size_t n = std::min(kBlock, after.size() - at);
+			if (memcmp(before.data() + at, after.data() + at, n) == 0) continue;
+			ok = std::fseek(f, static_cast<long>(at), SEEK_SET) == 0 && std::fwrite(after.data() + at, 1, n, f) == n;
+			wroteAny = true;
+		}
+		if (!ok) break;
+		if (wroteAny) {
+			ok = std::fflush(f) == 0;
+			fsync(fileno(f));
+		}
+		if (!ok) break;
 	}
-	ok = std::fflush(f) == 0 && ok;
-	fsync(fileno(f));
-	std::fclose(f);
+	ok = std::fclose(f) == 0 && ok;
 	return ok;
 }
 
-static std::string GcSaveName(const riftwii::GcSave& save)
+// A save's name as the menu shows it, from the card's own encoding.
+static std::string GcSaveName(const riftwii::GcSave& save, bool shiftJis)
 {
-	if (!save.comment_title.empty()) return save.comment_title;
-	return save.file_name.empty() ? save.game_code : save.file_name;
+	if (!save.comment_title.empty()) return riftwii::gc_card_text_utf8(save.comment_title, shiftJis);
+	if (save.file_name.empty()) return save.game_code;
+	return riftwii::gc_card_text_utf8(save.file_name, shiftJis);
 }
 
 // "10/16/2026": a save's time, seconds since 2000-01-01.
@@ -4581,10 +4722,10 @@ static std::string GcSaveDate(std::uint32_t seconds)
 		if (days < inMonth) break;
 		days -= inMonth;
 	}
-	// The menu's own day format (Home's clock, "10/16", in the language's
-	// order), then the year.
-	return tr("{1}/{2}", {std::to_string(month + 1), std::to_string(static_cast<unsigned>(days) + 1)}) + "/" +
-		std::to_string(year);
+	// A whole date in the language's own order: month, day and year are
+	// {1}, {2} and {3} ("10/16/2026"; "16/10/2026", "2026/10/16").
+	return tr("{1}/{2}/{3}", {std::to_string(month + 1), std::to_string(static_cast<unsigned>(days) + 1),
+		std::to_string(year)});
 }
 
 // A save's own file name on the SD card: "GMSE01-Sunshine save.gci", with
@@ -4600,6 +4741,21 @@ static std::string GciFileName(const riftwii::GcSave& save)
 	}
 	if (clean.size() > 60) clean.resize(60);
 	return clean + ".gci";
+}
+
+// Where in `dir` a copy of the save goes: GciFileName, or with -2, -3...
+// before ".gci" when a file of that name is there, so a copy never
+// overwrites an older one. Empty when even -999 is taken.
+static std::string FreeGciPath(const std::string& dir, const riftwii::GcSave& save)
+{
+	const std::string name = GciFileName(save);
+	const std::string stem = name.substr(0, name.size() - 4);
+	for (int n = 1; n <= 999; ++n) {
+		const std::string candidate = dir + "/" + (n == 1 ? name : stem + "-" + std::to_string(n) + ".gci");
+		struct stat st;
+		if (stat(candidate.c_str(), &st) != 0) return candidate;
+	}
+	return std::string();
 }
 
 // Two choices as tiles over a popup, with Back: 0 or 1, -1 for Back.
@@ -4637,11 +4793,17 @@ static int ChooseTwo(const std::string& title, const std::string& body, const st
 	return back ? -1 : picked;
 }
 
+// What a row page's `act` calls to open another page over it:
+// `aside(nested)` takes the page away (no input reaches it, nothing of it
+// is drawn) while `nested` runs, then puts it back. Popups need none of
+// this, as they switch the page off themselves.
+using PageAside = std::function<void(const std::function<void()>&)>;
+
 // A list of rows on its own page, with a note under it, until B: what
-// MenuGcCard and the .gci picker show. `act(row)` is called on A; it
-// returns true to leave.
+// MenuGcCard and the .gci picker show. `act(row, aside)` is called on A
+// (with the GUI halted); it returns true to leave.
 static void RunRowPage(const std::string& title, const std::string& subtitle, std::vector<FlowRow>& rows,
-		       const std::function<std::string(int)>& note, const std::function<bool(int)>& act,
+		       const std::function<std::string(int)>& note, const std::function<bool(int, const PageAside&)>& act,
 		       const std::function<std::string()>& status = nullptr)
 {
 	GuiText titleTxt(title.c_str(), 30, skin::kInk);
@@ -4686,6 +4848,16 @@ static void RunRowPage(const std::string& title, const std::string& subtitle, st
 	mainWindow->Append(&w);
 	ResumeGui();
 
+	// A nested page ends with the GUI halted, as `act` was called.
+	const PageAside aside = [&](const std::function<void()>& nested) {
+		transition::Hold(transition::Kind::SlideForward);
+		mainWindow->Remove(&w);
+		nested();
+		HaltGui();
+		transition::Hold(transition::Kind::SlideBack);
+		mainWindow->Append(&w);
+	};
+
 	int shownRow = -1;
 	bool done = false;
 	while (!done) {
@@ -4699,7 +4871,13 @@ static void RunRowPage(const std::string& title, const std::string& subtitle, st
 		}
 		const int acted = list.GetClicked();
 		if (acted >= 0 && static_cast<std::size_t>(acted) < rows.size()) {
-			done = act(acted);
+			done = act(acted, aside);
+			// What was pressed in a page or popup opened from here is not
+			// this page's: B there must not also leave this one.
+			list.GetClicked();
+			list.GetClickedBack();
+			prompts.GetClicked();
+			backBtn.button.ResetState();
 			if (status) statusTxt.SetText(status().c_str());
 			list.Refresh();
 			if (!rows.empty()) list.Select(std::min<int>(acted, static_cast<int>(rows.size()) - 1));
@@ -4713,9 +4891,8 @@ static void RunRowPage(const std::string& title, const std::string& subtitle, st
 	mainWindow->Remove(&w);
 }
 
-// A .gci file in sd:/riftwii/gc/saves, picked on a page of its own. False:
-// none there, or B.
-static bool PickGciFile(std::string& path)
+// The .gci files in sd:/riftwii/gc/saves, sorted, at most 200.
+static std::vector<std::string> ListGciFiles()
 {
 	std::vector<std::string> names;
 	if (DIR* dir = opendir(kGcSavesDir)) {
@@ -4727,13 +4904,14 @@ static bool PickGciFile(std::string& path)
 		}
 		closedir(dir);
 	}
-	if (names.empty()) {
-		ShowPopup(tr("No saves on the SD card"),
-			tr("Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again.", {kGcSavesDir}), tr("OK"));
-		return false;
-	}
 	std::sort(names.begin(), names.end());
 	if (names.size() > 200) names.resize(200);
+	return names;
+}
+
+// One of `names` (ListGciFiles), picked on a page of its own. False: B.
+static bool PickGciFile(const std::vector<std::string>& names, std::string& path)
+{
 	std::vector<FlowRow> rows;
 	for (const std::string& name : names) {
 		FlowRow row;
@@ -4743,7 +4921,7 @@ static bool PickGciFile(std::string& path)
 	}
 	int picked = -1;
 	RunRowPage(tr("Add a save"), kGcSavesDir, rows, [](int) { return std::string(tr("Press A to add this save to the memory card.")); },
-		[&](int row) {
+		[&](int row, const PageAside&) {
 			picked = row;
 			return true;
 		});
@@ -4782,7 +4960,7 @@ static void MenuGcCard(FrontendState& state)
 			row.kind = FlowRow::Kind::Action;
 			row.icon_column = true;
 			if (save.intact) row.icon = icons.Make(card, save.slot);
-			row.label = FlatCapped(GcSaveName(save), 30);
+			row.label = FlatCapped(GcSaveName(save, info.shift_jis), 30);
 			row.value = save.block_count == 1 ? std::string(tr("1 block"))
 				: tr("{1} blocks", {std::to_string(save.block_count)});
 			row.dim = !save.intact;
@@ -4795,9 +4973,25 @@ static void MenuGcCard(FrontendState& state)
 		rows.push_back(add);
 	};
 	rebuild();
-	const auto commit = [&](const std::vector<std::uint8_t>& changed) {
-		if (!WriteChangedBlocks(path, card, changed)) {
+	// Set when the card file could not be read back after a failed write:
+	// the page leaves rather than show saves that may not be there.
+	bool leavePage = false;
+	const auto commit = [&](const std::vector<std::uint8_t>& changed, CardChange change) {
+		if (!WriteChangedBlocks(path, card, changed, change)) {
 			logf("GameCube card %s: could not be written\n", path.c_str());
+			// Part of it may have reached the SD card: what the page shows
+			// is read from the file again, so it matches what is there.
+			std::vector<std::uint8_t> onDisk;
+			riftwii::GcCardInfo again;
+			std::string why;
+			if (ReadSmallFile(path, 16u << 20, onDisk) && riftwii::gc_card_read(onDisk, again, why)) {
+				card = std::move(onDisk);
+				info = again;
+				rebuild();
+			} else {
+				logf("GameCube card %s: could not be read back after the failed write, so the page closes\n", path.c_str());
+				leavePage = true;
+			}
 			ShowPopup(tr("Memory card not changed"), tr("RiftWii could not write {1}.", {path}), tr("OK"));
 			return false;
 		}
@@ -4814,17 +5008,28 @@ static void MenuGcCard(FrontendState& state)
 		const riftwii::GcSave& save = info.saves[at];
 		if (!save.intact) return tr("This save is damaged: its blocks do not add up. It can only be deleted.");
 		// The save alone here: the card's space is in the header.
-		std::string text = save.comment_detail.empty() ? std::string() : save.comment_detail + "\n";
+		std::string text = save.comment_detail.empty() ? std::string()
+			: riftwii::gc_card_text_utf8(save.comment_detail, info.shift_jis) + "\n";
 		text += tr("Saved {1}", {GcSaveDate(save.modified)}) + " \xC2\xB7 " + save.game_code + save.maker;
 		return text;
 	};
-	const auto act = [&](int row) {
+	const auto act = [&](int row, const PageAside& aside) {
 		const std::size_t at = static_cast<std::size_t>(row);
 		std::string why;
 		if (at >= info.saves.size()) {
+			const std::vector<std::string> names = ListGciFiles();
+			if (names.empty()) {
+				ShowPopup(tr("No saves on the SD card"),
+					tr("Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again.", {kGcSavesDir}), tr("OK"));
+				return false;
+			}
+			// The picker is a page of its own: this one is taken away
+			// meanwhile, so its B and its list do not see the picker's presses.
 			std::string from;
+			bool picked = false;
+			aside([&] { picked = PickGciFile(names, from); });
+			if (!picked) return false;
 			std::vector<std::uint8_t> gci;
-			if (!PickGciFile(from)) return false;
 			// The largest a .gci can be: its entry and a whole card's blocks.
 			if (!ReadSmallFile(from, 64 + 2043u * 0x2000, gci)) {
 				ShowPopup(tr("Save not added"), tr("RiftWii could not read {1}.", {from}), tr("OK"));
@@ -4836,11 +5041,11 @@ static void MenuGcCard(FrontendState& state)
 				ShowPopup(tr("Save not added"), FlatCapped(why, 200), tr("OK"));
 				return false;
 			}
-			if (commit(changed)) logf("GameCube card %s: %s added\n", path.c_str(), from.c_str());
-			return false;
+			if (commit(changed, CardChange::Import)) logf("GameCube card %s: %s added\n", path.c_str(), from.c_str());
+			return leavePage;
 		}
 		const riftwii::GcSave save = info.saves[at];
-		const std::string name = GcSaveName(save);
+		const std::string name = GcSaveName(save, info.shift_jis);
 		const int choice = save.intact
 			? ChooseTwo(name, note(row), tr("Copy to the SD card"), tr("As a .gci file, for Dolphin"), tr("Delete"), tr("From this memory card"))
 			: (ShowPopup(name, note(row), tr("Delete"), tr("Back")) == 0 ? 1 : -1);
@@ -4853,25 +5058,28 @@ static void MenuGcCard(FrontendState& state)
 			mkdir("sd:/riftwii", 0777);
 			mkdir("sd:/riftwii/gc", 0777);
 			mkdir(kGcSavesDir, 0777);
-			const std::string to = std::string(kGcSavesDir) + "/" + GciFileName(save);
-			FILE* f = std::fopen(to.c_str(), "wb");
+			const std::string free = FreeGciPath(kGcSavesDir, save);
+			const std::string to = free.empty() ? std::string(kGcSavesDir) + "/" + GciFileName(save) : free;
+			FILE* f = free.empty() ? nullptr : std::fopen(to.c_str(), "wb");
 			const bool written = f && std::fwrite(gci.data(), 1, gci.size(), f) == gci.size();
 			if (f) std::fclose(f);
 			logf("GameCube card %s: %s %s\n", path.c_str(), to.c_str(), written ? "written" : "could not be written");
 			ShowPopup(written ? tr("Save copied") : tr("Save not copied"),
 				written ? tr("It is {1}.", {to}) : tr("RiftWii could not write {1}.", {to}), tr("OK"));
 		} else if (choice == 1) {
+			// Keep it is the second button, the one B and HOME press, so
+			// backing out never deletes a save.
 			if (ShowPopup(tr("Delete {1}?", {name}), tr("It is gone from the memory card for good. Copy it to the SD card first to keep it."),
-				    tr("Keep it"), tr("Delete")) != 1)
+				    tr("Delete"), tr("Keep it")) != 0)
 				return false;
 			std::vector<std::uint8_t> changed = card;
 			if (!riftwii::gc_card_delete(changed, save.slot, why)) {
 				ShowPopup(tr("Save not deleted"), FlatCapped(why, 200), tr("OK"));
 				return false;
 			}
-			if (commit(changed)) logf("GameCube card %s: %s deleted\n", path.c_str(), save.file_name.c_str());
+			if (commit(changed, CardChange::Delete)) logf("GameCube card %s: %s deleted\n", path.c_str(), save.file_name.c_str());
 		}
-		return false;
+		return leavePage;
 	};
 	const auto space = [&] {
 		return tr("{1} of {2} blocks free", {std::to_string(info.free_blocks), std::to_string(info.blocks - 5)});
@@ -4885,17 +5093,41 @@ static void MenuGcCard(FrontendState& state)
 static void MakeGcCrashCard()
 {
 	std::string text;
+	// The three ways back promise that A goes back; with none the message
+	// says to turn the Wii off.
+	bool wayBack = true;
 	switch (riftwii::wii::FindGcWayBack()) {
 		case riftwii::wii::GcWayBack::Channel: text = tr("The game stopped. Press A to go back to RiftWii and send a problem report."); break;
 		case riftwii::wii::GcWayBack::HomebrewChannel: text = tr("The game stopped. Press A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts."); break;
 		case riftwii::wii::GcWayBack::WiiMenu: text = tr("The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."); break;
-		default: text = tr("The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."); break;
+		default:
+			text = tr("The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.");
+			wayBack = false;
+			break;
 	}
-	std::vector<std::uint8_t> coverage(static_cast<std::size_t>(riftwii::wii::kGcCrashCardW) * riftwii::wii::kGcCrashCardH, 0);
-	const int lines = RenderTextCoverage(text.c_str(), 24, coverage.data(), riftwii::wii::kGcCrashCardW,
-		riftwii::wii::kGcCrashCardH);
-	logf("GameCube: the crash screen's message drawn (%d line(s))\n", lines);
-	riftwii::wii::SetGcCrashCard(lines > 0 ? std::move(coverage) : std::vector<std::uint8_t>());
+	// The card is a fixed 512 x 128; a longer translation is drawn smaller
+	// until all of it fits.
+	static const int kSizes[] = {24, 21, 18, 16};
+	const std::size_t cardBytes = static_cast<std::size_t>(riftwii::wii::kGcCrashCardW) * riftwii::wii::kGcCrashCardH;
+	std::vector<std::uint8_t> coverage;
+	int lines = -1;
+	int size = 0;
+	for (int candidate : kSizes) {
+		size = candidate;
+		coverage.assign(cardBytes, 0);
+		lines = RenderTextCoverage(text.c_str(), size, coverage.data(), riftwii::wii::kGcCrashCardW,
+			riftwii::wii::kGcCrashCardH);
+		if (lines >= 1) break;
+	}
+	// Even cut short at the smallest size, what was drawn beats the white
+	// screen a crash shows without a message.
+	const bool drewSome = std::any_of(coverage.begin(), coverage.end(), [](std::uint8_t v) { return v != 0; });
+	if (lines >= 1)
+		logf("GameCube: the crash screen's message drawn at %d px (%d line(s))\n", size, lines);
+	else
+		logf("GameCube: the crash screen's message does not all fit even at %d px; %s\n", size,
+			drewSome ? "its start is shown" : "a crash shows a white screen");
+	riftwii::wii::SetGcCrashCard(drewSome ? std::move(coverage) : std::vector<std::uint8_t>(), wayBack);
 }
 
 // Before a GameCube game starts: its controls the first time, and its
@@ -6391,9 +6623,9 @@ static int ChangedGameSettings(const riftwii::GameSettings& g)
 	if (g.region_strings == "on") ++changed;
 	if (g.gc_disc_reads == "fast") ++changed;
 	if (g.gc_card == "shared") ++changed;
-	if (g.gc_progressive == "480p") ++changed;
-	if (g.gc_widescreen == "16:9") ++changed;
-	if (g.gc_language != "game") ++changed;
+	if (g.gc_progressive != "global") ++changed;
+	if (g.gc_widescreen != "global") ++changed;
+	if (g.gc_language != "global") ++changed;
 	if (g.rumble == "off") ++changed;
 	if (g.speaker == "off") ++changed;
 	return changed;
@@ -6565,7 +6797,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 				say(tr("The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."));
 			else if (ref.what == RowRef::What::GcControls)
 				say(std::string(tr("Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.")) + " " +
-					tr("On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."));
+					tr("To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller)."));
 			else if (ref.what == RowRef::What::Memory) {
 				const riftwii::ExtrasBudget budget = riftwii::wii::EstimateExtras(state);
 				std::string text = tr("Taken from the game's own memory by what RiftWii adds to this launch: {1}.", {budget.list()});
@@ -6607,8 +6839,24 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::Cios) game.cios = StepValue(kCiosChoices, game.cios, direction);
 			else if (ref.what == RowRef::What::GcDiscReads) game.gc_disc_reads = game.gc_disc_reads == "fast" ? "drive" : "fast";
 			else if (ref.what == RowRef::What::GcCard) game.gc_card = game.gc_card == "shared" ? "own" : "shared";
-			else if (ref.what == RowRef::What::GcProgressive) game.gc_progressive = game.gc_progressive == "480p" ? "game" : "480p";
-			else if (ref.what == RowRef::What::GcWidescreen) game.gc_widescreen = game.gc_widescreen == "16:9" ? "game" : "16:9";
+			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id)) {
+				// The row is dimmed: nothing to change, only why.
+				say(tr("480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."));
+				changed = false;
+			}
+			else if (ref.what == RowRef::What::GcProgressive) {
+				std::string next = StepValue(kGcProgressiveChoices, game.gc_progressive, direction);
+				// The Wii's own 480p setting off says nothing about the cable:
+				// asked once, when 480p is picked; Cancel goes on past it.
+				riftwii::GameSettings picked = game;
+				picked.gc_progressive = next;
+				const riftwii::GcConsoleSettings console = riftwii::wii::GcConsoleNow();
+				if (!console.wii_progressive && riftwii::gc_progressive_on(picked, state.game_id, console) &&
+				    !AskGc480p())
+					next = StepValue(kGcProgressiveChoices, next, direction);
+				game.gc_progressive = next;
+			}
+			else if (ref.what == RowRef::What::GcWidescreen) game.gc_widescreen = StepValue(kGcWidescreenChoices, game.gc_widescreen, direction);
 			else if (ref.what == RowRef::What::GcLanguage) game.gc_language = StepValue(kGcLanguageChoices, game.gc_language, direction);
 			else if (ref.what == RowRef::What::GcControls) {
 				ShowGcControls(false);

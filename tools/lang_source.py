@@ -1352,6 +1352,13 @@ T = {
     "Building {1}": ("Creando {1}", "{1}を作成中", "A criar {1}", "Creazione di {1}"),
     "Reading {1} and writing {2}": ("Leyendo {1} y escribiendo {2}", "{1}を読み込み、{2}を書き込み中", "A ler {1} e a escrever {2}", "Lettura di {1} e scrittura di {2}"),
     "{1} not built": ("{1} no se creó", "{1}は作られませんでした", "{1} não foi criado", "{1} non creato"),
+    "Hold HOME and - for two seconds to leave the game.": ("Mantén HOME y - dos segundos para salir del juego.", "HOMEと-を2秒押し続けるとゲームをやめます。", "Mantenha HOME e - premidos dois segundos para sair do jogo.", "Tieni premuti HOME e - per due secondi per uscire dal gioco."),
+    "Hold L, R, Z and Start for two seconds to leave the game.": ("Mantén L, R, Z y Start dos segundos para salir del juego.", "L、R、Z、スタートを2秒押し続けるとゲームをやめます。", "Mantenha L, R, Z e Start premidos dois segundos para sair do jogo.", "Tieni premuti L, R, Z e Start per due secondi per uscire dal gioco."),
+    "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller).": ("Para salir del juego, mantén HOME dos segundos (HOME y - con un mando de Wii solo; L, R, Z y Start en un mando de GameCube).", "ゲームをやめるには、HOMEを2秒押し続けます（Wiiリモコンだけのときは HOMEと-、ゲームキューブコントローラでは L、R、Z、スタート）。", "Para sair do jogo, mantenha HOME premido dois segundos (HOME e - num Comando Wii sozinho; L, R, Z e Start num comando GameCube).", "Per uscire dal gioco, tieni premuto HOME per due secondi (HOME e - con il solo telecomando Wii; L, R, Z e Start su un controller GameCube)."),
+    "{1}/{2}/{3}": ("{2}/{1}/{3}", "{3}/{1}/{2}", "{2}/{1}/{3}", "{2}/{1}/{3}"),
+    "Not for PAL games": ("No para juegos PAL", "PALのゲームには使えません", "Não para jogos PAL", "Non per giochi PAL"),
+    "Only with a component or HDMI cable: without one the picture stays black.": ("Solo con un cable de componentes o HDMI: sin él, la imagen se queda en negro.", "コンポーネントかHDMIのケーブルが必要です。ないと画面が黒いままになります。", "Só com um cabo de componentes ou HDMI: sem ele, a imagem fica preta.", "Solo con un cavo component o HDMI: senza, lo schermo resta nero."),
+    "Turn on": ("Activar", "オンにする", "Ativar", "Attiva"),
     "Wii Remote and Nunchuk": ("Mando de Wii y Nunchuk", "Wiiリモコンとヌンチャク", "Comando Wii e Nunchuk", "Telecomando Wii e Nunchuk"),
     "Wii Remote, held sideways": ("Mando de Wii, en horizontal", "Wiiリモコン(横持ち)", "Comando Wii, na horizontal", "Telecomando Wii, in orizzontale"),
     "GameCube controls: {1}": ("Controles de GameCube: {1}", "ゲームキューブの操作: {1}", "Controlos de GameCube: {1}", "Comandi GameCube: {1}"),
@@ -1374,7 +1381,6 @@ T = {
     "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Pulsa A para volver al Menú de Wii. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Aを押すとWiiメニューに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Prima A para voltar ao Menu Wii. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Premi A per tornare al Menu Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
     "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Desligue a Wii e volte a ligá-la. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
     "Hold HOME for two seconds to leave the game.": ("Mantén HOME dos segundos para salir del juego.", "HOMEを2秒押し続けるとゲームをやめます。", "Mantenha HOME premido dois segundos para sair do jogo.", "Tieni premuto HOME per due secondi per uscire dal gioco."),
-    "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.": ("En un mando de GameCube, mantén L, R, Z y Start dos segundos para salir del juego.", "ゲームキューブコントローラでは、L、R、Z、スタートを2秒押し続けるとゲームをやめます。", "Num comando GameCube, mantenha L, R, Z e Start premidos dois segundos para sair do jogo.", "Su un controller GameCube, tieni premuti L, R, Z e Start per due secondi per uscire dal gioco."),
     "1 block": ("1 bloque", "1ブロック", "1 bloco", "1 blocco"),
     "{1} blocks": ("{1} bloques", "{1}ブロック", "{1} blocos", "{1} blocchi"),
     "Add a save": ("Añadir una partida", "セーブを追加", "Adicionar um save", "Aggiungi un salvataggio"),
@@ -2854,6 +2860,20 @@ KO = {
         "{1} 읽고 {2} 쓰는 중",
     "{1} not built":
         "{1}을(를) 만들지 못했습니다",
+    "Hold HOME and - for two seconds to leave the game.":
+        "HOME과 -를 2초 동안 누르면 게임을 나갑니다.",
+    "Hold L, R, Z and Start for two seconds to leave the game.":
+        "L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다.",
+    "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller).":
+        "게임을 나가려면 HOME을 2초 동안 누르세요(Wii 리모컨만 쓸 때는 HOME과 -, 게임큐브 컨트롤러에서는 L, R, Z, 스타트).",
+    "{1}/{2}/{3}":
+        "{3}/{1}/{2}",
+    "Not for PAL games":
+        "PAL 게임에는 없음",
+    "Only with a component or HDMI cable: without one the picture stays black.":
+        "컴포넌트 또는 HDMI 케이블이 있을 때만 쓰세요. 없으면 화면이 검은 채로 남습니다.",
+    "Turn on":
+        "켜기",
     "Wii Remote and Nunchuk":
         "Wii 리모컨과 눈차크",
     "Wii Remote, held sideways":
@@ -2898,8 +2918,6 @@ KO = {
         "게임이 멈췄습니다. Wii를 껐다가 다시 켜세요. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
     "Hold HOME for two seconds to leave the game.":
         "HOME을 2초 동안 누르면 게임을 나갑니다.",
-    "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.":
-        "게임큐브 컨트롤러에서는 L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다.",
     "1 block":
         "1블록",
     "{1} blocks":
@@ -4567,6 +4585,20 @@ FR = {
         "Lecture de {1} et écriture de {2}",
     "{1} not built":
         "{1} non créé",
+    "Hold HOME and - for two seconds to leave the game.":
+        "Maintenez HOME et - deux secondes pour quitter le jeu.",
+    "Hold L, R, Z and Start for two seconds to leave the game.":
+        "Maintenez L, R, Z et Start deux secondes pour quitter le jeu.",
+    "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller).":
+        "Pour quitter le jeu, maintenez HOME deux secondes (HOME et - avec une Wiimote seule ; L, R, Z et Start sur une manette GameCube).",
+    "{1}/{2}/{3}":
+        "{2}/{1}/{3}",
+    "Not for PAL games":
+        "Pas pour les jeux PAL",
+    "Only with a component or HDMI cable: without one the picture stays black.":
+        "Seulement avec un câble composante ou HDMI : sans, l'image reste noire.",
+    "Turn on":
+        "Activer",
     "Wii Remote and Nunchuk":
         "Wiimote et Nunchuk",
     "Wii Remote, held sideways":
@@ -4611,8 +4643,6 @@ FR = {
         "Le jeu s'est arrêté. Éteignez la Wii puis rallumez-la. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
     "Hold HOME for two seconds to leave the game.":
         "Maintenez HOME deux secondes pour quitter le jeu.",
-    "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.":
-        "Sur une manette GameCube, maintenez L, R, Z et Start deux secondes pour quitter le jeu.",
     "1 block":
         "1 bloc",
     "{1} blocks":

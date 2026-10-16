@@ -234,7 +234,9 @@ struct Scan {
     Layout layout;
     GcCardInfo info;
     std::vector<std::vector<std::uint16_t>> chains;  // by index in info.saves
-    std::vector<int> owner;                          // by block: the intact save's slot, or -1
+    // By index in info.saves: whether the chain followed cleanly to its
+    // end at the save's block count (it may still share blocks).
+    std::vector<bool> followed;
 };
 
 const GcSave* find_save(const Scan& scan, unsigned slot, std::size_t& index) {
@@ -292,19 +294,18 @@ bool scan_card(const std::vector<std::uint8_t>& card, Scan& scan, std::string& e
         save.intact = follow_chain(layout, bat, save.first_block, save.block_count, chain);
         info.saves.push_back(save);
         scan.chains.push_back(chain);
+        scan.followed.push_back(save.intact);
     }
 
     // A block two saves claim belongs to neither: both are marked damaged.
     std::vector<unsigned> claims(layout.blocks, 0);
     for (const auto& chain : scan.chains)
         for (std::uint16_t block : chain) ++claims[block];
-    scan.owner.assign(layout.blocks, -1);
     for (std::size_t i = 0; i < info.saves.size(); ++i) {
         GcSave& save = info.saves[i];
         for (std::uint16_t block : scan.chains[i])
             if (claims[block] > 1) save.intact = false;
         if (!save.intact) continue;
-        for (std::uint16_t block : scan.chains[i]) scan.owner[block] = static_cast<int>(save.slot);
 
         std::uint8_t comment[2 * kCommentLineBytes];
         if (save_bytes(card, scan.chains[i], save.comment_offset, sizeof comment, comment)) {
@@ -446,11 +447,17 @@ bool gc_card_delete(std::vector<std::uint8_t>& card, unsigned slot, std::string&
     std::vector<std::uint8_t> dir = copy_block(dir_block(card, scan.layout.dir));
     std::vector<std::uint8_t> bat = copy_block(bat_block(card, scan.layout.bat));
     std::fill_n(dir.begin() + slot * kGcCardEntryBytes, kGcCardEntryBytes, 0xFF);
-    // A damaged save gives back only the blocks no intact save holds.
-    for (std::uint16_t block : scan.chains[index]) {
-        const int owner = scan.owner[block];
-        if (owner == -1 || owner == static_cast<int>(slot)) put_be16(bat.data() + map_offset(block), 0);
+    // A block on another save's chain that followed cleanly stays taken,
+    // even when that save is listed as damaged for sharing it: a damaged
+    // save's walk can run into a good save's blocks, and freeing them
+    // would let the next import overwrite that save.
+    std::vector<bool> kept(scan.layout.blocks, false);
+    for (std::size_t i = 0; i < scan.chains.size(); ++i) {
+        if (i == index || !scan.followed[i]) continue;
+        for (std::uint16_t block : scan.chains[i]) kept[block] = true;
     }
+    for (std::uint16_t block : scan.chains[index])
+        if (!kept[block]) put_be16(bat.data() + map_offset(block), 0);
     // The directory first: cut off after it, the card has blocks nobody
     // uses rather than a save whose blocks are free.
     commit_directory(card, scan.layout, dir);

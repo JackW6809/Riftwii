@@ -1446,6 +1446,27 @@ msgstr "{1}を読み込み、{2}を書き込み中"
 msgid "{1} not built"
 msgstr "{1}は作られませんでした"
 
+msgid "Hold HOME and - for two seconds to leave the game."
+msgstr "HOMEと-を2秒押し続けるとゲームをやめます。"
+
+msgid "Hold L, R, Z and Start for two seconds to leave the game."
+msgstr "L、R、Z、スタートを2秒押し続けるとゲームをやめます。"
+
+msgid "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller)."
+msgstr "ゲームをやめるには、HOMEを2秒押し続けます（Wiiリモコンだけのときは HOMEと-、ゲームキューブコントローラでは L、R、Z、スタート）。"
+
+msgid "{1}/{2}/{3}"
+msgstr "{3}/{1}/{2}"
+
+msgid "Not for PAL games"
+msgstr "PALのゲームには使えません"
+
+msgid "Only with a component or HDMI cable: without one the picture stays black."
+msgstr "コンポーネントかHDMIのケーブルが必要です。ないと画面が黒いままになります。"
+
+msgid "Turn on"
+msgstr "オンにする"
+
 msgid "Wii Remote and Nunchuk"
 msgstr "Wiiリモコンとヌンチャク"
 
@@ -1511,9 +1532,6 @@ msgstr "ゲームが止まりました。Wiiの電源を切って、もう一度
 
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "HOMEを2秒押し続けるとゲームをやめます。"
-
-msgid "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."
-msgstr "ゲームキューブコントローラでは、L、R、Z、スタートを2秒押し続けるとゲームをやめます。"
 
 msgid "1 block"
 msgstr "1ブロック"

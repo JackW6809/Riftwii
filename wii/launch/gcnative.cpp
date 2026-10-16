@@ -1028,6 +1028,8 @@ static u64 way_back_title(GcWayBack& kind, tikview& view) {
 
 // The crash screen's message (SetGcCrashCard), packed as gc_rt.h says.
 static std::vector<std::uint8_t> g_crash_card;
+// Whether that message promises that A goes back (SetGcCrashCard).
+static bool g_crash_card_way_back = false;
 
 GcWayBack FindGcWayBack() {
     GcWayBack kind;
@@ -1036,9 +1038,10 @@ GcWayBack FindGcWayBack() {
     return kind;
 }
 
-void SetGcCrashCard(std::vector<std::uint8_t> coverage) {
+void SetGcCrashCard(std::vector<std::uint8_t> coverage, bool way_back) {
     static_assert(kGcCrashCardW == GC_CRASH_CARD_W && kGcCrashCardH == GC_CRASH_CARD_H, "gc_rt.h's card size");
     g_crash_card.clear();
+    g_crash_card_way_back = way_back;
     if (coverage.size() != static_cast<std::size_t>(kGcCrashCardW) * kGcCrashCardH) return;
     g_crash_card.assign(GC_CRASH_CARD_BYTES, 0);
     for (std::size_t i = 0; i < coverage.size(); ++i) {

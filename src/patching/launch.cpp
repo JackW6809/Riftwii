@@ -93,6 +93,36 @@ bool gc_pal_game(const std::string& id) {
     return pal_regions.find(id[3]) != std::string::npos;
 }
 
+bool gc_widescreen_on(const GameSettings& game, const GcConsoleSettings& console) {
+    if (game.gc_widescreen == "16:9") return true;
+    if (game.gc_widescreen == "game") return false;
+    if (console.aspect == "16:9") return true;
+    if (console.aspect == "4:3") return false;
+    return console.wii_widescreen;
+}
+
+bool gc_progressive_on(const GameSettings& game, const std::string& id, const GcConsoleSettings& console) {
+    if (gc_pal_game(id)) return false;
+    if (game.gc_progressive == "480p") return true;
+    if (game.gc_progressive == "game") return false;
+    return console.wii_progressive;
+}
+
+int gc_language_number(const GameSettings& game, const GcConsoleSettings& console) {
+    if (game.gc_language == "game") return -1;
+    if (game.gc_language != "global") return gc_sram_language(game.gc_language);
+    // Settings' names (gamelang.hpp) of the GameCube's six languages, in
+    // kGcLanguages' order; Japanese, Chinese and Korean are not among them.
+    static const char* const kSettingsNames[] = {"en", "de", "fr", "es", "it", "nl"};
+    for (int number = 0; number < 6; ++number)
+        if (console.game_language == kSettingsNames[number]) return number;
+    if (console.game_language != "console") return -1;
+    // libogc's CONF_LANG_ENGLISH (1) to CONF_LANG_DUTCH (6) are the same
+    // six in the same order.
+    if (console.wii_language >= 1 && console.wii_language <= 6) return console.wii_language - 1;
+    return -1;
+}
+
 bool needs_launch_pipeline(bool has_selected_packages, const std::string& save_mode) {
     return has_selected_packages || save_mode == "separate" || save_mode == "fresh";
 }
@@ -372,9 +402,13 @@ std::string LaunchModel::save() const {
     if (game.region_strings == "on") text += "*riftwii*\tregionstrings\ton\n";
     if (game.gc_disc_reads == "fast") text += "*riftwii*\tgcdiscreads\tfast\n";
     if (game.gc_card == "shared") text += "*riftwii*\tgccard\tshared\n";
-    if (game.gc_progressive == "480p") text += "*riftwii*\tgcprogressive\t480p\n";
-    if (game.gc_widescreen == "16:9") text += "*riftwii*\tgcwidescreen\t16:9\n";
-    if (gc_sram_language(game.gc_language) >= 0) text += "*riftwii*\tgclanguage\t" + game.gc_language + "\n";
+    // "global", the default, is written as nothing.
+    if (game.gc_progressive == "480p" || game.gc_progressive == "game")
+        text += "*riftwii*\tgcprogressive\t" + game.gc_progressive + "\n";
+    if (game.gc_widescreen == "16:9" || game.gc_widescreen == "game")
+        text += "*riftwii*\tgcwidescreen\t" + game.gc_widescreen + "\n";
+    if (game.gc_language == "game" || gc_sram_language(game.gc_language) >= 0)
+        text += "*riftwii*\tgclanguage\t" + game.gc_language + "\n";
     for (const LaunchPackage& p : packages) {
         // Only this game's packs: the file is per game ID, and another
         // game's pack could not be turned on here anyway.
@@ -450,11 +484,11 @@ void LaunchModel::restore(const std::string& text) {
             } else if (key == "gccard") {
                 game.gc_card = value == "shared" ? "shared" : "own";
             } else if (key == "gcprogressive") {
-                game.gc_progressive = value == "480p" ? "480p" : "game";
+                game.gc_progressive = value == "480p" || value == "game" ? value : "global";
             } else if (key == "gcwidescreen") {
-                game.gc_widescreen = value == "16:9" ? "16:9" : "game";
+                game.gc_widescreen = value == "16:9" || value == "game" ? value : "global";
             } else if (key == "gclanguage") {
-                game.gc_language = gc_sram_language(value) >= 0 ? value : "game";
+                game.gc_language = value == "game" || gc_sram_language(value) >= 0 ? value : "global";
             }
             continue;
         }

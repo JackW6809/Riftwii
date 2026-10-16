@@ -1446,6 +1446,27 @@ msgstr "{1} 읽고 {2} 쓰는 중"
 msgid "{1} not built"
 msgstr "{1}을(를) 만들지 못했습니다"
 
+msgid "Hold HOME and - for two seconds to leave the game."
+msgstr "HOME과 -를 2초 동안 누르면 게임을 나갑니다."
+
+msgid "Hold L, R, Z and Start for two seconds to leave the game."
+msgstr "L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다."
+
+msgid "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller)."
+msgstr "게임을 나가려면 HOME을 2초 동안 누르세요(Wii 리모컨만 쓸 때는 HOME과 -, 게임큐브 컨트롤러에서는 L, R, Z, 스타트)."
+
+msgid "{1}/{2}/{3}"
+msgstr "{3}/{1}/{2}"
+
+msgid "Not for PAL games"
+msgstr "PAL 게임에는 없음"
+
+msgid "Only with a component or HDMI cable: without one the picture stays black."
+msgstr "컴포넌트 또는 HDMI 케이블이 있을 때만 쓰세요. 없으면 화면이 검은 채로 남습니다."
+
+msgid "Turn on"
+msgstr "켜기"
+
 msgid "Wii Remote and Nunchuk"
 msgstr "Wii 리모컨과 눈차크"
 
@@ -1511,9 +1532,6 @@ msgstr "게임이 멈췄습니다. Wii를 껐다가 다시 켜세요. 다음에 
 
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "HOME을 2초 동안 누르면 게임을 나갑니다."
-
-msgid "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."
-msgstr "게임큐브 컨트롤러에서는 L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다."
 
 msgid "1 block"
 msgstr "1블록"

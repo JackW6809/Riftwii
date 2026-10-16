@@ -1446,6 +1446,27 @@ msgstr "Leyendo {1} y escribiendo {2}"
 msgid "{1} not built"
 msgstr "{1} no se creó"
 
+msgid "Hold HOME and - for two seconds to leave the game."
+msgstr "Mantén HOME y - dos segundos para salir del juego."
+
+msgid "Hold L, R, Z and Start for two seconds to leave the game."
+msgstr "Mantén L, R, Z y Start dos segundos para salir del juego."
+
+msgid "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller)."
+msgstr "Para salir del juego, mantén HOME dos segundos (HOME y - con un mando de Wii solo; L, R, Z y Start en un mando de GameCube)."
+
+msgid "{1}/{2}/{3}"
+msgstr "{2}/{1}/{3}"
+
+msgid "Not for PAL games"
+msgstr "No para juegos PAL"
+
+msgid "Only with a component or HDMI cable: without one the picture stays black."
+msgstr "Solo con un cable de componentes o HDMI: sin él, la imagen se queda en negro."
+
+msgid "Turn on"
+msgstr "Activar"
+
 msgid "Wii Remote and Nunchuk"
 msgstr "Mando de Wii y Nunchuk"
 
@@ -1511,9 +1532,6 @@ msgstr "El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofr
 
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "Mantén HOME dos segundos para salir del juego."
-
-msgid "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."
-msgstr "En un mando de GameCube, mantén L, R, Z y Start dos segundos para salir del juego."
 
 msgid "1 block"
 msgstr "1 bloque"

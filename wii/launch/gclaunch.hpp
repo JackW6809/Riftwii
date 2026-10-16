@@ -33,6 +33,10 @@ bool FindGcImage(const std::string& game, const std::string& path, GcImage& out)
 // game list: opened (header read), never needing d2x.
 void ScanGcImages(std::vector<ImageGame>& out);
 
+// What a GameCube game's "global" options follow now: Settings' aspect
+// and game language, and the Wii's own TV, 480p and language settings.
+GcConsoleSettings GcConsoleNow();
+
 // Starts the game (prepared from its patch first, when it is one) with
 // the packs, in order, each with the choices picked over its defaults
 // (none: the game as it is). Packs with memory, savegame or shift patches

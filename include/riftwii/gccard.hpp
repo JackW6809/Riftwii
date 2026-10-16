@@ -113,6 +113,13 @@ bool gc_card_icon(const std::vector<std::uint8_t>& card, unsigned slot, std::vec
 // 2048 bytes, for the menu to draw. Empty when `rgba` is not 4096 bytes.
 std::vector<std::uint8_t> gc_icon_rgb5a3(const std::vector<std::uint8_t>& rgba);
 
+// A card's text (a GcSave's file name or comment, the card's raw bytes)
+// as UTF-8 for the menu: Shift-JIS when the card says so (GcCardInfo::
+// shift_jis; its symbols, kana and first-level kanji, the characters the
+// menu font has), else Windows-1252. What is not a character, or not in
+// the table, comes out as '?'.
+std::string gc_card_text_utf8(const std::string& raw, bool shift_jis);
+
 // Which file is a game's memory card, by its ID (letters and digits kept;
 // anything else is dropped so an ID never climbs out of the folder).
 // Not shared: sd:/riftwii/gc/cards/<ID>.raw. Shared: one card for all the

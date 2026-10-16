@@ -123,7 +123,8 @@ void SetBitmapGlyphSource(FtgxBitmapGlyphSource source);
 void ChangeFontSize(FT_UInt pixelSize);
 // RiftWii: UTF-8 `text` as 8-bit coverage at `pixelSize` into `out`
 // (`width` x `height`, zeroed by the caller), wrapped at spaces and each
-// line centred, for drawing without GX. Returns the lines drawn.
+// line centred, for drawing without GX. Returns the lines drawn, or -1
+// when not all the text fit.
 int RenderTextCoverage(const char* text, FT_UInt pixelSize, uint8_t* out, int width, int height);
 wchar_t* charToWideChar(const char* p);
 void ClearFontData();

@@ -232,6 +232,7 @@ document it.
 | `wbfspart` | USB drives formatted as WBFS: finding the partition, its discs, their fragments |
 | `rvz`, `sha1` | RVZ images and their hashes |
 | `gccard` | GameCube memory card images: formatting one, listing its saves and their icons, deleting a save, .gci export and import |
+| `gccard_text`, `sjis_table.inc` | A card's save names and comments as UTF-8 (Shift-JIS through the table `tools/make_sjis_table.py` makes, or Windows-1252) |
 
 ### `src/net/`: hTTP, RiiFS, the update check, RiiTag
 
@@ -307,6 +308,7 @@ card's at the Wii's own MEM1 and MEM2 addresses).
 | --- | --- |
 | `lang_source.py` | The translation table: writes `wii/lang/*.po` and checks every string still appears in the code |
 | `make_menu_font.py`, `make_sounds.py` | Build-time assets |
+| `make_sjis_table.py` | The Shift-JIS table for Japanese memory cards' text (`src/fs/sjis_table.inc`) |
 | `make_channel.py`, `make_channel_art.py`, `preview_channel.py` | The Wii Menu channel's WAD and art |
 | `rtreloc.py` | Relocations for the RVZ runtime blob |
 | `ipcscan.cpp`, `rvzstub.cpp` | Host tools: the IPC search on a game's DOL; an RVZ's stub disc for Dolphin |

@@ -29,8 +29,9 @@ GcWayBack FindGcWayBack();
 // The crash screen's message, made by the menu in its own font and
 // language (8-bit coverage, kGcCrashCardW x kGcCrashCardH): the next
 // GameCube launch shows it if the game crashes. Without one a crash turns
-// the screen white.
+// the screen white. `way_back`: the message says A goes back (a way back
+// was found), false when it says to turn the Wii off.
 constexpr int kGcCrashCardW = 512, kGcCrashCardH = 128;
-void SetGcCrashCard(std::vector<std::uint8_t> coverage);
+void SetGcCrashCard(std::vector<std::uint8_t> coverage, bool way_back);
 
 }  // namespace riftwii::wii
