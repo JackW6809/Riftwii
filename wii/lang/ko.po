@@ -1446,6 +1446,39 @@ msgstr "{1} 읽고 {2} 쓰는 중"
 msgid "{1} not built"
 msgstr "{1}을(를) 만들지 못했습니다"
 
+msgid "Wii Remote and Nunchuk"
+msgstr "Wii 리모컨과 눈차크"
+
+msgid "Wii Remote, held sideways"
+msgstr "Wii 리모컨 (가로로)"
+
+msgid "GameCube controls: {1}"
+msgstr "게임큐브 조작: {1}"
+
+msgid "Its buttons are the game's own, as on a GameCube."
+msgstr "버튼은 게임큐브와 같습니다."
+
+msgid "Left stick"
+msgstr "왼쪽 스틱"
+
+msgid "Right stick"
+msgstr "오른쪽 스틱"
+
+msgid "Stick"
+msgstr "스틱"
+
+msgid "C-stick"
+msgstr "C스틱"
+
+msgid "D-pad"
+msgstr "십자 버튼"
+
+msgid "Saved {1}"
+msgstr "저장일 {1}"
+
+msgid "{1} of {2} blocks free"
+msgstr "{2}블록 중 {1}블록 남음"
+
 msgid "Working out the time left..."
 msgstr "남은 시간을 계산하는 중..."
 
@@ -1482,17 +1515,11 @@ msgstr "HOME을 2초 동안 누르면 게임을 나갑니다."
 msgid "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."
 msgstr "게임큐브 컨트롤러에서는 L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다."
 
-msgid "Classic and GameCube controllers: as on a GameCube."
-msgstr "클래식 컨트롤러와 게임큐브 컨트롤러: 게임큐브와 같습니다."
-
 msgid "1 block"
 msgstr "1블록"
 
 msgid "{1} blocks"
 msgstr "{1}블록"
-
-msgid "{1} of {2} blocks free."
-msgstr "{2}블록 중 {1}블록 남음."
 
 msgid "Add a save"
 msgstr "저장 데이터 추가"
@@ -1625,15 +1652,6 @@ msgstr "게임큐브처럼: 읽을 때마다 게임큐브 드라이브와 같은
 
 msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
 msgstr "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지 보여 줍니다."
-
-msgid "GameCube controls"
-msgstr "게임큐브 조작"
-
-msgid "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves."
-msgstr "Wii 리모컨만 가로로: 2는 A, 1은 B, A는 X, HOME은 Y, 트리거는 R, -는 Z, +는 스타트, 십자 버튼으로 움직입니다."
-
-msgid "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick."
-msgstr "눈차크와 함께: A, B, 1은 X, 2는 Y, C는 L, Z는 R, -는 Z, +는 스타트, 스틱으로 움직이고 십자 버튼은 C스틱입니다."
 
 msgid "SD image made"
 msgstr "SD 이미지 생성됨"

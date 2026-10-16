@@ -122,7 +122,7 @@ enum gc_trace_word {
  * SetGcCrashCard): 2 bits of coverage a pixel, four pixels a byte, the
  * leftmost in the top bits. */
 #define GC_CRASH_CARD_W 512u
-#define GC_CRASH_CARD_H 96u
+#define GC_CRASH_CARD_H 128u  /* four lines of the menu font at 24 pixels */
 #define GC_CRASH_CARD_BYTES (GC_CRASH_CARD_W * GC_CRASH_CARD_H / 4u)
 
 /* gc_rt_context.flags */

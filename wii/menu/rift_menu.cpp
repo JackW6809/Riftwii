@@ -4107,6 +4107,7 @@ static bool MakeSdImage(const FrontendState& state, const riftwii::LaunchPackage
 	logf("Image: making %s from %s\n", plan.image.c_str(), p.file.c_str());
 	{
 		PopupBox box(tr("Making {1}", {plan.image}), "", "", tr("Stop"));
+		box.CenterCancel();  // its only button, in the middle
 		ProgressPanel progress(box, state.game_id);
 		std::string shown;
 		ResumeGui();
@@ -4265,6 +4266,7 @@ static bool PrepareGcGameInMenu(FrontendState& state)
 		bool ok;
 		{
 			PopupBox box(tr("Building {1}", {name}), "", "", tr("Stop"));
+			box.CenterCancel();  // its only button, in the middle
 			ProgressPanel progress(box, game.id);
 			progress.SetStage(tr("Reading {1} and writing {2}", {originalName, name}));
 			u64 last_redraw = 0;
@@ -4306,20 +4308,101 @@ static bool PrepareGcGameInMenu(FrontendState& state)
 	return true;
 }
 
+// The controllers a game can see, connected now (PadsConnectedNow, with
+// About this game).
+struct ConnectedPads {
+	bool remote = false, nunchuk = false, classic = false, gamecube = false, board = false;
+};
+static ConnectedPads PadsConnectedNow();
+
+// One controller's buttons as the GameCube controller's, in two columns:
+// each button's picture (Kenney's, as the prompts draw them; the theme's
+// badge with its name for one without; a word for a stick or the D-pad),
+// then the GameCube button it is.
+class GcControlsTable : public GuiElement {
+public:
+	struct Pair { std::string button, gamecube; };
+	GcControlsTable(std::vector<Pair> pairs, int left, int right) : pairs(std::move(pairs)), left(left), right(right)
+	{
+		for (const Pair& p : this->pairs) {
+			const bool picture = skin::ButtonIcon(p.button, kBadge).data != nullptr;
+			const bool word = !picture && p.button.size() > 2;
+			labels.emplace_back(new GuiText(p.button.c_str(), word ? 16 : 14, word ? skin::kInk : skin::kCard));
+			names.emplace_back(new GuiText(p.gamecube.c_str(), 18, skin::kInk));
+			labels.back()->SetAlignment(word ? ALIGN_H::LEFT : ALIGN_H::CENTRE, ALIGN_V::MIDDLE);
+			names.back()->SetAlignment(ALIGN_H::LEFT, ALIGN_V::MIDDLE);
+		}
+	}
+	void Draw() override
+	{
+		const int column = (right - left) / 2;
+		const int rows = static_cast<int>((pairs.size() + 1) / 2);
+		for (std::size_t i = 0; i < pairs.size(); ++i) {
+			// Down the first column, then the second.
+			const int col = static_cast<int>(i) / rows, row = static_cast<int>(i) % rows;
+			const int x = left + col * column, y = kTop + row * kRow;
+			const skin::Tex& picture = skin::ButtonIcon(pairs[i].button, kBadge);
+			int nameX = x + kBadge + 12;
+			if (picture.data) {
+				skin::Draw(picture, x, y);
+			} else if (pairs[i].button.size() <= 2) {
+				skin::Draw(skin::promptButton, x, y);
+				labels[i]->SetPosition(x + kBadge / 2, y + kBadge / 2 - 1);
+				labels[i]->Draw();
+			} else {
+				labels[i]->SetPosition(x, y + kBadge / 2);
+				labels[i]->Draw();
+				nameX = x + labels[i]->GetTextWidth() + 12;
+			}
+			names[i]->SetPosition(nameX, y + kBadge / 2);
+			names[i]->Draw();
+		}
+	}
+	static constexpr int kBadge = 24, kTop = 162, kRow = 26;
+private:
+	std::vector<Pair> pairs;
+	std::vector<std::unique_ptr<GuiText>> labels, names;
+	int left, right;
+};
+
 // Which buttons are the GameCube controller's (runtime/gc/gc_bt.c's
-// bt_fill_one). `starting`: shown before a game starts, with Play and
-// Back; true when Play was pressed. Otherwise only OK.
+// bt_fill_one), one card per kind of controller connected now (a Wii
+// Remote alone when none is), each a table. `starting`: shown before a
+// game starts, the last card with Play and Back; true when Play was
+// pressed. Otherwise Next, then OK.
 static bool ShowGcControls(bool starting)
 {
-	const std::string body = std::string(tr("Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.")) +
-		"\n" + tr("With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.") +
-		"\n" + tr("Classic and GameCube controllers: as on a GameCube.") +
-		"\n" + tr("Hold HOME for two seconds to leave the game.");
-	if (!starting) {
-		ShowPopup(tr("GameCube controls"), body, tr("OK"));
-		return true;
+	using Pair = GcControlsTable::Pair;
+	struct Card { std::string title; std::vector<Pair> pairs; };
+	std::vector<Card> cards;
+	const ConnectedPads pads = PadsConnectedNow();
+	if (pads.classic)
+		cards.push_back({tr("Classic Controller"),
+			{{"a", "A"}, {"b", "B"}, {"x", "X"}, {"y", "Y"}, {"L", "L"}, {"R", "R"}, {"ZL", "Z"}, {"+", "Start"},
+				{tr("Left stick"), tr("Stick")}, {tr("Right stick"), tr("C-stick")}}});
+	if (pads.nunchuk)
+		cards.push_back({tr("Wii Remote and Nunchuk"),
+			{{"A", "A"}, {"B", "B"}, {"1", "X"}, {"2", "Y"}, {"C", "L"}, {"Z", "R"}, {"-", "Z"}, {"+", "Start"},
+				{tr("Stick"), tr("Stick")}, {tr("D-pad"), tr("C-stick")}}});
+	if ((pads.remote && !pads.nunchuk && !pads.classic) || (!pads.remote && !pads.gamecube))
+		cards.push_back({tr("Wii Remote, held sideways"),
+			{{"2", "A"}, {"1", "B"}, {"A", "X"}, {"HOME", "Y"}, {"B", "R"}, {"-", "Z"}, {"+", "Start"},
+				{tr("D-pad"), tr("Stick")}}});
+	if (pads.gamecube) cards.push_back({tr("GameCube controller"), {}});
+	for (std::size_t i = 0; i < cards.size(); ++i) {
+		const bool last = i + 1 == cards.size();
+		const std::string ok = !last ? tr("Next") : starting ? tr("Play") : tr("OK");
+		PopupBox box(tr("GameCube controls: {1}", {cards[i].title}),
+			cards[i].pairs.empty() ? std::string(tr("Its buttons are the game's own, as on a GameCube.")) : std::string(),
+			ok, starting ? tr("Back") : "");
+		GcControlsTable table(cards[i].pairs, 56 - box.Extra(), 584 + box.Extra());
+		GuiText leave(tr("Hold HOME for two seconds to leave the game."), 15, skin::kInkSoft);
+		Place(leave, 56 - box.Extra(), 290);
+		box.Append(&table);
+		if (last) box.Append(&leave);
+		if (box.Wait() != 0) return false;
 	}
-	return ShowPopup(tr("GameCube controls"), body, tr("Play"), tr("Back")) == 0;
+	return true;
 }
 
 // The controls before the first GameCube game starts from this card
@@ -4441,7 +4524,7 @@ static std::string GcSaveName(const riftwii::GcSave& save)
 	return save.file_name.empty() ? save.game_code : save.file_name;
 }
 
-// "2026-10-16": a save's time, seconds since 2000-01-01.
+// "10/16/2026": a save's time, seconds since 2000-01-01.
 static std::string GcSaveDate(std::uint32_t seconds)
 {
 	// Whole years, then whole months, from 2000 (a leap year every fourth,
@@ -4461,8 +4544,10 @@ static std::string GcSaveDate(std::uint32_t seconds)
 		if (days < inMonth) break;
 		days -= inMonth;
 	}
-	const auto two = [](unsigned v) { return (v < 10 ? "0" : "") + std::to_string(v); };
-	return std::to_string(year) + "-" + two(month + 1) + "-" + two(static_cast<unsigned>(days) + 1);
+	// The menu's own day format (Home's clock, "10/16", in the language's
+	// order), then the year.
+	return tr("{1}/{2}", {std::to_string(month + 1), std::to_string(static_cast<unsigned>(days) + 1)}) + "/" +
+		std::to_string(year);
 }
 
 // A save's own file name on the SD card: "GMSE01-Sunshine save.gci", with
@@ -4519,7 +4604,8 @@ static int ChooseTwo(const std::string& title, const std::string& body, const st
 // MenuGcCard and the .gci picker show. `act(row)` is called on A; it
 // returns true to leave.
 static void RunRowPage(const std::string& title, const std::string& subtitle, std::vector<FlowRow>& rows,
-		       const std::function<std::string(int)>& note, const std::function<bool(int)>& act)
+		       const std::function<std::string(int)>& note, const std::function<bool(int)>& act,
+		       const std::function<std::string()>& status = nullptr)
 {
 	GuiText titleTxt(title.c_str(), 30, skin::kInk);
 	Place(titleTxt, 78, 28);
@@ -4528,7 +4614,11 @@ static void RunRowPage(const std::string& title, const std::string& subtitle, st
 	const std::string sub = FlatCapped(subtitle, 40);
 	GuiText subTxt(sub.c_str(), 16, skin::kInkDim);
 	subTxt.SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
-	subTxt.SetPosition(-40, 40);
+	// With a status line (the card's space) the two share the band's height.
+	subTxt.SetPosition(-40, status ? 28 : 40);
+	GuiText statusTxt(status ? status().c_str() : "", 14, skin::kInkDim);
+	statusTxt.SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
+	statusTxt.SetPosition(-40, 48);
 	NoteCard noteCard;
 	GuiFlowList list(44, 84, 540, 5);
 	list.SetCards(true);
@@ -4550,6 +4640,7 @@ static void RunRowPage(const std::string& title, const std::string& subtitle, st
 	w.Append(&pageIcon);
 	w.Append(&titleTxt);
 	w.Append(&subTxt);
+	if (status) w.Append(&statusTxt);
 	w.Append(&noteCard);
 	w.Append(&list);
 	w.Append(&noteTxt);
@@ -4572,6 +4663,7 @@ static void RunRowPage(const std::string& title, const std::string& subtitle, st
 		const int acted = list.GetClicked();
 		if (acted >= 0 && static_cast<std::size_t>(acted) < rows.size()) {
 			done = act(acted);
+			if (status) statusTxt.SetText(status().c_str());
 			list.Refresh();
 			if (!rows.empty()) list.Select(std::min<int>(acted, static_cast<int>(rows.size()) - 1));
 			shownRow = -1;
@@ -4681,12 +4773,12 @@ static void MenuGcCard(FrontendState& state)
 	};
 	const auto note = [&](int row) -> std::string {
 		const std::size_t at = static_cast<std::size_t>(row);
-		const std::string free = tr("{1} of {2} blocks free.", {std::to_string(info.free_blocks), std::to_string(info.blocks - 5)});
-		if (at >= info.saves.size()) return tr("Adds a .gci save file from {1}.", {kGcSavesDir}) + " " + free;
+		if (at >= info.saves.size()) return tr("Adds a .gci save file from {1}.", {kGcSavesDir});
 		const riftwii::GcSave& save = info.saves[at];
 		if (!save.intact) return tr("This save is damaged: its blocks do not add up. It can only be deleted.");
+		// The save alone here: the card's space is in the header.
 		std::string text = save.comment_detail.empty() ? std::string() : save.comment_detail + "\n";
-		text += save.game_code + save.maker + " \xC2\xB7 " + GcSaveDate(save.modified) + " \xC2\xB7 " + free;
+		text += tr("Saved {1}", {GcSaveDate(save.modified)}) + " \xC2\xB7 " + save.game_code + save.maker;
 		return text;
 	};
 	const auto act = [&](int row) {
@@ -4744,7 +4836,10 @@ static void MenuGcCard(FrontendState& state)
 		}
 		return false;
 	};
-	RunRowPage(shared ? tr("Shared Memory Card") : tr("Memory Card"), GameTitle(state), rows, note, act);
+	const auto space = [&] {
+		return tr("{1} of {2} blocks free", {std::to_string(info.free_blocks), std::to_string(info.blocks - 5)});
+	};
+	RunRowPage(shared ? tr("Shared Memory Card") : tr("Memory Card"), GameTitle(state), rows, note, act, space);
 }
 
 // What a GameCube game's crash screen says (gcnative.hpp's
@@ -4877,10 +4972,6 @@ static std::string GameTitle(const FrontendState& state)
 // About this game: what GameTDB says about it (wii/online/gameinfo.hpp),
 // the controllers it takes checked against those connected now.
 
-// The controllers a game can see, connected now.
-struct ConnectedPads {
-	bool remote = false, nunchuk = false, classic = false, gamecube = false, board = false;
-};
 static ConnectedPads PadsConnectedNow()
 {
 	ConnectedPads pads;

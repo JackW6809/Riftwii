@@ -1446,6 +1446,39 @@ msgstr "A ler {1} e a escrever {2}"
 msgid "{1} not built"
 msgstr "{1} não foi criado"
 
+msgid "Wii Remote and Nunchuk"
+msgstr "Comando Wii e Nunchuk"
+
+msgid "Wii Remote, held sideways"
+msgstr "Comando Wii, na horizontal"
+
+msgid "GameCube controls: {1}"
+msgstr "Controlos de GameCube: {1}"
+
+msgid "Its buttons are the game's own, as on a GameCube."
+msgstr "Os botões são os do jogo, como numa GameCube."
+
+msgid "Left stick"
+msgstr "Manípulo esquerdo"
+
+msgid "Right stick"
+msgstr "Manípulo direito"
+
+msgid "Stick"
+msgstr "Manípulo"
+
+msgid "C-stick"
+msgstr "Stick C"
+
+msgid "D-pad"
+msgstr "Cruz direcional"
+
+msgid "Saved {1}"
+msgstr "Guardado a {1}"
+
+msgid "{1} of {2} blocks free"
+msgstr "{1} de {2} blocos livres"
+
 msgid "Working out the time left..."
 msgstr "A calcular o tempo restante..."
 
@@ -1482,17 +1515,11 @@ msgstr "Mantenha HOME premido dois segundos para sair do jogo."
 msgid "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."
 msgstr "Num comando GameCube, mantenha L, R, Z e Start premidos dois segundos para sair do jogo."
 
-msgid "Classic and GameCube controllers: as on a GameCube."
-msgstr "Comandos Clássico e GameCube: como numa GameCube."
-
 msgid "1 block"
 msgstr "1 bloco"
 
 msgid "{1} blocks"
 msgstr "{1} blocos"
-
-msgid "{1} of {2} blocks free."
-msgstr "{1} de {2} blocos livres."
 
 msgid "Add a save"
 msgstr "Adicionar um save"
@@ -1625,15 +1652,6 @@ msgstr "Como uma GameCube: cada leitura demora o mesmo que na unidade de uma Gam
 
 msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
 msgstr "Que botões do Comando Wii, do Nunchuk e do Comando Clássico fazem de botões do comando GameCube."
-
-msgid "GameCube controls"
-msgstr "Controlos de GameCube"
-
-msgid "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves."
-msgstr "Comando Wii sozinho, na horizontal: 2 é A, 1 é B, A é X, HOME é Y, o gatilho é R, - é Z, + é Start; a cruz direcional move."
-
-msgid "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick."
-msgstr "Com um Nunchuk: A, B, 1 é X, 2 é Y, C é L, Z é R, - é Z, + é Start; o manípulo move e a cruz direcional é o stick C."
 
 msgid "SD image made"
 msgstr "Imagem SD criada"

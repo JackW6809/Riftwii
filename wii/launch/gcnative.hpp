@@ -29,7 +29,7 @@ GcWayBack FindGcWayBack();
 // language (8-bit coverage, kGcCrashCardW x kGcCrashCardH): the next
 // GameCube launch shows it if the game crashes. Without one a crash turns
 // the screen white.
-constexpr int kGcCrashCardW = 512, kGcCrashCardH = 96;
+constexpr int kGcCrashCardW = 512, kGcCrashCardH = 128;
 void SetGcCrashCard(std::vector<std::uint8_t> coverage);
 
 }  // namespace riftwii::wii

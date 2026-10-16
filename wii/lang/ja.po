@@ -1446,6 +1446,39 @@ msgstr "{1}を読み込み、{2}を書き込み中"
 msgid "{1} not built"
 msgstr "{1}は作られませんでした"
 
+msgid "Wii Remote and Nunchuk"
+msgstr "Wiiリモコンとヌンチャク"
+
+msgid "Wii Remote, held sideways"
+msgstr "Wiiリモコン(横持ち)"
+
+msgid "GameCube controls: {1}"
+msgstr "ゲームキューブの操作: {1}"
+
+msgid "Its buttons are the game's own, as on a GameCube."
+msgstr "ボタンはゲームキューブと同じです。"
+
+msgid "Left stick"
+msgstr "左スティック"
+
+msgid "Right stick"
+msgstr "右スティック"
+
+msgid "Stick"
+msgstr "スティック"
+
+msgid "C-stick"
+msgstr "Cスティック"
+
+msgid "D-pad"
+msgstr "十字ボタン"
+
+msgid "Saved {1}"
+msgstr "保存日 {1}"
+
+msgid "{1} of {2} blocks free"
+msgstr "{2}ブロック中{1}ブロックが空き"
+
 msgid "Working out the time left..."
 msgstr "残り時間を計算しています..."
 
@@ -1482,17 +1515,11 @@ msgstr "HOMEを2秒押し続けるとゲームをやめます。"
 msgid "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game."
 msgstr "ゲームキューブコントローラでは、L、R、Z、スタートを2秒押し続けるとゲームをやめます。"
 
-msgid "Classic and GameCube controllers: as on a GameCube."
-msgstr "クラシックコントローラとゲームキューブコントローラ: ゲームキューブと同じです。"
-
 msgid "1 block"
 msgstr "1ブロック"
 
 msgid "{1} blocks"
 msgstr "{1}ブロック"
-
-msgid "{1} of {2} blocks free."
-msgstr "{2}ブロック中{1}ブロックが空いています。"
 
 msgid "Add a save"
 msgstr "セーブを追加"
@@ -1625,15 +1652,6 @@ msgstr "ゲームキューブと同じ: 読み込みごとにゲームキュー�
 
 msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
 msgstr "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかを表示します。"
-
-msgid "GameCube controls"
-msgstr "ゲームキューブの操作"
-
-msgid "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves."
-msgstr "Wiiリモコンだけを横持ち: 2がA、1がB、AがX、HOMEがY、トリガーがR、-がZ、+がスタート。十字ボタンで移動します。"
-
-msgid "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick."
-msgstr "ヌンチャク付き: A、B、1がX、2がY、CがL、ZがR、-がZ、+がスタート。スティックで移動し、十字ボタンがCスティックです。"
 
 msgid "SD image made"
 msgstr "SDイメージを作成しました"

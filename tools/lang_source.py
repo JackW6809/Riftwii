@@ -1352,6 +1352,17 @@ T = {
     "Building {1}": ("Creando {1}", "{1}を作成中", "A criar {1}", "Creazione di {1}"),
     "Reading {1} and writing {2}": ("Leyendo {1} y escribiendo {2}", "{1}を読み込み、{2}を書き込み中", "A ler {1} e a escrever {2}", "Lettura di {1} e scrittura di {2}"),
     "{1} not built": ("{1} no se creó", "{1}は作られませんでした", "{1} não foi criado", "{1} non creato"),
+    "Wii Remote and Nunchuk": ("Mando de Wii y Nunchuk", "Wiiリモコンとヌンチャク", "Comando Wii e Nunchuk", "Telecomando Wii e Nunchuk"),
+    "Wii Remote, held sideways": ("Mando de Wii, en horizontal", "Wiiリモコン(横持ち)", "Comando Wii, na horizontal", "Telecomando Wii, in orizzontale"),
+    "GameCube controls: {1}": ("Controles de GameCube: {1}", "ゲームキューブの操作: {1}", "Controlos de GameCube: {1}", "Comandi GameCube: {1}"),
+    "Its buttons are the game's own, as on a GameCube.": ("Sus botones son los del juego, como en una GameCube.", "ボタンはゲームキューブと同じです。", "Os botões são os do jogo, como numa GameCube.", "I pulsanti sono quelli del gioco, come su un GameCube."),
+    "Left stick": ("Palanca izquierda", "左スティック", "Manípulo esquerdo", "Levetta sinistra"),
+    "Right stick": ("Palanca derecha", "右スティック", "Manípulo direito", "Levetta destra"),
+    "Stick": ("Palanca", "スティック", "Manípulo", "Levetta"),
+    "C-stick": ("Stick C", "Cスティック", "Stick C", "Stick C"),
+    "D-pad": ("Cruceta", "十字ボタン", "Cruz direcional", "Croce direzionale"),
+    "Saved {1}": ("Guardada el {1}", "保存日 {1}", "Guardado a {1}", "Salvato il {1}"),
+    "{1} of {2} blocks free": ("{1} de {2} bloques libres", "{2}ブロック中{1}ブロックが空き", "{1} de {2} blocos livres", "{1} blocchi liberi su {2}"),
     "Working out the time left...": ("Calculando el tiempo restante...", "残り時間を計算しています...", "A calcular o tempo restante...", "Calcolo del tempo rimanente..."),
     "Stop building {1}?": ("¿Dejar de crear {1}?", "{1}の作成を中止しますか?", "Parar de criar {1}?", "Interrompere la creazione di {1}?"),
     "What is built so far is deleted. It can be built again later, from the start.": ("Lo creado hasta ahora se borra. Se puede volver a crear más tarde, desde el principio.", "ここまでに作った分は削除されます。あとで最初から作り直せます。", "O que foi criado até agora é apagado. Pode ser criado outra vez mais tarde, desde o início.", "Quanto creato finora viene eliminato. Si può ricreare più tardi, dall'inizio."),
@@ -1364,10 +1375,8 @@ T = {
     "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Desligue a Wii e volte a ligá-la. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
     "Hold HOME for two seconds to leave the game.": ("Mantén HOME dos segundos para salir del juego.", "HOMEを2秒押し続けるとゲームをやめます。", "Mantenha HOME premido dois segundos para sair do jogo.", "Tieni premuto HOME per due secondi per uscire dal gioco."),
     "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.": ("En un mando de GameCube, mantén L, R, Z y Start dos segundos para salir del juego.", "ゲームキューブコントローラでは、L、R、Z、スタートを2秒押し続けるとゲームをやめます。", "Num comando GameCube, mantenha L, R, Z e Start premidos dois segundos para sair do jogo.", "Su un controller GameCube, tieni premuti L, R, Z e Start per due secondi per uscire dal gioco."),
-    "Classic and GameCube controllers: as on a GameCube.": ("Mandos clásico y de GameCube: como en una GameCube.", "クラシックコントローラとゲームキューブコントローラ: ゲームキューブと同じです。", "Comandos Clássico e GameCube: como numa GameCube.", "Controller classico e GameCube: come su un GameCube."),
     "1 block": ("1 bloque", "1ブロック", "1 bloco", "1 blocco"),
     "{1} blocks": ("{1} bloques", "{1}ブロック", "{1} blocos", "{1} blocchi"),
-    "{1} of {2} blocks free.": ("{1} de {2} bloques libres.", "{2}ブロック中{1}ブロックが空いています。", "{1} de {2} blocos livres.", "{1} blocchi liberi su {2}."),
     "Add a save": ("Añadir una partida", "セーブを追加", "Adicionar um save", "Aggiungi un salvataggio"),
     "Add a save from the SD card": ("Añadir una partida desde la tarjeta SD", "SDカードからセーブを追加", "Adicionar um save do cartão SD", "Aggiungi un salvataggio dalla scheda SD"),
     "Shared Memory Card": ("Tarjeta de memoria compartida", "共有メモリーカード", "Cartão de memória compartilhado", "Memory Card condivisa"),
@@ -1412,9 +1421,6 @@ T = {
     "Controls": ("Controles", "操作", "Controlos", "Comandi"),
     "Like a GameCube: each read takes as long as on a GameCube's drive, which some games count on. Fast: reads come at the SD card's speed, so loading is shorter; try it if a game runs well with it.": ("Como una GameCube: cada lectura tarda lo mismo que en la unidad de una GameCube, con lo que cuentan algunos juegos. Rápida: las lecturas van a la velocidad de la tarjeta SD y la carga es más corta; pruébala si el juego funciona bien así.", "ゲームキューブと同じ: 読み込みごとにゲームキューブのドライブと同じ時間がかかります。これを前提にするゲームもあります。高速: SDカードの速さで読み込むので、ロードが短くなります。ゲームが問題なく動くなら試してください。", "Como uma GameCube: cada leitura demora o mesmo que na unidade de uma GameCube, com o que alguns jogos contam. Rápida: as leituras vêm à velocidade do cartão SD, por isso o carregamento é mais curto; experimente se o jogo funcionar bem assim.", "Come un GameCube: ogni lettura dura quanto sull'unità di un GameCube, su cui alcuni giochi contano. Veloce: le letture vanno alla velocità della scheda SD, quindi i caricamenti sono più brevi; provala se il gioco funziona bene così."),
     "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.": ("Qué botones del mando de Wii, el Nunchuk y el mando clásico hacen de los del mando de GameCube.", "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかを表示します。", "Que botões do Comando Wii, do Nunchuk e do Comando Clássico fazem de botões do comando GameCube.", "Quali pulsanti del telecomando Wii, del Nunchuk e del controller classico fanno da pulsanti del controller GameCube."),
-    "GameCube controls": ("Controles de GameCube", "ゲームキューブの操作", "Controlos de GameCube", "Comandi GameCube"),
-    "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.": ("Mando de Wii solo, en horizontal: 2 es A, 1 es B, A es X, HOME es Y, el gatillo es R, - es Z, + es Start; la cruceta mueve.", "Wiiリモコンだけを横持ち: 2がA、1がB、AがX、HOMEがY、トリガーがR、-がZ、+がスタート。十字ボタンで移動します。", "Comando Wii sozinho, na horizontal: 2 é A, 1 é B, A é X, HOME é Y, o gatilho é R, - é Z, + é Start; a cruz direcional move.", "Telecomando Wii da solo, in orizzontale: 2 è A, 1 è B, A è X, HOME è Y, il grilletto è R, - è Z, + è Start; la croce direzionale muove."),
-    "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.": ("Con un Nunchuk: A, B, 1 es X, 2 es Y, C es L, Z es R, - es Z, + es Start; la palanca mueve y la cruceta es el stick C.", "ヌンチャク付き: A、B、1がX、2がY、CがL、ZがR、-がZ、+がスタート。スティックで移動し、十字ボタンがCスティックです。", "Com um Nunchuk: A, B, 1 é X, 2 é Y, C é L, Z é R, - é Z, + é Start; o manípulo move e a cruz direcional é o stick C.", "Con un Nunchuk: A, B, 1 è X, 2 è Y, C è L, Z è R, - è Z, + è Start; la levetta muove e la croce direzionale è lo stick C."),
     "SD image made": ("Imagen SD creada", "SDイメージを作成しました", "Imagem SD criada", "Immagine SD creata"),
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.": ("{1} está en sd:/riftwii y la build que contiene está activada: el juego usa la imagen como su tarjeta SD.", "{1}はsd:/riftwiiにあり、中のビルドはオンになっています: ゲームはこのイメージをSDカードとして使います。", "{1} está em sd:/riftwii e a build dentro dela está ativada: o jogo usa a imagem como seu cartão SD.", "{1} è in sd:/riftwii e la build al suo interno è attivata: il gioco usa l'immagine come sua scheda SD."),
     "Remove from the list": ("Quitar de la lista", "一覧から削除", "Remover da lista", "Rimuovi dall'elenco"),
@@ -2842,6 +2848,28 @@ KO = {
         "{1} 읽고 {2} 쓰는 중",
     "{1} not built":
         "{1}을(를) 만들지 못했습니다",
+    "Wii Remote and Nunchuk":
+        "Wii 리모컨과 눈차크",
+    "Wii Remote, held sideways":
+        "Wii 리모컨 (가로로)",
+    "GameCube controls: {1}":
+        "게임큐브 조작: {1}",
+    "Its buttons are the game's own, as on a GameCube.":
+        "버튼은 게임큐브와 같습니다.",
+    "Left stick":
+        "왼쪽 스틱",
+    "Right stick":
+        "오른쪽 스틱",
+    "Stick":
+        "스틱",
+    "C-stick":
+        "C스틱",
+    "D-pad":
+        "십자 버튼",
+    "Saved {1}":
+        "저장일 {1}",
+    "{1} of {2} blocks free":
+        "{2}블록 중 {1}블록 남음",
     "Working out the time left...":
         "남은 시간을 계산하는 중...",
     "Stop building {1}?":
@@ -2866,14 +2894,10 @@ KO = {
         "HOME을 2초 동안 누르면 게임을 나갑니다.",
     "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.":
         "게임큐브 컨트롤러에서는 L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다.",
-    "Classic and GameCube controllers: as on a GameCube.":
-        "클래식 컨트롤러와 게임큐브 컨트롤러: 게임큐브와 같습니다.",
     "1 block":
         "1블록",
     "{1} blocks":
         "{1}블록",
-    "{1} of {2} blocks free.":
-        "{2}블록 중 {1}블록 남음.",
     "Add a save":
         "저장 데이터 추가",
     "Add a save from the SD card":
@@ -2962,12 +2986,6 @@ KO = {
         "게임큐브처럼: 읽을 때마다 게임큐브 드라이브와 같은 시간이 걸리며, 일부 게임은 이를 전제로 합니다. 빠르게: SD 카드 속도로 읽어 로딩이 짧아집니다. 게임이 잘 돌아가면 사용해 보세요.",
     "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.":
         "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지 보여 줍니다.",
-    "GameCube controls":
-        "게임큐브 조작",
-    "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.":
-        "Wii 리모컨만 가로로: 2는 A, 1은 B, A는 X, HOME은 Y, 트리거는 R, -는 Z, +는 스타트, 십자 버튼으로 움직입니다.",
-    "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.":
-        "눈차크와 함께: A, B, 1은 X, 2는 Y, C는 L, Z는 R, -는 Z, +는 스타트, 스틱으로 움직이고 십자 버튼은 C스틱입니다.",
     "SD image made":
         "SD 이미지 생성됨",
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.":
@@ -4531,6 +4549,28 @@ FR = {
         "Lecture de {1} et écriture de {2}",
     "{1} not built":
         "{1} non créé",
+    "Wii Remote and Nunchuk":
+        "Wiimote et Nunchuk",
+    "Wii Remote, held sideways":
+        "Wiimote, tenue à l'horizontale",
+    "GameCube controls: {1}":
+        "Commandes GameCube : {1}",
+    "Its buttons are the game's own, as on a GameCube.":
+        "Ses boutons sont ceux du jeu, comme sur une GameCube.",
+    "Left stick":
+        "Stick gauche",
+    "Right stick":
+        "Stick droit",
+    "Stick":
+        "Stick",
+    "C-stick":
+        "Stick C",
+    "D-pad":
+        "Croix directionnelle",
+    "Saved {1}":
+        "Enregistrée le {1}",
+    "{1} of {2} blocks free":
+        "{1} blocs libres sur {2}",
     "Working out the time left...":
         "Calcul du temps restant...",
     "Stop building {1}?":
@@ -4555,14 +4595,10 @@ FR = {
         "Maintenez HOME deux secondes pour quitter le jeu.",
     "On a GameCube controller, hold L, R, Z and Start for two seconds to leave the game.":
         "Sur une manette GameCube, maintenez L, R, Z et Start deux secondes pour quitter le jeu.",
-    "Classic and GameCube controllers: as on a GameCube.":
-        "Manettes classique et GameCube : comme sur une GameCube.",
     "1 block":
         "1 bloc",
     "{1} blocks":
         "{1} blocs",
-    "{1} of {2} blocks free.":
-        "{1} blocs libres sur {2}.",
     "Add a save":
         "Ajouter une sauvegarde",
     "Add a save from the SD card":
@@ -4651,12 +4687,6 @@ FR = {
         "Comme une GameCube : chaque lecture prend autant de temps que sur le lecteur d'une GameCube, ce sur quoi certains jeux comptent. Rapide : les lectures se font à la vitesse de la carte SD, le chargement est donc plus court ; essayez-la si le jeu fonctionne bien ainsi.",
     "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.":
         "Quels boutons de la Wiimote, du Nunchuk et de la manette classique font office de ceux de la manette GameCube.",
-    "GameCube controls":
-        "Commandes GameCube",
-    "Wii Remote alone, held sideways: 2 is A, 1 is B, A is X, HOME is Y, the trigger is R, - is Z, + is Start; the D-pad moves.":
-        "Wiimote seule, tenue à l'horizontale : 2 est A, 1 est B, A est X, HOME est Y, la gâchette est R, - est Z, + est Start ; la croix directionnelle déplace.",
-    "With a Nunchuk: A, B, 1 is X, 2 is Y, C is L, Z is R, - is Z, + is Start; the stick moves and the D-pad is the C-stick.":
-        "Avec un Nunchuk : A, B, 1 est X, 2 est Y, C est L, Z est R, - est Z, + est Start ; le stick déplace et la croix directionnelle est le stick C.",
     "SD image made":
         "Image SD créée",
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.":
