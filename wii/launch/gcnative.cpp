@@ -1018,6 +1018,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     ctx->bounce = bounce_addr;
     ctx->bounce_bytes = kBounceBytes;
     ctx->delay_ticks = 2000;  // about 30 microseconds
+    ctx->drive_timing = 1;  // reads take a GameCube drive's time (gc_drive_ticks)
     ctx->beat_ticks = 30375000;  // half a second of the bus clock / 4
     ctx->di_regs = di_regs;
     std::memset(reinterpret_cast<void*>(di_regs), 0, 0x40);

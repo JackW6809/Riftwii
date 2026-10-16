@@ -468,11 +468,35 @@ static void gc_set_imm(struct gc_rt_context* ctx, uint32_t value) {
 /* The callback runs from an OSAlarm a moment from now, where the DI
  * interrupt would have run it. */
 typedef void (*gc_set_alarm_fn)(void* alarm, uint64_t ticks, uint32_t handler);
-static void gc_complete(struct gc_rt_context* ctx, uint32_t cb, uint32_t type) {
+static void gc_complete_after(struct gc_rt_context* ctx, uint32_t cb, uint32_t type, uint32_t ticks) {
     gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
     ctx->pending_cb = cb;
     ctx->pending_type = type;
-    set_alarm(ctx->alarm, ctx->delay_ticks, ctx->alarm_entry);
+    set_alarm(ctx->alarm, ticks < ctx->delay_ticks ? ctx->delay_ticks : ticks, ctx->alarm_entry);
+}
+static void gc_complete(struct gc_rt_context* ctx, uint32_t cb, uint32_t type) { gc_complete_after(ctx, cb, type, 0); }
+
+/* How long a GameCube drive takes for a read, in timebase ticks (the Wii's
+ * bus clock / 4, as the game is told): the seek, from nothing for a read
+ * that follows the last one to about 105 ms across the whole disc, then
+ * the transfer, the disc turning at a constant speed so the rate grows
+ * from about 2 MB/s at its start to about 3 MB/s at its end. A read
+ * served at the SD card's speed finished in microseconds, and some games
+ * count on the drive's time (Nintendont emulates it too). A rough model,
+ * not a measured one. */
+#define GC_TICKS_PER_US_X4 243u  /* 60.75 ticks a microsecond */
+static uint32_t gc_drive_ticks(struct gc_rt_context* ctx, uint32_t offset, uint32_t length) {
+    const uint32_t distance = offset > ctx->last_read_end ? offset - ctx->last_read_end : ctx->last_read_end - offset;
+    uint32_t seek_us = 0, rate_x10, transfer_us, us;
+    if (distance >= 0x10000u) {
+        seek_us = 20000u + (distance >> 14);
+        if (seek_us > 105000u) seek_us = 105000u;
+    }
+    rate_x10 = 20u + (offset >> 27);  /* bytes a microsecond, times 10: 20 at the start, 30 at 1.4 GB */
+    transfer_us = (length / rate_x10) * 10u + (length % rate_x10) * 10u / rate_x10;
+    us = seek_us + transfer_us;
+    if (us > 4000000u) us = 4000000u;
+    return us / 4u * GC_TICKS_PER_US_X4 + (us % 4u) * GC_TICKS_PER_US_X4 / 4u;
 }
 
 /* The heartbeat (gc_rt.h): once more, half a second from now. */
@@ -495,7 +519,21 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
     ctx->reads++;
     ctx->read_bytes += length;
     ctx->last_offset = offset;
-    gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset) ? GC_DI_TC : GC_DI_DE);
+    {
+        uint32_t start, end, wait = 0;
+        int ok;
+        __asm__ volatile("mftb %0" : "=r"(start));
+        ok = gc_read_disc(ctx, (uint8_t*)(uintptr_t)addr, length, offset);
+        __asm__ volatile("mftb %0" : "=r"(end));
+        if (ctx->drive_timing) {
+            /* What the drive would still need after the time the card took. */
+            const uint32_t drive = gc_drive_ticks(ctx, offset, length);
+            const uint32_t spent = end - start;
+            wait = drive > spent ? drive - spent : 0;
+        }
+        ctx->last_read_end = offset + length;
+        gc_complete_after(ctx, cb, ok ? GC_DI_TC : GC_DI_DE, wait);
+    }
     if (ctx->reads <= 32 || (ctx->reads & 63) == 0) gc_trace(ctx, GC_TRACE_READ);
     return 1;
 }

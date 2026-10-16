@@ -160,7 +160,9 @@ struct gc_rt_context {
     uint32_t bounce;          /* 32-byte aligned, bounce_bytes (a multiple of 512) */
     uint32_t bounce_bytes;
     uint32_t delay_ticks;     /* how soon the callback runs */
+    uint32_t drive_timing;    /* 1: a read's callback waits as long as a GameCube drive would take (gc_drive_ticks) */
     /* State. */
+    uint32_t last_read_end;   /* where the last read ended on the disc, for the seek */
     uint32_t pending_cb;      /* the callback the alarm runs, 0: none */
     uint32_t pending_type;
     /* Counters, for the log and a memory dump. */
@@ -222,7 +224,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x360u
+#define GC_RT_CONTEXT_BYTES 0x380u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
