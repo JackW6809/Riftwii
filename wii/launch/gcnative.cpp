@@ -170,6 +170,20 @@ std::uint32_t function_start(const Code& code, std::uint32_t at) {
     return 0;
 }
 
+// Whether one of the four instructions after `at` is "addi rD,`reg`,`value`",
+// before anything else loads `reg`.
+bool adds_to_register(const Code& code, std::uint32_t at, unsigned reg, std::uint16_t value) {
+    for (std::uint32_t a = at + 4; a <= at + 16 && code.has(a); a += 4) {
+        const std::uint32_t w = code.at(a);
+        const unsigned op = w >> 26, d = (w >> 21) & 31, ra = (w >> 16) & 31;
+        if (op == 14 && ra == reg && (w & 0xFFFF) == value) return true;
+        const bool loads = (op >= 32 && op <= 35) || (op >= 40 && op <= 43) || op == 46;
+        const bool immediate = op == 7 || (op >= 12 && op <= 15);  // mulli, addic, addi, addis
+        if (d == reg && (loads || immediate)) return false;  // reg gets another value
+    }
+    return false;
+}
+
 bool find_dvd_low(const Code& code, DvdLow& out, std::string& error) {
     std::uint32_t just_read = 0;
     std::map<std::uint32_t, std::vector<std::uint32_t>> calls;  // target -> call sites
@@ -183,9 +197,10 @@ bool find_dvd_low(const Code& code, DvdLow& out, std::string& error) {
             if (f != 0) found[&slot].push_back(f);
         };
         if (is_lis(w, 0xA800)) {
-            // ReadDiskID adds 0x40 to the read command.
-            const std::uint32_t next = code.at(a + 4);
-            if ((next >> 26) == 14 && (next & 0xFFFF) == 0x40) take(out.disk_id);
+            // ReadDiskID adds 0x40 to the read command, within a few
+            // instructions: Luigi's Mansion (USA), an early SDK, stores the
+            // link register in between (lis r5; stw r0,4(r1); addi r0,r5,0x40).
+            if (adds_to_register(code, a, (w >> 21) & 31, 0x40)) take(out.disk_id);
             else take(just_read);
         } else if (is_lis(w, 0xAB00)) take(out.seek);
         else if (is_lis(w, 0x1200)) take(out.inquiry);
@@ -1240,6 +1255,14 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     std::memcpy(reinterpret_cast<void*>(fst_addr), fst.data(), fst.size());
     std::memcpy(reinterpret_cast<void*>(bi2_addr), bi2.data(), bi2.size());
 
+    // The trace and the memory cards live in sd:/riftwii/gc. mkdir makes one
+    // level at a time, and a launch that did not come through the menu
+    // (autorun, headless) finds no gc folder on a fresh card: without these
+    // the game ran with no memory card and no trace.
+    mkdir("sd:/riftwii", 0777);
+    mkdir("sd:/riftwii/gc", 0777);
+    mkdir("sd:/riftwii/gc/cards", 0777);
+
     // The trace (gc_rt.h): one cluster's worth of zeroed records, its
     // sectors given to the blob, read back after a run that went wrong.
     std::uint32_t trace_sector = 0, trace_count = 0;
@@ -1267,7 +1290,6 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     std::vector<gc_card_run> card_runs;
     {
         const std::string path = gc_card_path(image.id, image.shared_card);
-        mkdir("sd:/riftwii/gc/cards", 0777);
         card_image.assign(GC_CARD_BYTES, 0xFF);
         bool ready = false;
         bool exists = false;
