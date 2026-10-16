@@ -323,7 +323,7 @@ addresses into source lines (keep the `riftwii.elf` of each release).
 | `sd:/riftwii/gc/saves/*.gci` | GameCube saves copied out, or to add to a card |
 | `sd:/riftwii/gc/trace.bin`, `trace-crash.bin` | The last GameCube launch's trace (`tools/gc_trace.py`), and the last one with a crash, once offered |
 | `sd:/riftwii/gc/controls_seen.txt` | The controls card was shown |
-| `sd:/riftwii/gc/press`, `leave`, `crash` | Test switches: presses on port 1, holding the way back, a crash on purpose |
+| `sd:/riftwii/gc/press`, `leave`, `crash`, `nowiden` | Test switches: presses on port 1, holding the way back, a crash on purpose, 16:9's hook without the widening |
 | `sd:/riftwii/autorun.txt`, `guiscript.txt` | Test scripts (see `DEVELOPING.md`) |
 
 ## Rules the code keeps

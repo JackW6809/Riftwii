@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 #define GC_RT_MAGIC 0x52574744u          /* "RWGD" */
-#define GC_RT_VERSION 2u                 /* also in gc_entry.S's header */
+#define GC_RT_VERSION 3u                 /* also in gc_entry.S's header */
 #define GC_RT_CONTEXT_MAGIC 0x52574743u  /* "RWGC" */
 
 /* The DI interrupt types a DVDLow callback takes. */
@@ -111,11 +111,14 @@ enum gc_trace_word {
     GC_TR_CARD_LAST, /* the last command << 24 | accesses */
     GC_TR_VI_CONFIGURES,
     GC_TR_VI_MODE, /* the last VIConfigure: the game's viTVMode << 8 | the one it got */
-    GC_TR_PROJECTIONS, /* perspective projections widened (16:9) */
+    GC_TR_PROJECTIONS, /* perspective projections seen with 16:9 on (widened unless GC_FLAG_WIDEN is off) */
     GC_TR_STREAM_STARVED, GC_TR_STREAM_FETCH_BUSY,
     GC_TR_STREAM_BUFFERED, /* ADPCM bytes in the ring ahead of the decoder */
-    GC_TR_WORDS
+    GC_TR_ORTHOGRAPHICS, /* orthographic projections seen with 16:9 on (left alone) */
+    GC_TR_PROJECTION_CALLERS, /* 16 words: gc_rt_context.projection_callers */
+    GC_TR_WORDS = GC_TR_PROJECTION_CALLERS + 16
 };
+typedef char gc_trace_fits[(GC_TR_WORDS * 4 <= 512) ? 1 : -1];
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
 #define GC_TRACE_PAD 2u
@@ -140,8 +143,17 @@ enum gc_trace_word {
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
 #define GC_FLAG_CRASH 4u  /* tests of the crash screen: the 600th pad read takes a program exception */
 #define GC_FLAG_LEAVE 2u  /* tests of the way back: port 1 holds L, R, Z and Start from the 1800th pad read */
-#define GC_FLAG_STREAM_ONLY 16u  /* tests: AI buffers that carry disc music carry it alone (the game's own sound cleared) */
+#define GC_FLAG_STREAM_ONLY 32u  /* tests: AI buffers that carry disc music carry it alone (the game's own sound cleared) */
 #define GC_FLAG_PROGRESSIVE 8u  /* 480p: VIConfigure's NTSC interlaced modes become progressive (gc_on_vi_configure) */
+#define GC_FLAG_WIDEN 16u  /* 16:9: perspective projections are drawn 3/4 as wide (gc_on_projection); off with the
+                            * hook on, the test of the hook alone (sd:/riftwii/gc/nowiden): copied, not widened */
+
+/* The callers of GXSetProjection that gc_on_projection notes for the
+ * trace, the first ones seen: four words each, the return address, the
+ * perspective calls from there, and that first matrix's [0][0] and
+ * [1][1] (float bits, as the game gave them: their ratio is the shape of
+ * the picture it draws, 0.75 for one 4:3 wide). */
+#define GC_PROJECTION_CALLERS 4u
 
 /* Disc audio streaming (the drive's own ADPCM, 48 kHz stereo): what the
  * drive would have played into the AI is decoded here and mixed into the
@@ -265,9 +277,11 @@ struct gc_rt_context {
     /* The picture options (the game's Options: 480p, 16:9). */
     uint32_t vi_configures;
     uint32_t vi_mode;         /* GC_TR_VI_MODE */
-    uint32_t projections;
+    uint32_t projections;     /* perspective projections seen (16:9 on) */
+    uint32_t orthographics;   /* orthographic ones, left alone */
     uint32_t vi_copy[16];     /* the progressive copy of the game's GXRenderModeObj (0x3C bytes) */
     uint32_t projection[16];  /* the widened copy of the game's projection matrix */
+    uint32_t projection_callers[GC_PROJECTION_CALLERS * 4];
     uint8_t aram_scratch[32] __attribute__((aligned(32)));  /* the hardware's own ARAM DMA goes here */
     uint8_t alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
     uint8_t beat_alarm[GC_ALARM_BYTES] __attribute__((aligned(32)));
@@ -277,7 +291,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x420u
+#define GC_RT_CONTEXT_BYTES 0x460u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
@@ -291,7 +305,7 @@ void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where);
 uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
 uint32_t gc_on_vi_configure(struct gc_rt_context* ctx, uint32_t mode);
-uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type);
+uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type, uint32_t caller);
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context);
 void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_context, uint32_t dsisr, uint32_t dar);

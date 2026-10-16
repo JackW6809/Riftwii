@@ -445,6 +445,8 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_VI_CONFIGURES] = ctx->vi_configures;
     w[GC_TR_VI_MODE] = ctx->vi_mode;
     w[GC_TR_PROJECTIONS] = ctx->projections;
+    w[GC_TR_ORTHOGRAPHICS] = ctx->orthographics;
+    for (i = 0; i < GC_PROJECTION_CALLERS * 4; ++i) w[GC_TR_PROJECTION_CALLERS + i] = ctx->projection_callers[i];
     w[GC_TR_PENDING_CB] = ctx->pending_cb;
     w[GC_TR_ALARMS] = ctx->alarms;
     w[GC_TR_BEATS] = ctx->beats;
@@ -942,19 +944,73 @@ uint32_t gc_on_vi_configure(struct gc_rt_context* ctx, uint32_t mode) {
     return used;
 }
 
+/* A float's bits times 3/4, in integers: the blob does no floating point
+ * (it runs on the game's FPU state, which it must leave as it found it),
+ * so the widening is done on the bits. Zero, denormals, infinities and
+ * NaNs come back as they are; a projection has none of them where it is
+ * widened. */
+static uint32_t gc_float_three_quarters(uint32_t bits) {
+    const uint32_t sign = bits & 0x80000000u;
+    uint32_t exponent = (bits >> 23) & 0xFFu;
+    uint32_t mantissa;
+    if (exponent <= 1u || exponent == 0xFFu) return bits;
+    /* The 24-bit mantissa with its hidden 1, times 3: 25 or 26 bits. The
+     * value is that times 2^(exponent - 152); back to 24 bits, rounded. */
+    mantissa = ((bits & 0x7FFFFFu) | 0x800000u) * 3u;
+    if (mantissa >= 0x2000000u) {
+        mantissa = (mantissa + 2u) >> 2;
+    } else {
+        mantissa = (mantissa + 1u) >> 1;
+        exponent -= 1u;
+    }
+    if (mantissa == 0x1000000u) {  /* rounded up to the next power of two */
+        mantissa >>= 1;
+        exponent += 1u;
+    }
+    return sign | exponent << 23 | (mantissa & 0x7FFFFFu);
+}
+
+/* Notes the caller (its return address) of a perspective projection for
+ * the trace: which of the game's passes are widened, with the shape of
+ * the first matrix each one gave. */
+static void gc_note_projection_caller(struct gc_rt_context* ctx, uint32_t caller, const uint32_t* matrix) {
+    uint32_t i;
+    for (i = 0; i < GC_PROJECTION_CALLERS; ++i) {
+        uint32_t* slot = &ctx->projection_callers[i * 4];
+        if (slot[0] == caller) {
+            ++slot[1];
+            return;
+        }
+        if (slot[0] == 0) {
+            slot[0] = caller;
+            slot[1] = 1;
+            slot[2] = matrix[0];
+            slot[3] = matrix[5];
+            return;
+        }
+    }
+}
+
 /* GXSetProjection(mtx, type) with 16:9 on: a perspective projection
- * (type 0) is copied for gc_hook_projection to widen; an orthographic
- * one (type 1: menus, text, the 2D layers) is left alone. GXSetProjection
- * reads the copy at once, so one is enough, and the game's own matrix is
- * never changed (games set the same one every frame). */
+ * (type 0) is copied with its x scale, mtx[0][0], times 3/4: the same
+ * view drawn into a picture a widescreen TV stretches by 4/3. An
+ * orthographic one (type 1: menus, text, the 2D layers) is left alone.
+ * GXSetProjection reads the copy at once, so one is enough, and the
+ * game's own matrix is never changed (games set the same one every
+ * frame). gc_hook_projection runs the original on what this returns. */
 #define GC_GX_PERSPECTIVE 0u
 
-uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type) {
+uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type, uint32_t caller) {
     const uint32_t* matrix = (const uint32_t*)(uintptr_t)mtx;
     uint32_t i;
-    if (type != GC_GX_PERSPECTIVE) return mtx;
-    for (i = 0; i < 16; ++i) ctx->projection[i] = matrix[i];
+    if (type != GC_GX_PERSPECTIVE) {
+        ++ctx->orthographics;
+        return mtx;
+    }
     ++ctx->projections;
+    gc_note_projection_caller(ctx, caller, matrix);
+    for (i = 0; i < 16; ++i) ctx->projection[i] = matrix[i];
+    if (ctx->flags & GC_FLAG_WIDEN) ctx->projection[0] = gc_float_three_quarters(matrix[0]);
     return (uint32_t)(uintptr_t)ctx->projection;
 }
 

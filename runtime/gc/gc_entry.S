@@ -6,7 +6,7 @@
     .section .text.gc_entry, "ax", @progbits
     .globl _gc_blob_start
 _gc_blob_start:
-    .long 0x52574744, 2, _gc_blob_end - _gc_blob_start, gc_context_data - _gc_blob_start
+    .long 0x52574744, 3, _gc_blob_end - _gc_blob_start, gc_context_data - _gc_blob_start
     .long gc_hook_read - _gc_blob_start, gc_hook_seek - _gc_blob_start
     .long gc_hook_disk_id - _gc_blob_start, gc_hook_inquiry - _gc_blob_start
     .long gc_hook_cb_r3 - _gc_blob_start, gc_hook_audio_status - _gc_blob_start
@@ -205,43 +205,30 @@ gc_continue_vi_configure:
     mtctr 12
     bctr
 
-/* GXSetProjection(mtx, type), for 16:9: gc_on_projection(ctx, mtx, type)
- * copies a perspective projection into the context and returns the copy
- * (an orthographic one comes back as it is). The copy's x scale, mtx[0][0],
- * is multiplied by 3/4 here, as the blob's C has no floating point: the
- * same view drawn into a picture a widescreen TV stretches by 4/3. The
- * original then runs from its replay slot on the copy. f0 and f1 are
- * free here: GXSetProjection takes no floating-point arguments.
- * Frame: 8 mtx, 12 type. */
+/* GXSetProjection(mtx, type), for 16:9: gc_on_projection(ctx, mtx, type,
+ * caller) returns the matrix to draw from (a widened copy of a
+ * perspective one, or the game's own), and the original runs on it from
+ * its replay slot with the game's type. No floating point here or in
+ * the C: the game's FPU registers stay as the game left them.
+ * Frame: 12 type. */
     .globl gc_hook_projection
 gc_hook_projection:
     stwu 1, -0x20(1)
     mflr 0
     stw 0, 0x24(1)
-    stw 3, 0x08(1)
     stw 4, 0x0C(1)
+    mr 6, 0
     mr 5, 4
     mr 4, 3
     bl 1f
 1:  mflr 3
     addi 3, 3, gc_context_data - 1b
     bl gc_on_projection
-    lwz 4, 0x08(1)
-    cmplw 3, 4
-    beq 2f
-    bl 3f
-3:  mflr 5
-    lfs 1, (gc_wide_x_scale - 3b)(5)
-    lfs 0, 0(3)
-    fmuls 0, 0, 1
-    stfs 0, 0(3)
-2:  lwz 4, 0x0C(1)
+    lwz 4, 0x0C(1)
     lwz 0, 0x24(1)
     mtlr 0
     addi 1, 1, 0x20
     b gc_replay_projection
-gc_wide_x_scale:
-    .long 0x3F400000  /* 0.75f: 4:3 over 16:9 */
 
     .balign 16
     .globl gc_replay_projection
@@ -437,4 +424,4 @@ gc_exi_table:
     .globl gc_context_data
 gc_context_data:
     .long 0x52574743
-    .fill 263, 4, 0
+    .fill 279, 4, 0

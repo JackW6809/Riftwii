@@ -1096,7 +1096,7 @@ static void prepare_leave(gc_rt_context* ctx, std::uint32_t buf, bool test) {
 // function that then runs on (false: it cannot be hooked).
 template <class ReplayHook>
 static void apply_picture_and_language(const GcImage& image, Code& code, ReplayHook replay_hook, const gc_rt_header& h,
-                                       gc_rt_context* ctx) {
+                                       gc_rt_context* ctx, bool test_no_widen) {
     const SramReads sram = find_sram_reads(code);
     // 480p. A game offers it when VIGetDTVStatus says a component cable is
     // in and OSGetProgressiveMode says the console's 480p setting is on
@@ -1123,7 +1123,13 @@ static void apply_picture_and_language(const GcImage& image, Code& code, ReplayH
         const std::uint32_t projection = find_gx_set_projection(code);
         const bool hooked = projection != 0 &&
                             replay_hook(projection, h.hook_projection, h.replay_projection, h.continue_projection);
-        logf("GameCube: 16:9: GXSetProjection 0x%08x %s\n", projection, hooked ? "widens 3D" : "not hooked: 4:3 as before");
+        // The test of the hook alone (sd:/riftwii/gc/nowiden): every
+        // projection goes through it and is copied, none is widened.
+        if (hooked && !test_no_widen) ctx->flags |= GC_FLAG_WIDEN;
+        const char* what = !hooked ? "not hooked: 4:3 as before"
+                           : test_no_widen ? "hooked but not widened (the test of the hook alone)"
+                                           : "widens 3D";
+        logf("GameCube: 16:9: GXSetProjection 0x%08x %s\n", projection, what);
     }
     // The language: OSGetLanguage's read of the settings' copy becomes the
     // chosen number. The console's SRAM is left as it is (sram above).
@@ -1149,6 +1155,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // And of disc audio streaming: the music alone, to compare it with an
     // offline decode (GC_FLAG_STREAM_ONLY).
     const bool test_stream_only = stat("sd:/riftwii/gc/streamonly", &st_press) == 0;
+    // And of 16:9's hook without the widening (GC_FLAG_WIDEN).
+    const bool test_no_widen = stat("sd:/riftwii/gc/nowiden", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     // The game's view of the disc: the image, then the packs' window
@@ -1356,7 +1364,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         if (first == 16 || first == 18) return false;
         replay_hook(fn, entry, replay, back);
         return true;
-    }, h, ctx);
+    }, h, ctx, test_no_widen);
 
     // The card, opened and selected; the blob reads it after the jump.
     // IOS lets one owner have the slot: the file system lets go first (as
