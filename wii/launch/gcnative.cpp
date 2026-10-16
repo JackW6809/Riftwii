@@ -1459,10 +1459,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         return true;
     }, h, ctx, test_no_widen);
 
-    // The card, opened and selected; the blob reads it after the jump.
-    // IOS lets one owner have the slot: the file system lets go first (as
-    // a Wii game's launch does), and the log goes on on screen only.
-    // While the log still reaches the card: what holding HOME goes to.
+    // What holding HOME goes to.
     prepare_leave(ctx, leave_addr, test_leave);
     ctx->crash_card = 0;
     // A message promising that A goes back is left out when there is no
@@ -1475,18 +1472,6 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         std::memcpy(reinterpret_cast<void*>(crash_addr), g_crash_card.data(), GC_CRASH_CARD_BYTES);
         ctx->crash_card = crash_addr;
     }
-    logf("Releasing the SD card (the log ends here; the rest is on screen)\n");
-    LogClose();
-    fatUnmount("sd:");
-    sd_interface()->shutdown();
-    sdio::Card card;
-    if (!sdio::open_card(card, error)) return false;
-    if (card.d2x) {
-        error = "the SD card is in use through d2x (not handled yet)";
-        return false;
-    }
-    ctx->sdio_fd = static_cast<std::uint32_t>(card.fd);
-    ctx->sdhc = card.sdhc ? 1 : 0;
     ctx->runs = runs_addr;
     ctx->run_count = static_cast<std::uint32_t>(placed.size());
     ctx->set_alarm = low.set_alarm;
@@ -1509,7 +1494,6 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     ctx->trace_sector = trace_sector;
     ctx->trace_count = trace_count;
     ctx->trace_buf = trace_addr;
-    ctx->card_rca = card.rca;
     // The Wii Remotes' state (gc_bt.h): the blob opens the Bluetooth
     // controller at the game's first PADRead.
     std::memset(reinterpret_cast<void*>(bt_addr), 0, sizeof(gc_bt));
@@ -1641,6 +1625,24 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
          ai_dma ? "" : " (not found: no disc audio streaming)");
     if (low.reset != 0) code.put(low.reset, 0x4E800020);  // blr: the drive is not there to reset
+
+    // The SD card goes to the blob only now, after every patch above, so
+    // their log lines still reach boot.log (testers send it). The card,
+    // opened and selected: IOS lets one owner have the slot, so the file
+    // system lets go first, as a Wii game's launch does.
+    logf("Releasing the SD card (the log ends here; the rest is on screen)\n");
+    LogClose();
+    fatUnmount("sd:");
+    sd_interface()->shutdown();
+    sdio::Card card;
+    if (!sdio::open_card(card, error)) return false;
+    if (card.d2x) {
+        error = "the SD card is in use through d2x (not handled yet)";
+        return false;
+    }
+    ctx->sdio_fd = static_cast<std::uint32_t>(card.fd);
+    ctx->sdhc = card.sdhc ? 1 : 0;
+    ctx->card_rca = card.rca;
 
     const std::uint32_t tv_mode = image.id.size() > 3 && (image.id[3] == 'P' || image.id[3] == 'D' ||
                                                           image.id[3] == 'F' || image.id[3] == 'S' ||
