@@ -22,6 +22,7 @@
 #include "gc_card.h"
 #include "gc_rt.h"
 #include "loadersettings.hpp"
+#include "ios_reload.hpp"
 #include "log.hpp"
 #include "riftwii/fat32.hpp"
 #include "riftwii/gccard.hpp"
@@ -565,8 +566,8 @@ unsigned redirect_wii_blocks(Code& code, unsigned& mixed) {
 // programs, and where, follows Nintendont's DSP patches (kernel/Patch.c,
 // FIX94 and the Nintendont contributors, used with permission): the
 // program is recognised by its first words, its length and its SHA-1.
-// Only for a game whose ARInit is not found: raise_aram_base gets there
-// without changing the program, which Dolphin's HLE audio needs.
+// Used on a Wii (see the choice in LaunchGcNative): in Dolphin the
+// game's ARAM addresses are raised instead (raise_aram_base).
 struct DspFix {
     const char* name;
     std::uint32_t length;     // bytes
@@ -1490,16 +1491,33 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const std::uint32_t ar_dma = find_dsp_stores(code, {0xCC005020, 0xCC005022, 0xCC005024, 0xCC005026,
                                                          0xCC005028, 0xCC00502A});
     if (ar_dma != 0) replay_hook(ar_dma, h.hook_ar_dma, h.replay_ar_dma, h.continue_ar_dma);
-    // The sound program reads ARAM from MEM2: through the game's own ARAM
-    // addresses when ARInit is found, otherwise through a patched program.
+    // The sound program reads ARAM from MEM2 (where the blob keeps it) in
+    // one of two ways, and a Wii and Dolphin each take only one of them.
+    // The DSP's sample reader keeps its addresses in the samples' own units
+    // (nibbles for 4-bit samples, words for 16-bit). A Wii picks MEM2 by
+    // bit 28 of that register: Nintendont's patched programs set it there,
+    // and they play right on a Wii. Dolphin turns the register into a byte
+    // address first and looks at bit 28 of that, and its fast HLE audio
+    // reads byte addresses itself and stops on a patched program. So:
+    //  - on a Wii, the program is patched (patch_dsp_programs). Raising
+    //    the game's byte addresses instead (raise_aram_base) put bit 29,
+    //    not 28, into a 4-bit sample's register, and Super Mario Eclipse's
+    //    music came out garbled on a Wii (clean in Dolphin);
+    //  - in Dolphin, and for a program not in Nintendont's list, the game's
+    //    ARAM addresses are raised.
+    const bool on_wii = !running_in_dolphin();
+    const unsigned dsp_patched = on_wii ? patch_dsp_programs(dol) : 0;
     std::vector<std::uint32_t> stub_words;
-    const unsigned aram_raised = raise_aram_base(code, find_aram_check(code), stubs_addr, stub_words);
+    const unsigned aram_raised =
+        dsp_patched ? 0 : raise_aram_base(code, find_aram_check(code), stubs_addr, stub_words);
     for (std::size_t i = 0; i < stub_words.size(); ++i) store32(stubs_addr + 4 * i, stub_words[i]);
     DCFlushRange(reinterpret_cast<void*>(stubs_addr), kStubBytes);
     ICInvalidateRange(reinterpret_cast<void*>(stubs_addr), kStubBytes);
-    const unsigned dsp_patched = aram_raised ? 0 : patch_dsp_programs(dol);
-    logf("GameCube: ARAM addresses from 0x10004000 (%u place(s)); %u sound program(s) patched instead\n", aram_raised,
-         dsp_patched);
+    if (dsp_patched)
+        logf("GameCube: %u sound program(s) patched to read ARAM from MEM2 (a Wii)\n", dsp_patched);
+    else
+        logf("GameCube: ARAM addresses from 0x10004000 (%u place(s)) for the sound program to read MEM2 (%s)\n",
+             aram_raised, on_wii ? "a Wii, the program not one Nintendont's list knows" : "Dolphin");
     const bool aram_check_skipped = skip_aram_size_check(code);
     const unsigned ai_waits = skip_ai_stream_waits(code);
     logf("GameCube: %u wait(s) for the AI stream counter skipped\n", ai_waits);
