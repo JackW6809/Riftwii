@@ -342,6 +342,45 @@ std::uint32_t find_aram_check(const Code& code) {
     return check;
 }
 
+// The 2001 SDK's __ARChecksize (Luigi's Mansion USA) records no "no
+// expansion" in r13's data: it keeps the mode bits and the size in two
+// registers to the end, and its first test already looks for 32 MB of
+// ARAM, writing past 16 MB (in Dolphin that is MEM2 at 0x91000000, the
+// memory card's image, whose header it overwrote). So right after the mode
+// register's address is set (`sthu rX,0x12(rM)`), the registers get the
+// function's own 16 MB answer (`li rMode,N` then `lis rSize,0x100`) and it
+// goes to its last block. `to` is that block, `end` the function's blr.
+bool skip_aram_size_check_2001(Code& code, std::uint32_t check, std::uint32_t to, std::uint32_t end) {
+    // The last block's registers: `or rA,rA,rMode` after the clrrwi, and
+    // the size stored to 0x800000D0 (`stw rSize,0xD0(rX)`).
+    unsigned mode_reg = 32, size_reg = 32;
+    const std::uint32_t or_word = code.at(to + 8);
+    if ((or_word >> 26) == 31 && ((or_word >> 1) & 0x3FF) == 444) mode_reg = (or_word >> 11) & 31;  // or rA,rS,rB
+    for (std::uint32_t a = to; a < end; a += 4) {
+        const std::uint32_t w = code.at(a);
+        if ((w >> 26) == 36 && (w & 0xFFFF) == 0xD0) size_reg = (w >> 21) & 31;  // stw rS,0xD0(rX)
+    }
+    if (mode_reg == 32 || size_reg == 32) return false;
+    // The 16 MB answer: `li rMode,N` right before `lis rSize,0x100`.
+    std::uint32_t mode = 0x10000;
+    for (std::uint32_t a = check + 4; a < to && mode == 0x10000; a += 4)
+        if (code.at(a) == ((15u << 26) | (size_reg << 21) | 0x100u)) {
+            const std::uint32_t prev = code.at(a - 4);
+            if ((prev & 0xFFFF0000u) == ((14u << 26) | (mode_reg << 21))) mode = prev & 0xFFFF;
+        }
+    // Where the mode register's address is set.
+    std::uint32_t after = 0;
+    for (std::uint32_t a = check; a < to && after == 0; a += 4) {
+        const std::uint32_t w = code.at(a);
+        if ((w >> 26) == 45 && (w & 0xFFFF) == 0x12) after = a + 4;  // sthu rX,0x12(rM)
+    }
+    if (mode == 0x10000 || after == 0 || after + 8 >= to) return false;
+    code.put(after, (14u << 26) | (mode_reg << 21) | mode);       // li rMode,N
+    code.put(after + 4, (15u << 26) | (size_reg << 21) | 0x100u);  // lis rSize,0x100 (16 MB)
+    code.put(after + 8, 0x48000000 | ((to - (after + 8)) & 0x03FFFFFC));  // b to
+    return true;
+}
+
 bool skip_aram_size_check(Code& code) {
     const std::uint32_t check = find_aram_check(code);
     if (check == 0) return false;
@@ -365,6 +404,7 @@ bool skip_aram_size_check(Code& code) {
         const std::uint32_t reg = (w >> 21) & 31;
         if (w == ((21u << 26) | (reg << 21) | (reg << 16) | (25u << 1)) && (code.at(a - 4) >> 26) == 40) to = a - 4;
     }
+    if (to != 0 && from == 0) return skip_aram_size_check_2001(code, check, to, end);
     if (from == 0 || to == 0 || to <= from) return false;
     code.put(from, 0x48000000 | ((to - from) & 0x03FFFFFC));  // b to
     return true;
