@@ -6,7 +6,7 @@
     .section .text.gc_entry, "ax", @progbits
     .globl _gc_blob_start
 _gc_blob_start:
-    .long 0x52574744, 3, _gc_blob_end - _gc_blob_start, gc_context_data - _gc_blob_start
+    .long 0x52574744, 4, _gc_blob_end - _gc_blob_start, gc_context_data - _gc_blob_start
     .long gc_hook_read - _gc_blob_start, gc_hook_seek - _gc_blob_start
     .long gc_hook_disk_id - _gc_blob_start, gc_hook_inquiry - _gc_blob_start
     .long gc_hook_cb_r3 - _gc_blob_start, gc_hook_audio_status - _gc_blob_start
@@ -23,6 +23,7 @@ _gc_blob_start:
     .long gc_continue_vi_configure - _gc_blob_start
     .long gc_hook_projection - _gc_blob_start, gc_replay_projection - _gc_blob_start
     .long gc_continue_projection - _gc_blob_start
+    .long gc_stray_entry - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -341,6 +342,34 @@ gc_dsi_entry:
     addi 3, 3, gc_context_data - 4b
     bl gc_on_fatal
 5:  b 5b
+
+/* A jump into RiftWii's own data (gc_rt.h's GC_EXCEPTION_STRAY): the
+ * landing words at the start of a block of it (gc_card.h) are "mflr r0",
+ * then "bl" here, so r0 holds the LR the jump left and LR points 8 bytes
+ * past the landing. The registers go into an OSContext-shaped block on the
+ * stack as in gc_dsi_entry, for gc_on_stray(ctx, context, CTR), which never
+ * returns. */
+    .globl gc_stray_entry
+gc_stray_entry:
+    stwu 1, -0x1C0(1)
+    stmw 2, 16(1)
+    stw 0, 8 + 0x84(1)
+    li 0, 0
+    stw 0, 8(1)
+    addi 0, 1, 0x1C0
+    stw 0, 12(1)
+    mflr 3
+    subi 3, 3, 8
+    stw 3, 8 + 0x198(1)
+    mfmsr 0
+    stw 0, 8 + 0x19C(1)
+    mfctr 5
+    addi 4, 1, 8
+    bl 6f
+6:  mflr 3
+    addi 3, 3, gc_context_data - 6b
+    bl gc_on_stray
+7:  b 7b
 
 /* The EXI functions (gc_card.h): gc_on_exi(ctx, which, the game's r3..r7,
  * &pass) answers for the emulated card; when it sets pass, the original

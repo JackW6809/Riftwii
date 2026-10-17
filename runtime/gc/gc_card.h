@@ -57,6 +57,12 @@ struct gc_card_run {
 
 struct gc_card {
     /* Loader-filled. */
+    /* Code, not data: "mflr r0", then "bl" to the blob's gc_stray_entry.
+     * Wind Waker and Metroid Prime (USA) were seen executing this struct
+     * from its first word in Dolphin, which ran its fields as instructions
+     * and ended in a recursion of the game's own exception handler; landing
+     * here instead shows the crash screen with the jumper's LR and CTR. */
+    uint32_t landing[2];
     uint32_t image;         /* the card, GC_CARD_BYTES */
     uint32_t ecb;           /* the game's EXI control blocks: channel 0's EXI callback first */
     uint32_t run_count;

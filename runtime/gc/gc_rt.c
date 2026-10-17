@@ -485,13 +485,21 @@ static void gc_set_imm(struct gc_rt_context* ctx, uint32_t value) {
 }
 
 /* The callback runs from an OSAlarm a moment from now, where the DI
- * interrupt would have run it. */
+ * interrupt would have run it. A command that comes while the last one's
+ * completion is still pending takes that completion over, as the drive
+ * has one interrupt and the SDK one callback: the alarm is already in the
+ * OS's queue, and setting it again would put it there twice (OSSetAlarm
+ * does not take an alarm out first), leaving the queue's links in a loop.
+ * pending_type is never 0 while the alarm is set (GC_DI_TC or GC_DI_DE). */
 typedef void (*gc_set_alarm_fn)(void* alarm, uint64_t ticks, uint32_t handler);
 static void gc_complete_after(struct gc_rt_context* ctx, uint32_t cb, uint32_t type, uint32_t ticks) {
     gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
+    const uint32_t msr = gc_irq_off();
+    const int already_set = ctx->pending_type != 0;
     ctx->pending_cb = cb;
     ctx->pending_type = type;
-    set_alarm(ctx->alarm, ticks < ctx->delay_ticks ? ctx->delay_ticks : ticks, ctx->alarm_entry);
+    if (!already_set) set_alarm(ctx->alarm, ticks < ctx->delay_ticks ? ctx->delay_ticks : ticks, ctx->alarm_entry);
+    gc_irq_restore(msr);
 }
 static void gc_complete(struct gc_rt_context* ctx, uint32_t cb, uint32_t type) { gc_complete_after(ctx, cb, type, 0); }
 
@@ -615,9 +623,22 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
         gc_card_on_alarm(ctx, (struct gc_card*)(uintptr_t)ctx->card, os_context);
         return;
     }
-    ctx->alarms++;
-    ctx->pending_cb = 0;
-    if (cb != 0) ((gc_callback_fn)(uintptr_t)cb)(ctx->pending_type);
+    {
+        const uint32_t type = ctx->pending_type;
+        ctx->alarms++;
+        ctx->pending_cb = 0;
+        ctx->pending_type = 0;
+        /* A finished transfer leaves the DI's length register at 0, the
+         * bytes it still had to move; the SDK's callback counts what was
+         * read as the length it asked for minus that register. The hooked
+         * function never writes it, but an SDK whose DVDLowRead writes the
+         * length before calling an inner function (the one found and
+         * hooked) would leave the whole length there, and every read
+         * would look as if nothing came: the SDK reads the same block
+         * forever. */
+        if (type == GC_DI_TC && ctx->di_regs != 0) *(volatile uint32_t*)(uintptr_t)(ctx->di_regs + 0x18) = 0;
+        if (cb != 0) ((gc_callback_fn)(uintptr_t)cb)(type);
+    }
 }
 
 /* ---- Disc audio streaming ------------------------------------------ */
@@ -1319,4 +1340,10 @@ void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_cont
     gc_trace(ctx, GC_TRACE_FATAL);
     gc_crash_screen(ctx);
     gc_crash_wait(ctx);
+}
+
+/* A jump into RiftWii's own data (gc_entry.S's gc_stray_entry): the crash
+ * screen and the trace, with CTR in DAR. */
+void gc_on_stray(struct gc_rt_context* ctx, uint32_t os_context, uint32_t ctr) {
+    gc_on_fatal(ctx, GC_EXCEPTION_STRAY, os_context, 0, ctr);
 }

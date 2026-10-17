@@ -216,7 +216,9 @@ RiftWii channel when it is installed, else the Wii Menu, through
 written back first. A crash ends in `gc_on_fatal`: a record in
 the trace, then the menu's own message (drawn by FreeTypeGX's
 `RenderTextCoverage` before the launch) over the picture the VI shows, and
-A goes back. At its next start the menu turns the trace's crash into
+A goes back. The memory card's struct starts with two words of code that
+end there too, so a jump into it (seen in Wind Waker and Metroid Prime)
+is recorded with the jumper's LR and CTR instead of running its fields. At its next start the menu turns the trace's crash into
 `gamecrash.txt` (`src/data/gccrash.cpp`) and offers a problem report.
 
 **Memory cards** (`src/fs/gccard.cpp`): one image per game,

@@ -700,8 +700,20 @@ bool move_out_of_ios(Code& code, std::uint32_t moved_addr, std::vector<std::uint
     if (!code.has(kIosCounter)) return false;
     const std::uint32_t start = function_start(code, kIosCounter);
     if (start == 0 || start == kIosCounter) return false;
+    // Up to the function's blr. A longer function is copied as far as the
+    // copy has room for, and its last word jumps back to the rest: without
+    // that, it ran on past the copy into whatever followed.
     std::uint32_t length = 0;
-    while (length < kMovedBytes && code.has(start + length)) length += 4;
+    bool whole = false;
+    while (length + 4 < kMovedBytes && code.has(start + length)) {
+        const bool last = code.at(start + length) == 0x4E800020;
+        length += 4;
+        if (last) {
+            whole = true;
+            break;
+        }
+    }
+    if (start + length <= kIosCounter) return false;  // the counter's word would stay where it is
     moved.clear();
     for (std::uint32_t at = 0; at < length; at += 4) {
         std::uint32_t w = code.at(start + at);
@@ -720,6 +732,7 @@ bool move_out_of_ios(Code& code, std::uint32_t moved_addr, std::vector<std::uint
         }
         moved.push_back(w);
     }
+    if (!whole) moved.push_back(branch(moved_addr + length, start + length));  // on with the rest, where it is
     code.put(start, branch(start, moved_addr));
     return true;
 }
@@ -1500,6 +1513,10 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     ctx->bt = bt_addr;
     auto* memcard = reinterpret_cast<gc_card*>(card_addr);
     std::memset(memcard, 0, sizeof(*memcard));
+    // Its landing words (gc_card.h), with the card on or off: a jump to the
+    // struct's start shows the crash screen with the jumper's LR and CTR.
+    memcard->landing[0] = 0x7C0802A6;  // mflr r0
+    memcard->landing[1] = branch(card_addr + 4, blob_addr + h.stray_entry) | 1;  // bl gc_stray_entry
 
     // The hooks, in the staged code.
     hook(low.read, h.hook_read);
@@ -1625,6 +1642,13 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
          ai_dma ? "" : " (not found: no disc audio streaming)");
     if (low.reset != 0) code.put(low.reset, 0x4E800020);  // blr: the drive is not there to reset
+    // Where everything above the arena went, for reading a crash's
+    // addresses (Wind Waker and Metroid Prime were seen running at the
+    // memory card's struct).
+    logf("GameCube: above the arena (0x%08x): blob 0x%08x (context 0x%08x), code at IOS's counter 0x%08x, "
+         "ARAM stubs 0x%08x, memory card 0x%08x, Wii Remotes 0x%08x, trace 0x%08x, FST 0x%08x\n",
+         arena_hi, blob_addr, blob_addr + h.context_offset, moved_addr, stubs_addr, card_addr, bt_addr, trace_addr,
+         fst_addr);
 
     // The SD card goes to the blob only now, after every patch above, so
     // their log lines still reach boot.log (testers send it). The card,
@@ -1654,6 +1678,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
          arena_hi, card.fd, card.sdhc ? "SDHC" : "SDSC");
     DCFlushRange(reinterpret_cast<void*>(di_regs), kMem1Top - di_regs);
     ICInvalidateRange(reinterpret_cast<void*>(blob_addr), h.size);
+    ICInvalidateRange(memcard->landing, sizeof(memcard->landing));
 
     LogClose();
     // The frame stays on screen until the game sets up its own video; a

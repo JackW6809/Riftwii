@@ -71,6 +71,13 @@ void test_crash() {
     put(trace, 5, GC_TR_EXCEPTION, 0x10 + 3);
     EXPECT_TRUE(riftwii::describe_gc_crash(trace, "", text));
     EXPECT_TRUE(text.find("(unknown) crashed: vector 0x00000300, before the game's OS was up") != std::string::npos);
+    // A jump into the memory card's struct, caught by its landing words.
+    put(trace, 5, GC_TR_EXCEPTION, GC_EXCEPTION_STRAY);
+    put(trace, 5, GC_TR_DAR, 0x817DE860);
+    EXPECT_TRUE(riftwii::describe_gc_crash(trace, "GZLE01", text));
+    EXPECT_TRUE(text.find("GZLE01 crashed: a jump into RiftWii's own data at SRR0 (DAR holds CTR)\n") !=
+                std::string::npos);
+    EXPECT_TRUE(text.find("DAR 0x817de860") != std::string::npos);
 }
 
 }  // namespace

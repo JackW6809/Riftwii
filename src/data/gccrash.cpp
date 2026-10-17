@@ -24,9 +24,11 @@ std::string hex(std::uint32_t v) {
 }
 
 // gc_on_fatal's exception: the SDK's number from __OSUnhandledException,
-// or 0x10 + the vector's number for a crash before the game's OS set up
-// its handlers (gc_entry.S's gc_dsi_entry).
+// 0x10 + the vector's number for a crash before the game's OS set up its
+// handlers (gc_entry.S's gc_dsi_entry), or a jump into RiftWii's own data
+// (gc_stray_entry), with CTR in DAR.
 std::string exception_name(std::uint32_t exception) {
+    if (exception == GC_EXCEPTION_STRAY) return "a jump into RiftWii's own data at SRR0 (DAR holds CTR)";
     if (exception >= 0x10) return "vector " + hex((exception - 0x10) * 0x100) + ", before the game's OS was up";
     switch (exception) {
         case 1: return "machine check";

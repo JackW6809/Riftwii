@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 #define GC_RT_MAGIC 0x52574744u          /* "RWGD" */
-#define GC_RT_VERSION 3u                 /* also in gc_entry.S's header */
+#define GC_RT_VERSION 4u                 /* also in gc_entry.S's header */
 #define GC_RT_CONTEXT_MAGIC 0x52574743u  /* "RWGC" */
 
 /* The DI interrupt types a DVDLow callback takes. */
@@ -77,12 +77,19 @@ struct gc_rt_header {
     uint32_t hook_projection;       /* GXSetProjection(mtx, type): a perspective one widened, then the original */
     uint32_t replay_projection;
     uint32_t continue_projection;
+    uint32_t stray_entry;     /* a jump into the blob's own data (gc_card.h's landing words call it) */
 };
 
 /* gc_on_fatal's exception number for one caught by the loader's own
  * vectors, before the game's OS replaced them: 0x10 plus the vector
  * (0x12 DSI, 0x13 ISI, 0x16 program...). */
 #define GC_EXCEPTION_EARLY 0x10u
+/* gc_on_fatal's exception number for a jump into RiftWii's own data, caught
+ * by the two landing words at its start (gc_card.h): SRR0 is where it
+ * landed, LR as the jump left it (the jumper's return address after a
+ * bctrl or blrl; the landing keeps it in r0, so r0 itself is lost), and
+ * DAR holds CTR (the target after a bctr). */
+#define GC_EXCEPTION_STRAY 0x100u
 
 /* The trace: a ring of 512-byte records in sd:/riftwii/gc/trace.bin
  * (loader-made, its sectors known), written now and then while the game
@@ -318,6 +325,7 @@ uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type
 void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length);
 void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context);
 void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_context, uint32_t dsisr, uint32_t dar);
+void gc_on_stray(struct gc_rt_context* ctx, uint32_t os_context, uint32_t ctr);
 /* Shared with gc_bt.c. */
 void gc_flush(uint32_t address, uint32_t length);
 void gc_invalidate(uint32_t address, uint32_t length);
