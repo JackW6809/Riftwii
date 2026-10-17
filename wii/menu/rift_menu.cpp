@@ -58,6 +58,7 @@
 #include "riftwii/offlinegames.hpp"
 #include "riftwii/titles.hpp"
 #include "riftwii/bnr.hpp"
+#include "riftwii/gcbanner.hpp"
 #include "boxart.hpp"
 #include "cover3d.hpp"
 #include "covers.hpp"
@@ -1027,6 +1028,10 @@ static std::unordered_map<std::string, IconSlot*> g_iconIndex;  // the filled sl
 static u32 g_iconClock = 0;
 static std::set<std::string> g_bannersTried;   // read from the image this session (or tried)
 static std::set<std::string> g_bannerAbsent;   // not on the card when last looked for
+// GameCube games whose animated banner was asked for this session; none
+// asked after a download failed for want of a network.
+static std::set<std::string> g_gcBannersAsked;
+static bool g_gcBannersOff = false;
 
 static riftwii::wii::BannerPlayer* IconFor(const std::string& id)
 {
@@ -1045,7 +1050,7 @@ static std::unique_ptr<riftwii::wii::BannerPlayer> LoadIcon(const std::string& i
 	std::string error;
 	std::unique_ptr<riftwii::wii::BannerPlayer> player(new riftwii::wii::BannerPlayer());
 	if (!riftwii::wii::LoadBannerIcon(id, bytes)) return nullptr;
-	if (!player->Load(bytes, true, error)) {
+	if (!player->Load(bytes, true, error, id)) {
 		logf("Icon of %s: %s\n", id.c_str(), error.c_str());
 		return nullptr;
 	}
@@ -1065,6 +1070,19 @@ static void KeepIcon(const std::string& id, std::unique_ptr<riftwii::wii::Banner
 	g_iconIndex[id] = victim;
 }
 
+// With the GUI halted: the game's icon let go, after a new banner was
+// stored for it (a GameCube game's animated one), so the loop loads it again.
+static void ForgetIcon(const std::string& id)
+{
+	const auto found = g_iconIndex.find(id);
+	if (found == g_iconIndex.end()) return;
+	IconSlot* slot = found->second;
+	g_iconIndex.erase(found);
+	slot->id.clear();
+	slot->player.reset();
+	slot->used = 0;
+}
+
 // The full banner, as the Wii Menu shows a channel before it starts:
 // Start, or Settings for the game's page. The bar starts where the Wii
 // Menu's Disc Channel starts its own (measured in Dolphin), just under
@@ -1081,6 +1099,13 @@ public:
 	// Left playing after Start (g_lingerBanner): its sound is kept going
 	// here, with no channel screen looping any more.
 	bool tendSound = false;
+	// A GameCube disc's picture has no name in it: the game's name is
+	// written under its frame (riftwii/gcbanner.hpp's gc_picture_layout).
+	GuiText caption{"", 26, (GXColor){40, 44, 52, 255}};
+	ChannelView() {
+		caption.SetAlignment(ALIGN_H::CENTRE, ALIGN_V::TOP);
+		caption.SetWrap(true, 540);
+	}
 	void Draw() override {
 		const u64 start = gettime();
 		if (tendSound) riftwii::wii::BannerSoundUpdate();
@@ -1099,6 +1124,13 @@ public:
 		f32 vx, vy, vw, vh;
 		Menu_VisibleArea(&vx, &vy, &vw, &vh);
 		player.Draw(vx, vy, vw, vh, 255);
+		if (player.Picture()) {
+			// The frame ends 20 of the banner's 456 units above its middle;
+			// the name starts just under it, clear of the bar below.
+			const f32 nameTop = vy + vh * (228.0f + 4.0f) / 456.0f;
+			caption.SetPosition(static_cast<int>(vx + vw / 2), static_cast<int>(nameTop));
+			caption.Draw();
+		}
 		const u64 took = ticks_to_microsecs(gettime() - start);
 		drawTotalUs += took;
 		drawMaxUs = std::max(drawMaxUs, took);
@@ -1200,7 +1232,9 @@ static ChannelChoice ShowChannel(int& index, int count, const std::string& first
 		// skipped and the one up stays.
 		bool parsed = false;
 		try {
-			parsed = riftwii::parse_opening_bnr(bytes.data(), bytes.size(), parts, error, false);
+			// A GameCube disc's picture has no sound; the player checks it.
+			parsed = riftwii::is_gc_banner(bytes.data(), bytes.size()) ||
+				riftwii::parse_opening_bnr(bytes.data(), bytes.size(), parts, error, false);
 		} catch (const std::bad_alloc&) {
 			error = "out of memory for the banner";
 		}
@@ -1211,10 +1245,11 @@ static ChannelChoice ShowChannel(int& index, int count, const std::string& first
 		sound.swap(parts.sound);
 		parts = riftwii::OpeningBanner();
 		const u64 t2 = gettime();
-		if (!view.player.Load(bytes, false, error)) {
+		if (!view.player.Load(bytes, false, error, idOf(i))) {
 			logf("Banner of %s: %s\n", idOf(i).c_str(), error.c_str());
 			return false;
 		}
+		view.caption.SetText(view.player.Picture() ? view.player.Name().c_str() : "");
 		const u64 t3 = gettime();
 		logShown();
 		shownId = idOf(i);
@@ -3236,6 +3271,38 @@ static int MenuSource(FrontendState& state)
 			}
 			if (cover3dGot != riftwii::wii::CoverFetch::Stored) cover3dArrived.clear();
 		}
+		// Channels: a GameCube game's animated banner, downloaded on the
+		// network's thread (with Download names and cheats on), one game at
+		// a time, the page shown's first; its disc's picture shows
+		// meanwhile. Before the covers, which this view does not show.
+		std::string gcBannerArrived;
+		{
+			std::string fetched, fetchError;
+			riftwii::wii::BannerFetch fetchGot = riftwii::wii::BannerFetch::NotFound;
+			if (riftwii::wii::TakeGameCubeBannerFetch(fetched, fetchGot, fetchError)) {
+				if (fetchGot == riftwii::wii::BannerFetch::Failed) {
+					logf("Banners: no more GameCube banner downloads this session: %s\n", fetchError.c_str());
+					g_gcBannersOff = true;
+				} else if (fetchGot == riftwii::wii::BannerFetch::Stored) {
+					gcBannerArrived = fetched;
+				}
+			}
+		}
+		if (grid.Channels() && !g_gcBannersOff && riftwii::wii::Settings().online && !riftwii::wii::NetBackgroundBusy() &&
+		    !riftwii::wii::NetFailed() && riftwii::wii::CoverFetchGame().empty() &&
+		    riftwii::wii::GameCubeBannerFetchGame().empty()) {
+			// The page shown, and the next page's column peeking in.
+			const std::size_t first = static_cast<std::size_t>(grid.PageFirst());
+			for (std::size_t k = first; k < first + GuiGameGrid::kPerPage + 4 && k < items.size(); ++k) {
+				const HomeEntry& e = entries[k];
+				if (e.kind != HomeEntry::Kind::Sd) continue;
+				const riftwii::wii::ImageGame& game = state.sd_catalog.games[e.index];
+				if (!game.gamecube || !g_gcBannersAsked.insert(game.id).second) continue;
+				if (!riftwii::wii::GameCubeBannerWanted(game.id)) continue;
+				if (riftwii::wii::StartGameCubeBannerFetch(game.id)) logf("Banners: asking for %s's animated banner\n", game.id.c_str());
+				break;
+			}
+		}
 		// Not while the update check has the network.
 		if (!coverQueue.empty() && !g_coversOff && !riftwii::wii::NetBackgroundBusy() && !riftwii::wii::NetFailed() &&
 		    riftwii::wii::CoverFetchGame().empty()) {
@@ -3320,6 +3387,11 @@ static int MenuSource(FrontendState& state)
 		}
 		HaltGui();
 		if (iconLoaded) KeepIcon(iconId, std::move(iconLoaded));
+		if (!gcBannerArrived.empty()) {
+			// The disc's picture gives way to the animated banner at the next turn.
+			ForgetIcon(gcBannerArrived);
+			g_bannerAbsent.erase(gcBannerArrived);
+		}
 		if (!arrived.empty()) grid.CoverArrived(arrived);
 		if (!boxArrived.empty()) grid.BoxArrived(boxArrived);
 		if (!cover3dArrived.empty()) grid.Cover3dArrived(cover3dArrived);

@@ -11,6 +11,8 @@
 
 #include "banners.hpp"
 #include "log.hpp"
+#include "riftwii/gcbanner.hpp"
+#include "riftwii/gccard.hpp"
 #include "riftwii/tpl.hpp"
 #include "video.h"
 
@@ -199,18 +201,58 @@ void BannerPlayer::Free() {
     arc_ = nullptr;
     arc_size_ = 0;
     loaded_ = false;
+    picture_ = false;
 }
 
-bool BannerPlayer::Load(const std::vector<std::uint8_t>& opening_bnr, bool icon, std::string& error) {
+bool BannerPlayer::Load(const std::vector<std::uint8_t>& opening_bnr, bool icon, std::string& error,
+                        const std::string& game_id) {
     // A banner that asks for more memory than is free shows as a name tile
     // instead of ending the menu.
     try {
+        if (is_gc_banner(opening_bnr.data(), opening_bnr.size()))
+            return LoadGameCube(opening_bnr, icon, gc_card_shift_jis(game_id), error);
         return LoadParts(opening_bnr, icon, error);
     } catch (const std::bad_alloc&) {
         Free();
         error = "out of memory for the banner";
         return false;
     }
+}
+
+// The disc's picture is drawn through a layout made here (riftwii/gcbanner.hpp's
+// gc_picture_layout): the same drawing as a Wii banner's, its round clip
+// on the tile and its 16:9 stretch included. Nothing moves in it.
+bool BannerPlayer::LoadGameCube(const std::vector<std::uint8_t>& bnr, bool icon, bool shift_jis, std::string& error) {
+    Free();
+    icon_ = icon;
+    GcBanner banner;
+    if (!parse_gc_banner(bnr.data(), bnr.size(), shift_jis, banner, error)) return false;
+    name_ = gc_banner_name(banner, BannerLanguageIndex());
+    // The picture as it lies in the file is already a GX RGB5A3 texture;
+    // GX reads it from 32-byte aligned memory.
+    Texture& texture = textures_[kGcPictureTexture];
+    texture.own = static_cast<std::uint8_t*>(memalign(32, kGcBannerPictureBytes));
+    if (!texture.own) {
+        Free();
+        error = "out of memory for the banner";
+        return false;
+    }
+    std::memcpy(texture.own, bnr.data() + kGcBannerPictureOffset, kGcBannerPictureBytes);
+    DCFlushRange(texture.own, kGcBannerPictureBytes);
+    GX_InitTexObj(&texture.obj, texture.own, kGcBannerWidth, kGcBannerHeight, GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP,
+                  GX_FALSE);
+    texture.ok = true;
+    base_ = gc_picture_layout(icon);
+    language_ = LanguagePanes();
+    has_start_ = has_loop_ = false;
+    work_ = base_;
+    by_index_.clear();
+    looked_up_.clear();
+    tex_dirty_ = true;  // GX_InvalidateTexAll at the next Draw, on the GUI thread
+    picture_ = true;
+    loaded_ = true;
+    Restart();
+    return true;
 }
 
 bool BannerPlayer::LoadParts(const std::vector<std::uint8_t>& opening_bnr, bool icon, std::string& error) {

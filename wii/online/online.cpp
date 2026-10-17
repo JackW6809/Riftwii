@@ -26,6 +26,7 @@
 #include "textfile.hpp"
 #include "riftwii/cheats.hpp"
 #include "riftwii/dol.hpp"
+#include "riftwii/gcbanner.hpp"
 #include "riftwii/http.hpp"
 #include "riftwii/themepack.hpp"
 #include "riftwii/update.hpp"
@@ -815,6 +816,46 @@ bool DownloadCheats(const std::string& game_id, std::string& error) {
     logf("Cheats: %u for %s from the GeckoCodes archive, %u of the player's own kept\n",
          static_cast<unsigned>(file.cheats.size()), game_id.c_str(), static_cast<unsigned>(kept));
     return true;
+}
+
+BannerDownload DownloadGameCubeBanner(const std::string& game_id, std::vector<std::uint8_t>& bytes,
+                                      std::string& error) {
+    const std::vector<std::string> urls = gc_banner_urls(game_id);
+    if (urls.empty()) {
+        error = "no game ID to ask the banner server for";
+        return BannerDownload::None;
+    }
+    error.clear();
+    for (const std::string& url : urls) {
+        std::vector<std::uint8_t> body;
+        std::string why;
+        // A banner is around a megabyte: the timeout leaves room for a slow link.
+        if (!HttpGet(url, body, why, kGcBannerDownloadMax, 30000)) {
+            // An HTTP answer (404 for a game it has no banner for) or a file
+            // over the size bound: this address has nothing to use. No
+            // answer at all: the network is down, and the next game's
+            // download would only wait as long again.
+            const bool answered = why.find(" answered ") != std::string::npos;
+            const bool too_large = why.find(" sent more than ") != std::string::npos;
+            if (!answered && !too_large) {
+                error = why;
+                return BannerDownload::Failed;
+            }
+            error = why;
+            continue;
+        }
+        if (!check_gc_banner_download(body.data(), body.size(), why)) {
+            logf("Banners: what the banner server sent for %s is not a banner we can play (%s)\n",
+                 http_url_for_messages(url).c_str(), why.c_str());
+            error = "the banner server sent a broken banner: " + why;
+            continue;
+        }
+        logf("Banners: %u bytes for %s from %s\n", static_cast<unsigned>(body.size()), game_id.c_str(),
+             http_url_for_messages(url).c_str());
+        bytes.swap(body);
+        return BannerDownload::Found;
+    }
+    return BannerDownload::None;
 }
 
 void EnsureMetaAhbAccess() {

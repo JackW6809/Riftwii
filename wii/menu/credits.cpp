@@ -93,6 +93,8 @@ const char* const kCredits[] = {
     "Game names and covers from GameTDB (gametdb.com). Cheat codes from the GeckoCodes archive kept by "
     "RiiConnect24 (codes.rc24.xyz).",
     "",
+    "Animated GameCube banners: the community's banners, hosted by RiiConnect24 (banner.rc24.xyz).",
+    "",
     "RiftWii contains no Riivolution code and no Nintendo keys or assets.",
     "",
     "THE GNU GENERAL PUBLIC LICENSE, VERSION 3",

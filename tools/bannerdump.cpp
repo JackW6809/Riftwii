@@ -3,8 +3,10 @@
 // Host tool: a game's opening.bnr from an RVZ (or a loose opening.bnr),
 // what it holds, and its icon and banner drawn as RiftWii draws them
 // (riftwii/brlyt.hpp's quads, rasterised here) for checking the banner
-// code against real games.
-//   bannerdump <game.rvz | opening.bnr> <out dir>
+// code against real games. A GameCube disc's BNR1/BNR2 opening.bnr (or a
+// GameCube .iso) gives the banner RiftWii draws for it in place of an
+// animated one (riftwii/gcbanner.hpp), without the name the menu writes.
+//   bannerdump <game.rvz | game.iso | opening.bnr> <out dir>
 #include <algorithm>
 #include <cstdlib>
 #include <cmath>
@@ -19,6 +21,7 @@
 #include "riftwii/brlan.hpp"
 #include "riftwii/brlyt.hpp"
 #include "riftwii/disc.hpp"
+#include "riftwii/gcbanner.hpp"
 #include "riftwii/pngencode.hpp"
 #include "riftwii/rvz.hpp"
 #include "riftwii/tpl.hpp"
@@ -311,11 +314,33 @@ bool dump_archive(const std::vector<std::uint8_t>& arc, const std::string& kind,
     return true;
 }
 
+// A GameCube banner's picture in RiftWii's own frame, icon and banner.
+bool dump_gc_banner(const std::vector<std::uint8_t>& bnr, const std::string& out_dir) {
+    GcBanner banner;
+    std::string error;
+    if (!parse_gc_banner(bnr.data(), bnr.size(), false, banner, error)) {
+        std::cerr << error << "\n";
+        return false;
+    }
+    std::cout << "GameCube banner (" << banner.texts.size() << " language(s)); name (English): "
+              << gc_banner_name(banner, kBnrEnglish) << "\n";
+    Texture picture{kGcBannerWidth, kGcBannerHeight, banner.rgba};
+    for (const bool icon : {true, false}) {
+        const Layout layout = gc_picture_layout(icon);
+        const int W = static_cast<int>(layout.width), H = static_cast<int>(layout.height);
+        std::vector<std::uint8_t> px, png;
+        rasterise(layout, {&picture}, W, H, px);
+        encode_png_rgba(px.data(), W, H, png);
+        write_file(out_dir + "/" + (icon ? "icon" : "banner") + "_gc.png", png);
+    }
+    return true;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     if (argc != 3) {
-        std::cerr << "usage: bannerdump <game.rvz | opening.bnr> <out dir>\n";
+        std::cerr << "usage: bannerdump <game.rvz | game.iso | opening.bnr> <out dir>\n";
         return 2;
     }
     const std::string in = argv[1], out_dir = argv[2];
@@ -327,6 +352,13 @@ int main(int argc, char** argv) {
             return 1;
         }
         write_file(out_dir + "/opening.bnr", bnr);
+    } else if (in.size() > 4 && in.substr(in.size() - 4) == ".iso") {
+        StreamSource f(in);
+        if (!f.ok() || !read_gc_disc_file(f, "/opening.bnr", bnr, error)) {
+            std::cerr << in << ": " << error << "\n";
+            return 1;
+        }
+        write_file(out_dir + "/opening.bnr", bnr);
     } else {
         StreamSource f(in);
         bnr.resize(static_cast<std::size_t>(f.size()));
@@ -335,6 +367,7 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
+    if (is_gc_banner(bnr.data(), bnr.size())) return dump_gc_banner(bnr, out_dir) ? 0 : 1;
     OpeningBanner b;
     if (!parse_opening_bnr(bnr.data(), bnr.size(), b, error)) {
         std::cerr << error << "\n";

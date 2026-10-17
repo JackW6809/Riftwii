@@ -103,6 +103,15 @@ void EnsureMetaAhbAccess();
 // added by hand, values filled in). The archive answers with an empty
 // page for a game it has no cheats for: `error` says so.
 bool DownloadCheats(const std::string& game_id, std::string& error);
+// A GameCube game's animated banner, made by the community and hosted by
+// RiiConnect24, asked for by its full ID and then by its first three
+// letters (riftwii/gcbanner.hpp's gc_banner_urls). Found: `bytes` holds a
+// banner that passed check_gc_banner_download. None: the server has none,
+// or sent something that is not a whole banner (`error` says which).
+// Failed: the server could not be reached or did not answer in time.
+enum class BannerDownload { Found, None, Failed };
+BannerDownload DownloadGameCubeBanner(const std::string& game_id, std::vector<std::uint8_t>& bytes,
+                                      std::string& error);
 // The placeholders (X, Y...) of cheat `name` in the game's cheat file,
 // with their values when they are filled in. Empty when none.
 std::vector<CheatField> CheatFields(const std::string& game_id, const std::string& name);
