@@ -82,36 +82,91 @@ bool BannerWanted(const std::string& game_id) {
     return stat(PathOf(game_id).c_str(), &st) != 0;
 }
 
+namespace {
+
+// Checks a banner read for `id` and writes it as sd:/riftwii/banners/<ID>.bnr.
+// A failure is remembered for the session, so the game is not tried again.
+bool StoreBannerBytes(const std::string& id, std::vector<std::uint8_t>& bnr, bool read, std::string& error) {
+    OpeningBanner check;
+    bool parsed = false;
+    try {
+        parsed = read && parse_opening_bnr(bnr.data(), bnr.size(), check, error, false);
+    } catch (const std::bad_alloc&) {
+        error = "out of memory for the banner";
+    }
+    if (!parsed) {
+        g_failed.insert(id);
+        logf("Banner of %s: %s\n", id.c_str(), error.c_str());
+        return false;
+    }
+    mkdir("sd:/riftwii", 0777);
+    mkdir(kDir, 0777);
+    const std::string path = PathOf(id), temp = path + ".part";
+    FILE* f = std::fopen(temp.c_str(), "wb");
+    const bool ok = f && std::fwrite(bnr.data(), 1, bnr.size(), f) == bnr.size();
+    if (f) std::fclose(f);
+    if (!ok || std::rename(temp.c_str(), path.c_str()) != 0) {
+        std::remove(temp.c_str());
+        g_failed.insert(id);
+        error = "cannot write " + path + " (card full?)";
+        return false;
+    }
+    logf("Banner of %s stored (%u bytes)\n", id.c_str(), static_cast<unsigned>(bnr.size()));
+    return true;
+}
+
+}  // namespace
+
 bool StoreBanner(const ImageGame& game, std::string& error) {
     if (!ValidId(game.id)) {
         error = "no game ID";
         return false;
     }
     std::vector<std::uint8_t> bnr;
-    OpeningBanner check;
-    bool parsed = false;
-    try {
-        if (game.gamecube) {
+    if (game.gamecube) {
+        // A GameCube disc's banner is a BNR1/BNR2 picture, not a Wii
+        // opening.bnr, so it is checked and stored on its own path.
+        bool parsed = false;
+        try {
             parsed = ReadGameCubeDiscBanner(game, bnr, error);
-        } else {
-            parsed = read_image_disc_file(game, "/opening.bnr", bnr, error) &&
-                     parse_opening_bnr(bnr.data(), bnr.size(), check, error, false);
+        } catch (const std::bad_alloc&) {
+            error = "out of memory for the banner";
         }
+        if (!parsed) {
+            g_failed.insert(game.id);
+            logf("Banner of %s: %s\n", game.id.c_str(), error.c_str());
+            return false;
+        }
+        if (!WriteBanner(game.id, bnr, error)) {
+            g_failed.insert(game.id);
+            return false;
+        }
+        logf("Banner of %s stored (%u bytes, the GameCube disc's own picture)\n", game.id.c_str(),
+             static_cast<unsigned>(bnr.size()));
+        return true;
+    }
+    bool read = false;
+    try {
+        read = read_image_disc_file(game, "/opening.bnr", bnr, error);
     } catch (const std::bad_alloc&) {
         error = "out of memory for the banner";
     }
-    if (!parsed) {
-        g_failed.insert(game.id);
-        logf("Banner of %s: %s\n", game.id.c_str(), error.c_str());
+    return StoreBannerBytes(game.id, bnr, read, error);
+}
+
+bool StoreChannelBanner(const NandChannel& channel, std::string& error) {
+    if (!ValidId(channel.game_id)) {
+        error = "no game ID";
         return false;
     }
-    if (!WriteBanner(game.id, bnr, error)) {
-        g_failed.insert(game.id);
-        return false;
+    std::vector<std::uint8_t> bnr;
+    bool read = false;
+    try {
+        read = read_nand_channel_banner(channel, bnr, error);
+    } catch (const std::bad_alloc&) {
+        error = "out of memory for the banner";
     }
-    logf("Banner of %s stored (%u bytes%s)\n", game.id.c_str(), static_cast<unsigned>(bnr.size()),
-         game.gamecube ? ", the GameCube disc's own picture" : "");
-    return true;
+    return StoreBannerBytes(channel.game_id, bnr, read, error);
 }
 
 bool GameCubeBannerWanted(const std::string& game_id) {

@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "nandchannels.hpp"
 #include "usbcatalog.hpp"
 
 // The games' own banners (riftwii/bnr.hpp), kept on the card: each game's
@@ -50,6 +51,10 @@ const std::string& GameCubeBannerFetchGame();
 // no banner for it (or sent one that is not); Failed: the network or the
 // card failed (`error`).
 bool TakeGameCubeBannerFetch(std::string& game_id, BannerFetch& got, std::string& error);
+
+// The same for a WiiWare or Virtual Console game installed on the Wii:
+// its banner content read from the NAND, stored under its game ID.
+bool StoreChannelBanner(const NandChannel& channel, std::string& error);
 
 // The stored banner's bytes.
 bool LoadBanner(const std::string& game_id, std::vector<std::uint8_t>& out);

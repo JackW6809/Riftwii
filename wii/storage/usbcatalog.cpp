@@ -1411,6 +1411,14 @@ std::string GameDisplayName(const std::string& id, const std::string& internal) 
 
 const TitleTable* LoadedTitles() { return g_titles_loaded && !g_titles_from.empty() ? &g_titles : nullptr; }
 
+bool GameTitleListed(const std::string& id, std::string& title) {
+    const TitleTable* table = titles();
+    title.clear();
+    if (table == nullptr) return false;
+    if (const std::string* found = table->find(id)) title = *found;
+    return true;
+}
+
 void ReloadTitles() {
     g_titles = TitleTable{};
     g_titles_loaded = false;
