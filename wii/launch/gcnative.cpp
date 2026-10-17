@@ -1496,8 +1496,13 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
             text_ranges.push_back({s.address, s.address + static_cast<std::uint32_t>(s.bytes.size())});
         const GcStackTop stack = find_gc_stack_top(read, dol.entry);
         const std::uint32_t arena_lo = find_gc_arena_lo(read, text_ranges);
-        logf("GameCube: the game's stack top 0x%08x (set at 0x%08x), its ArenaLo 0x%08x (0: not found)\n",
-             stack.address, stack.set_at, arena_lo);
+        char stack_text[48] = "not found";
+        char arena_text[16] = "not found";
+        if (stack.address != 0)
+            std::snprintf(stack_text, sizeof(stack_text), "0x%08x (set at 0x%08x)", static_cast<unsigned>(stack.address),
+                          static_cast<unsigned>(stack.set_at));
+        if (arena_lo != 0) std::snprintf(arena_text, sizeof(arena_text), "0x%08x", static_cast<unsigned>(arena_lo));
+        logf("GameCube: the game's stack top %s, its ArenaLo %s\n", stack_text, arena_text);
         logf("GameCube: MEM1 from the arena's top 0x%08x: BI2 0x%08x, DI stand-in 0x%08x, blob 0x%08x (%u bytes, "
              "context 0x%08x), memory card 0x%08x, way back 0x%08x, code at IOS's counter 0x%08x, ARAM stubs "
              "0x%08x, FST 0x%08x (%u bytes)\n",
