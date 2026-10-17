@@ -13,6 +13,7 @@
 #include "dolboot.h"
 #include "ios_reload.hpp"
 #include "log.hpp"
+#include "menumusic.hpp"
 #include "netsock.hpp"
 #include "usbcatalog.hpp"
 
@@ -129,6 +130,7 @@ bool StartHomebrewApp(const std::string& path, std::string& error) {
         return false;
     }
     logf("Homebrew app: starting %s (%u bytes)\n", path.c_str(), static_cast<unsigned>(size));
+    LaunchMusicEnd("the app starts next");
     LogClose();
     fatUnmount("sd:");
     fatUnmount("usb:");

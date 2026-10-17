@@ -4193,6 +4193,19 @@ static std::string StepValue(const char* const (&list)[N], const std::string& va
 	return list[first + ((at + direction) % n + n) % n];
 }
 
+static const char* const kChannelCornerChoices[] = {"theme", "square", "slight", "round", "rounder"};
+
+static std::string ChannelCornersName(const std::string& v)
+{
+	// Each named with its corners, not a bare "Round" or "Square" another
+	// screen might want for something else (a race's round, a button).
+	if (v == "square") return tr("Square corners");
+	if (v == "slight") return tr("Slightly round");
+	if (v == "round") return tr("Round corners");
+	if (v == "rounder") return tr("Extra round");
+	return tr("Theme");
+}
+
 static std::string WidthName(const std::string& v)
 {
 	if (v == "framebuffer") return tr("Framebuffer");
@@ -8459,7 +8472,7 @@ static int MenuSettingsSection(FrontendState& state, SettingsSection section, bo
 			if (t.folder == folder) return t.name;
 		return folder;
 	};
-	enum RowAction { kLanguage, kWidth, kDeflicker, kBorders, kVideoMode, kAspect, kGameLanguage, kGameCios, kServer, kHomeTiles, kPagePeek, kGridSpacing, kHomeSource, kHomeSort, kPlayHistory, kDiscTile, kWidescreen, kScreenSize, kTheme, kClockFormat, kNoClock, kFont, kSounds, kMusic, kReturnTo, kShots, kOnline, kNames, kGcAdapter, kGcRumble, kWiiRumble, kGcTest, kGcBackups, kIos, kNet, kResync, kWads,
+	enum RowAction { kLanguage, kWidth, kDeflicker, kBorders, kVideoMode, kAspect, kGameLanguage, kGameCios, kServer, kHomeTiles, kChannelCorners, kPagePeek, kGridSpacing, kHomeSource, kHomeSort, kPlayHistory, kDiscTile, kWidescreen, kScreenSize, kTheme, kClockFormat, kNoClock, kFont, kSounds, kMusic, kReturnTo, kShots, kOnline, kNames, kGcAdapter, kGcRumble, kWiiRumble, kGcTest, kGcBackups, kIos, kNet, kResync, kWads,
 		kRescan, kUpdate, kReport, kTests, kWiiChannel, kUsbHelp, kWhatsNew, kTutorial, kCredits, kResetAll, kExit, kNone, kHeading };
 	// The RiftWii channel on the Wii Menu (wii/launch/channel.hpp).
 	unsigned channelVersion = 0;
@@ -8530,10 +8543,13 @@ static int MenuSettingsSection(FrontendState& state, SettingsSection section, bo
 			settings.home_tiles != "names", kHomeTiles);
 		option(tr("Grid spacing"), settings.grid_spacing == "roomy" ? tr("Roomy") : tr("Normal"),
 			settings.grid_spacing == "roomy", kGridSpacing);
-		// Only the Channels view has neighbouring pages to show.
-		if (settings.home_tiles == "channels")
+		// Only the Channels view has channel corners and neighbouring pages to show.
+		if (settings.home_tiles == "channels") {
+			option(tr("Channel corners"), ChannelCornersName(settings.channel_corners), settings.channel_corners != "theme",
+				kChannelCorners);
 			option(tr("Pages at the sides"), settings.page_peek == "off" ? tr("Off") : tr("On"),
 				settings.page_peek != "off", kPagePeek, FlowRow::Kind::Toggle);
+		}
 		option(tr("Games from"), HomeSourceName(settings.home_source), settings.home_source != "all", kHomeSource);
 		option(tr("Home order"), HomeSortName(settings.home_sort), settings.home_sort != "az", kHomeSort);
 		option(tr("Play history"), settings.play_history == "off" ? tr("Off") : tr("On"), settings.play_history != "off",
@@ -8682,7 +8698,8 @@ static int MenuSettingsSection(FrontendState& state, SettingsSection section, bo
 					return SettingsSection::Games;
 				case kGcAdapter: case kGcRumble: case kWiiRumble: case kGcTest:
 					return SettingsSection::Controllers;
-				case kHomeTiles: case kPagePeek: case kGridSpacing: case kHomeSource: case kHomeSort: case kPlayHistory: case kDiscTile: case kClockFormat:
+				case kHomeTiles: case kChannelCorners: case kPagePeek: case kGridSpacing: case kHomeSource: case kHomeSort:
+				case kPlayHistory: case kDiscTile: case kClockFormat:
 				case kNoClock:
 					return SettingsSection::HomeScreen;
 				case kLanguage: case kWidescreen: case kScreenSize: case kTheme: case kFont: case kSounds: case kMusic:
@@ -8773,6 +8790,7 @@ static int MenuSettingsSection(FrontendState& state, SettingsSection section, bo
 			case kGameLanguage: return tr("The language the game is told the console uses. Pick one the game has: some games stop without it.");
 			case kGameCios: return tr("The d2x cIOS the game runs under. Automatic uses the menu's, else the first of 249, 250 and 251 that works.");
 			case kHomeTiles: return tr("Covers: each game's box art from GameTDB (fetched when downloads are on). 3D covers: GameTDB's pictures of the cases, round a ring with no end. Carousel: the boxes fanned out on an arc. Shelf: the boxes on a shelf. Channels: each game's animated icon and banner, as on the Wii Menu. Names: the names only.");
+			case kChannelCorners: return tr("How round the corners of the Channels view's tiles are. Theme keeps the theme's own; the others are the same in every theme.");
 			case kGridSpacing: return tr("Roomy makes the Names and Channels tiles a little smaller, with wider gaps between them and at the sides, as on the Wii Menu.");
 			case kPagePeek: return tr("Channels: the edges of the previous and the next page at the sides of the screen, as on the Wii Menu. Point at one and press A to turn to that page.");
 			case kWidescreen: return tr("On a 16:9 TV the menu is drawn narrower, so covers and pictures keep their shape. Automatic follows the Wii's own TV setting.");
@@ -9005,6 +9023,12 @@ static int MenuSettingsSection(FrontendState& state, SettingsSection section, bo
 						: settings.home_tiles == "carousel" ? "shelf"
 						: settings.home_tiles == "shelf" ? "channels" : settings.home_tiles == "channels" ? "names" : "covers";
 					saveAndNote(tr("Covers: each game's box art from GameTDB (fetched when downloads are on). 3D covers: GameTDB's pictures of the cases, round a ring with no end. Carousel: the boxes fanned out on an arc. Shelf: the boxes on a shelf. Channels: each game's animated icon and banner, as on the Wii Menu. Names: the names only."));
+					rebuild();
+					break;
+				case kChannelCorners:
+					settings.channel_corners = StepValue(kChannelCornerChoices, settings.channel_corners, direction);
+					skin::SetChannelCorners(settings.channel_corners);
+					saveAndNote(tr("How round the corners of the Channels view's tiles are. Theme keeps the theme's own; the others are the same in every theme."));
 					rebuild();
 					break;
 				case kGridSpacing:
