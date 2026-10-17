@@ -53,9 +53,6 @@ ReloadResult terminal_startup_failure(int version, const char* detail, std::stri
     // calls, filesystem mounts and file logging can now block forever, so
     // print solely to the already-active console and leave recovery to the
     // top-level terminal path.
-    // No music under a console that has to be switched off. The fade
-    // needs only the timer and the audio interrupt, no IOS.
-    LaunchMusicEnd("the IOS reload failed");
     error = "IOS" + std::to_string(version) + " " + detail + "; hold POWER to shut down";
     std::printf("%s\n", error.c_str());
     g_terminal_failure = true;
@@ -98,12 +95,10 @@ void release_wii_remotes() {
 
 ReloadResult reload_ios(int version, std::string& error, bool force) {
     CoverLoaderHold();  // no SD read in flight across the reload
-    // The menu's music, kept for a launch, plays on across a reload into
-    // a cIOS: the decoder and the mixer use no IOS, only the audio and
-    // DSP interrupts (left unmasked below), and their memory is inside
-    // RiftWii's arenas, clear of the new kernel's staging in low MEM2 and
-    // of IOS at the top (wii/core/memlimits.hpp). It ends before the game's
-    // own IOS (boot_game).
+    // Launches stop the music before they close the log; this is for any
+    // reload that comes without that: no audio may run across a reload
+    // (LaunchMusicPauseForReload says what it did on a Wii).
+    LaunchMusicEnd("an IOS reload");
     g_terminal_failure = false;
     g_reload_detail.clear();
     if (version < 3 || version > 0xFF) {

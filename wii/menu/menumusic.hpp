@@ -27,8 +27,11 @@ bool MenuMusicKeepForLaunch();
 // is loaded or the game is loaded over RiftWii, and when a launch fails.
 // Does nothing when no music was kept.
 void LaunchMusicEnd(const char* why);
-// Says in the log, with how far into the track it is, whether the kept
-// music is still playing `when` (a cIOS reload, which it plays across).
-void LaunchMusicNote(const char* when);
+// Before a cIOS reload in the launch: fades the kept music out and shuts
+// the audio down as LaunchMusicEnd does, remembering where the track was.
+void LaunchMusicPauseForReload(const char* why);
+// After that reload, once the heap is checked whole: the track again from
+// where it was, faded in, under the rest of the launch's log.
+void LaunchMusicResumeAfterReload();
 
 }  // namespace riftwii::wii
