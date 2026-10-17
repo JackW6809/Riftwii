@@ -1191,6 +1191,95 @@ static void prepare_leave(gc_rt_context* ctx, std::uint32_t buf, bool test) {
     logf("GameCube: the test of the way back goes on without a ticket view, to be refused\n");
 }
 
+// Luigi's Mansion's file loader (gc_on_load_queued and on, gc_rt.c): its
+// loading thread allocates a load's buffer, and its callbacks what they
+// make, from JSystem's current heap, a global, at whatever moment the
+// thread runs; with reads at the SD card's speed that was another
+// thread's temporary heap. Found by the game's own code:
+//   the thread: lbz r3,0x80(r30); bl group; mr; bl align; slwi r4,r3,5;
+//               lwz r3,0x60(r30); bl alloc (replaced: gc_on_load_alloc);
+//               stw r3,0x64(r30)
+//   the queue:  addi r4,r4,31; clrrwi r4,r4,5; stw r4,0x60(r3), then
+//               stw rX,0x64(r3) and, a few words on, bl post
+// The queue's post is the call replaced (two queue functions, one post).
+// Then, further on in the thread, its callbacks: lbz r3,0x80(r30); bl
+// group (replaced: gc_on_load_callbacks), and after them mr r3,r29; bl
+// group (replaced: gc_on_load_callbacks_done). The current heap's place
+// is alloc's first lwz rX,d(r13). Only GLM games are looked at.
+struct LmLoader {
+    std::uint32_t group = 0, align = 0, alloc = 0, alloc_site = 0, post = 0;
+    std::vector<std::uint32_t> post_sites;
+    std::uint32_t heap_offset = 0, callbacks_site = 0, callbacks_done_site = 0;
+};
+
+LmLoader find_lm_loader(const std::string& id, const Code& code) {
+    LmLoader out;
+    if (id.compare(0, 3, "GLM") != 0) return out;
+    unsigned threads = 0;
+    bool one_post = true;
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (w != 0x54642834u) return;  // slwi r4,r3,5
+        if (!code.has(a - 16) || !code.has(a + 12)) return;
+        const std::uint32_t load_group = code.at(a - 16);
+        if ((load_group & 0xFFE0FFFFu) != 0x88600080u) return;  // lbz r3,0x80(rR)
+        const std::uint32_t r = (load_group >> 16) & 31;
+        if (code.at(a + 4) != (0x80600060u | (r << 16)) || code.at(a + 12) != (0x90600064u | (r << 16))) return;
+        const std::uint32_t group = bl_target(a - 12, code.at(a - 12));
+        const std::uint32_t align = bl_target(a - 4, code.at(a - 4));
+        const std::uint32_t alloc = bl_target(a + 8, code.at(a + 8));
+        if (group == 0 || align == 0 || alloc == 0 || r != 30) return;
+        out.group = group;
+        out.align = align;
+        out.alloc = alloc;
+        out.alloc_site = a + 8;
+        ++threads;
+        // The callbacks, further on in the same loop.
+        for (std::uint32_t b = a + 16; b < a + 0x100 && code.has(b + 4); b += 4) {
+            if (out.callbacks_site == 0 && code.at(b) == 0x887E0080u && bl_target(b + 4, code.at(b + 4)) == group)
+                out.callbacks_site = b + 4;
+            else if (out.callbacks_site != 0 && code.at(b) == 0x7FA3EB78u && bl_target(b + 4, code.at(b + 4)) == group) {
+                out.callbacks_done_site = b + 4;
+                break;
+            }
+        }
+    });
+    code.each([&](std::uint32_t a, std::uint32_t w) {
+        if (w != 0x90830060u) return;  // stw r4,0x60(r3)
+        if (!code.has(a - 8) || code.at(a - 8) != 0x3884001Fu || code.at(a - 4) != 0x54840034u) return;
+        for (std::uint32_t b = a + 4; b < a + 32 && code.has(b); b += 4) {
+            if ((code.at(b) & 0xFC1FFFFFu) != 0x90030064u) continue;  // stw rX,0x64(r3)
+            for (std::uint32_t c = b + 4; c < b + 16 && code.has(c); c += 4) {
+                const std::uint32_t post = bl_target(c, code.at(c));
+                if (post == 0) continue;
+                if (out.post != 0 && post != out.post) one_post = false;
+                out.post = post;
+                out.post_sites.push_back(c);
+                break;
+            }
+            break;
+        }
+    });
+    if (threads != 1 || !one_post || out.post_sites.empty() || out.post_sites.size() > 4) return LmLoader{};
+    if (out.callbacks_site == 0 || out.callbacks_done_site == 0) return LmLoader{};
+    // alloc, or the function it calls first (a wrapper).
+    std::uint32_t fn = out.alloc;
+    for (int depth = 0; depth < 2 && out.heap_offset == 0 && fn != 0; ++depth) {
+        std::uint32_t first_call = 0;
+        for (std::uint32_t a = fn; a < fn + 0x40 && code.has(a); a += 4) {
+            const std::uint32_t w = code.at(a);
+            if ((w >> 26) == 32 && ((w >> 16) & 31) == 13) {  // lwz rX,d(r13)
+                out.heap_offset =
+                    static_cast<std::uint32_t>(static_cast<std::int32_t>(static_cast<std::int16_t>(w & 0xFFFF)));
+                break;
+            }
+            if (first_call == 0) first_call = bl_target(a, w);
+            if (w == 0x4E800020u) break;  // blr
+        }
+        fn = first_call;
+    }
+    return out;
+}
+
 // The game's picture and language options (its Options page), patched
 // into the staged code. `replay_hook(fn, entry, replay, back)` hooks a
 // function that then runs on (false: it cannot be hooked).
@@ -1480,6 +1569,25 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         return true;
     }, h, ctx, test_no_widen);
 
+    // Luigi's Mansion: its loads allocate from the heap they were queued from.
+    const LmLoader lm = find_lm_loader(image.id, code);
+    if (lm.heap_offset != 0) {
+        ctx->load_post = lm.post;
+        ctx->load_group = lm.group;
+        ctx->load_alloc = lm.alloc;
+        ctx->load_heap_offset = lm.heap_offset;
+        for (std::uint32_t site : lm.post_sites) code.put(site, branch(site, blob_addr + h.hook_load_queued) | 1);  // bl
+        code.put(lm.alloc_site, branch(lm.alloc_site, blob_addr + h.hook_load_alloc) | 1);
+        code.put(lm.callbacks_site, branch(lm.callbacks_site, blob_addr + h.hook_load_callbacks) | 1);
+        code.put(lm.callbacks_done_site, branch(lm.callbacks_done_site, blob_addr + h.hook_load_callbacks_done) | 1);
+        logf("GameCube: the file loader's buffers and callbacks use the heap each load was queued from (post 0x%08x "
+             "from %u place(s), alloc 0x%08x, current heap at r13%+d)\n",
+             static_cast<unsigned>(lm.post), static_cast<unsigned>(lm.post_sites.size()),
+             static_cast<unsigned>(lm.alloc), static_cast<int>(static_cast<std::int32_t>(lm.heap_offset)));
+    } else if (image.id.compare(0, 3, "GLM") == 0) {
+        logf("GameCube: Luigi's Mansion's file loader was not found; it allocates from whichever heap is current\n");
+    }
+
     // What holding HOME goes to.
     prepare_leave(ctx, leave_addr, test_leave);
     ctx->crash_card = 0;
@@ -1500,8 +1608,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     ctx->bounce = bounce_addr;
     ctx->bounce_bytes = kBounceBytes;
     ctx->delay_ticks = 2000;  // about 30 microseconds
-    // Reads take a GameCube drive's time (gc_drive_ticks), without the seek
-    // when the game's Disc reads option says Fast.
+    // Reads take a GameCube drive's time (gc_drive_ticks) unless the game's
+    // Disc reads option says Fast.
     ctx->drive_timing = image.drive_timing ? 1 : 0;
     ctx->beat_ticks = 30375000;  // half a second of the bus clock / 4
     ctx->di_regs = di_regs;

@@ -6793,7 +6793,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::Cover)
 				say(tr("Downloads this game's box art from GameTDB now."));
 			else if (ref.what == RowRef::What::GcDiscReads)
-				say(tr("Fast: reads skip the drive's seeks and take only its transfer time. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."));
+				say(tr("Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."));
 			else if (ref.what == RowRef::What::GcCard)
 				say(tr("Own: a card for this game alone. Shared: one card for all games."));
 			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id))

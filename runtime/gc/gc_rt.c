@@ -490,15 +490,23 @@ static void gc_set_imm(struct gc_rt_context* ctx, uint32_t value) {
  * has one interrupt and the SDK one callback: the alarm is already in the
  * OS's queue, and setting it again would put it there twice (OSSetAlarm
  * does not take an alarm out first), leaving the queue's links in a loop.
- * pending_type is never 0 while the alarm is set (GC_DI_TC or GC_DI_DE). */
+ * The same alarm also carries a read's copy (gc_read_step), so whether it
+ * is in the queue is kept in alarm_queued, cleared as it goes off. */
 typedef void (*gc_set_alarm_fn)(void* alarm, uint64_t ticks, uint32_t handler);
-static void gc_complete_after(struct gc_rt_context* ctx, uint32_t cb, uint32_t type, uint32_t ticks) {
+static void gc_arm(struct gc_rt_context* ctx, uint32_t ticks) {
     gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
     const uint32_t msr = gc_irq_off();
-    const int already_set = ctx->pending_type != 0;
+    if (!ctx->alarm_queued) {
+        ctx->alarm_queued = 1;
+        set_alarm(ctx->alarm, ticks < ctx->delay_ticks ? ctx->delay_ticks : ticks, ctx->alarm_entry);
+    }
+    gc_irq_restore(msr);
+}
+static void gc_complete_after(struct gc_rt_context* ctx, uint32_t cb, uint32_t type, uint32_t ticks) {
+    const uint32_t msr = gc_irq_off();
     ctx->pending_cb = cb;
     ctx->pending_type = type;
-    if (!already_set) set_alarm(ctx->alarm, ticks < ctx->delay_ticks ? ctx->delay_ticks : ticks, ctx->alarm_entry);
+    gc_arm(ctx, ticks);
     gc_irq_restore(msr);
 }
 static void gc_complete(struct gc_rt_context* ctx, uint32_t cb, uint32_t type) { gc_complete_after(ctx, cb, type, 0); }
@@ -510,20 +518,12 @@ static void gc_complete(struct gc_rt_context* ctx, uint32_t cb, uint32_t type) {
  * from about 2 MB/s at its start to about 3 MB/s at its end. A read
  * served at the SD card's speed finished in microseconds, and some games
  * count on the drive's time (Nintendont emulates it too). A rough model,
- * not a measured one.
- *
- * Fast disc reads leave out the seek only. With the SD card's own speed
- * setting the pace, Luigi's Mansion crashed in Dolphin in its first load
- * after the file select, as its loads came back sooner than any drive's
- * (an object not yet set at 0x801c4198, or its allocator's null stored to
- * at 0x801c4068, depending on the SD card's speed); with the transfer's
- * time kept it went on into the mansion with the SD card as fast as
- * Dolphin's and slowed to 8 ms a request. */
+ * not a measured one. */
 #define GC_TICKS_PER_US_X4 243u  /* 60.75 ticks a microsecond */
 static uint32_t gc_drive_ticks(struct gc_rt_context* ctx, uint32_t offset, uint32_t length) {
     const uint32_t distance = offset > ctx->last_read_end ? offset - ctx->last_read_end : ctx->last_read_end - offset;
     uint32_t seek_us = 0, rate_x10, transfer_us, us;
-    if (distance >= 0x10000u && ctx->drive_timing) {  /* Fast: no seek */
+    if (distance >= 0x10000u) {
         seek_us = 20000u + (distance >> 14);
         if (seek_us > 105000u) seek_us = 105000u;
     }
@@ -571,25 +571,25 @@ static void gc_stream_fetch(struct gc_rt_context* ctx);
  * which the queuing code stores at 0x80020428 only after queuing the load
  * at 0x800203ec, and jumped to whatever the heap had there. */
 uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, uint32_t offset, uint32_t cb) {
-    gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
     gc_command_seen(ctx, 0);
     ctx->reads++;
     ctx->read_bytes += length;
     ctx->last_offset = offset;
     __asm__ volatile("mftb %0" : "=r"(ctx->read_started));
-    ctx->read_drive_ticks = gc_drive_ticks(ctx, offset, length);  /* without the seek when Fast */
+    ctx->read_drive_ticks = ctx->drive_timing ? gc_drive_ticks(ctx, offset, length) : 0;
     ctx->last_read_end = offset + length;
     ctx->read_addr = addr;
     ctx->read_length = length;
     ctx->read_offset = offset;
     ctx->read_cb = cb;
     ctx->read_failed = 0;
-    ctx->pending_cb = 0;
+    ctx->pending_cb = 0;  /* a completion still pending is this read's now */
+    ctx->pending_type = 0;
     /* The music ring's top-up, from the game's own context while the card
      * is free (gc_rt_stream); the copy starts once it is done. */
     gc_stream_fetch(ctx);
     ctx->read_state = GC_READ_COPYING;
-    set_alarm(ctx->alarm, ctx->delay_ticks, ctx->alarm_entry);
+    gc_arm(ctx, ctx->delay_ticks);
     return 1;
 }
 
@@ -598,13 +598,12 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
  * they do while a drive's DMA runs. With all of it there, the game's
  * callback runs once the drive would have finished too. */
 static void gc_read_step(struct gc_rt_context* ctx) {
-    gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
     const uint32_t piece = ctx->read_length < GC_READ_PIECE ? ctx->read_length : GC_READ_PIECE;
     uint32_t now, spent, wait;
     if (piece != 0 && !ctx->read_failed) {
         if (ctx->busy) {
             /* The IPC buffers are taken (the way back is starting): later. */
-            set_alarm(ctx->alarm, ctx->delay_ticks, ctx->alarm_entry);
+            gc_arm(ctx, ctx->delay_ticks);
             return;
         }
         if (gc_read_disc(ctx, (uint8_t*)(uintptr_t)ctx->read_addr, piece, ctx->read_offset)) {
@@ -615,7 +614,7 @@ static void gc_read_step(struct gc_rt_context* ctx) {
             ctx->read_failed = 1;
         }
         if (ctx->read_length != 0 && !ctx->read_failed) {
-            set_alarm(ctx->alarm, ctx->delay_ticks, ctx->alarm_entry);
+            gc_arm(ctx, ctx->delay_ticks);
             return;
         }
     }
@@ -626,6 +625,91 @@ static void gc_read_step(struct gc_rt_context* ctx) {
     spent = now - ctx->read_started;
     wait = ctx->read_drive_ticks > spent ? ctx->read_drive_ticks - spent : 0;
     gc_complete_after(ctx, ctx->read_cb, ctx->read_failed ? GC_DI_DE : GC_DI_TC, wait);
+}
+
+/* Luigi's Mansion's file loader. JSystem's current heap is one global,
+ * and the game's loading thread (priority 10) allocates from it whatever
+ * a load needs: the file's buffer when it takes the request, then what
+ * the load's callbacks decompress and build. It takes a request when the
+ * last read finishes, so it runs then in place of whichever thread it
+ * preempted, with that thread's heap current. With a drive's tens of
+ * milliseconds a read, that was a quiet moment. Answered at the SD card's
+ * speed it came while the model-building thread (priority 17) had made a
+ * 512 KB solid heap its own for a room's 44 models (0x80174b3c), so a
+ * file's buffer (Iwamoto/vrball_M.szp first) and what its callbacks made
+ * went into that heap. In Dolphin the heap ran out and the models'
+ * allocations came back null (a DSI at 0x801c4198, 0x801c4068 or
+ * 0x801ca9c4); on a Wii a buffer freed with that heap stayed in use (an
+ * ISI through a vtable of "JKRT" text). So each load remembers the heap
+ * current where it was queued, and the loading thread allocates its
+ * buffer and runs its callbacks with that heap current, as when it was
+ * idle and took the request at once, then puts back the one it found. */
+typedef uint32_t (*gc_game_fn0)(void);
+typedef uint32_t (*gc_game_fn1)(uint32_t);
+typedef uint32_t (*gc_game_fn2)(uint32_t, uint32_t);
+
+/* JKRHeap's current heap, a global in the game's small data (r13). */
+static volatile uint32_t* gc_current_heap(const struct gc_rt_context* ctx) {
+    uint32_t r13;
+    __asm__ volatile("mr %0,13" : "=r"(r13));
+    return (volatile uint32_t*)(uintptr_t)(r13 + ctx->load_heap_offset);
+}
+
+/* The remembered heap of `request`, 0: none. */
+static uint32_t gc_load_heap(const struct gc_rt_context* ctx, uint32_t request) {
+    uint32_t i;
+    for (i = 0; i < GC_LOAD_SLOTS; ++i)
+        if (ctx->load_request[i] == request) return ctx->load_heap[i];
+    return 0;
+}
+
+/* In place of the queue's post(request), in the queuing code's context. */
+uint32_t gc_on_load_queued(struct gc_rt_context* ctx, uint32_t request) {
+    uint32_t slot = ctx->load_next;
+    uint32_t i;
+    for (i = 0; i < GC_LOAD_SLOTS; ++i)
+        if (ctx->load_request[i] == request) slot = i;  /* requests come from a pool */
+    ctx->load_request[slot] = request;
+    ctx->load_heap[slot] = *gc_current_heap(ctx);
+    if (slot == ctx->load_next) ctx->load_next = (slot + 1) % GC_LOAD_SLOTS;
+    return ((gc_game_fn1)(uintptr_t)ctx->load_post)(request);
+}
+
+/* In place of the loading thread's alloc(length, alignment) for the buffer. */
+uint32_t gc_on_load_alloc(struct gc_rt_context* ctx, uint32_t length, uint32_t alignment, uint32_t request) {
+    const uint32_t heap = gc_load_heap(ctx, request);
+    volatile uint32_t* current = gc_current_heap(ctx);
+    const uint32_t found = *current;
+    uint32_t allocated;
+    if (heap != 0) *current = heap;
+    allocated = ((gc_game_fn2)(uintptr_t)ctx->load_alloc)(length, alignment);
+    if (heap != 0) {
+        *current = found;
+        ctx->loads_steered++;
+    }
+    return allocated;
+}
+
+/* In place of its group(id) before the load's callbacks. */
+uint32_t gc_on_load_callbacks(struct gc_rt_context* ctx, uint32_t group, uint32_t unused, uint32_t request) {
+    const uint32_t heap = gc_load_heap(ctx, request);
+    (void)unused;  /* the game's r4 */
+    ctx->load_saved_heap = 0;
+    if (heap != 0) {
+        volatile uint32_t* current = gc_current_heap(ctx);
+        ctx->load_saved_heap = *current;
+        *current = heap;
+    }
+    return ((gc_game_fn1)(uintptr_t)ctx->load_group)(group);
+}
+
+/* And of group(old) after them. */
+uint32_t gc_on_load_callbacks_done(struct gc_rt_context* ctx, uint32_t group) {
+    if (ctx->load_saved_heap != 0) {
+        *gc_current_heap(ctx) = ctx->load_saved_heap;
+        ctx->load_saved_heap = 0;
+    }
+    return ((gc_game_fn1)(uintptr_t)ctx->load_group)(group);
 }
 
 uint32_t gc_on_disk_id(struct gc_rt_context* ctx, uint32_t id, uint32_t cb) {
@@ -679,6 +763,7 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
         gc_card_on_alarm(ctx, (struct gc_card*)(uintptr_t)ctx->card, os_context);
         return;
     }
+    ctx->alarm_queued = 0;  /* out of the OS's queue now: gc_arm may set it again */
     if (ctx->read_state == GC_READ_COPYING) {
         gc_read_step(ctx);
         return;

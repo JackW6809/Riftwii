@@ -78,6 +78,10 @@ struct gc_rt_header {
     uint32_t replay_projection;
     uint32_t continue_projection;
     uint32_t stray_entry;     /* a jump into the blob's own data (gc_card.h's landing words call it) */
+    uint32_t hook_load_queued;      /* Luigi's Mansion's loader queue post(request): gc_on_load_queued */
+    uint32_t hook_load_alloc;       /* its loading thread's alloc(length, alignment) for a buffer: gc_on_load_alloc */
+    uint32_t hook_load_callbacks;   /* its loading thread's group(id) before a load's callbacks: gc_on_load_callbacks */
+    uint32_t hook_load_callbacks_done; /* and group(old) after them: gc_on_load_callbacks_done */
 };
 
 /* gc_on_fatal's exception number for one caught by the loader's own
@@ -202,6 +206,9 @@ struct gc_rt_stream {
     uint32_t pad[1];
 };
 
+/* Luigi's Mansion's loads remembered with the heap they were queued from. */
+#define GC_LOAD_SLOTS 8u
+
 /* The OSAlarm the callbacks run from: the SDK's is 0x28 bytes. */
 #define GC_ALARM_BYTES 0x40u
 #define GC_IPC_TIMEOUT 50000000u  /* polls of the IPC registers before giving up */
@@ -218,7 +225,7 @@ struct gc_rt_context {
     uint32_t bounce;          /* 32-byte aligned, bounce_bytes (a multiple of 512) */
     uint32_t bounce_bytes;
     uint32_t delay_ticks;     /* how soon the callback runs */
-    uint32_t drive_timing;    /* 1: a read takes as long as a GameCube drive would (gc_drive_ticks); 0 (Fast): as its transfer alone */
+    uint32_t drive_timing;    /* 1: a read's callback waits as long as a GameCube drive would take (gc_drive_ticks) */
     /* State. */
     uint32_t last_read_end;   /* where the last read ended on the disc, for the seek */
     uint32_t pending_cb;      /* the callback the alarm runs, 0: none */
@@ -232,7 +239,18 @@ struct gc_rt_context {
     uint32_t read_cb;         /* the game's callback once all of it is there */
     uint32_t read_failed;     /* 1: a piece could not be read (the callback gets an error) */
     uint32_t read_started;    /* timebase when the game asked */
-    uint32_t read_drive_ticks; /* how long a GameCube drive takes for it (no seek when Fast) */
+    uint32_t read_drive_ticks; /* how long a GameCube drive takes for it; 0: Fast */
+    uint32_t alarm_queued;    /* 1: `alarm` is in the OS's queue (gc_arm) */
+    /* Luigi's Mansion's file loader (gc_on_load_queued and on), loader-found. */
+    uint32_t load_post;       /* post(request): hands the request to the loading thread */
+    uint32_t load_group;      /* old = group(id): the heaps' group ID for what is allocated next */
+    uint32_t load_alloc;      /* alloc(length, alignment) from the current heap */
+    uint32_t loads_steered;   /* buffers allocated from the heap their load was queued from */
+    uint32_t load_heap_offset; /* JKRHeap's current heap: its offset from r13 (the game's small data) */
+    uint32_t load_saved_heap; /* the current heap the loading thread's callbacks interrupted; 0: none */
+    uint32_t load_next;       /* the next slot of load_request/load_heap to take */
+    uint32_t load_request[GC_LOAD_SLOTS]; /* queued requests (they come from a pool, reused) */
+    uint32_t load_heap[GC_LOAD_SLOTS];    /* and the heap current when each was queued */
     /* Counters, for the log and a memory dump. */
     uint32_t commands;
     uint32_t reads;
@@ -316,11 +334,15 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x4A0u
+#define GC_RT_CONTEXT_BYTES 0x500u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC
 uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, uint32_t offset, uint32_t cb);
+uint32_t gc_on_load_queued(struct gc_rt_context* ctx, uint32_t request);
+uint32_t gc_on_load_alloc(struct gc_rt_context* ctx, uint32_t length, uint32_t alignment, uint32_t request);
+uint32_t gc_on_load_callbacks(struct gc_rt_context* ctx, uint32_t group, uint32_t unused, uint32_t request);
+uint32_t gc_on_load_callbacks_done(struct gc_rt_context* ctx, uint32_t group);
 uint32_t gc_on_disk_id(struct gc_rt_context* ctx, uint32_t id, uint32_t cb);
 uint32_t gc_on_inquiry(struct gc_rt_context* ctx, uint32_t info, uint32_t cb);
 uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb);

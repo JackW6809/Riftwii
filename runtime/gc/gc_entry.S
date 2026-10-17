@@ -24,6 +24,9 @@ _gc_blob_start:
     .long gc_hook_projection - _gc_blob_start, gc_replay_projection - _gc_blob_start
     .long gc_continue_projection - _gc_blob_start
     .long gc_stray_entry - _gc_blob_start
+    .long gc_hook_load_queued - _gc_blob_start
+    .long gc_hook_load_alloc - _gc_blob_start
+    .long gc_hook_load_callbacks - _gc_blob_start, gc_hook_load_callbacks_done - _gc_blob_start
 
 /* Calls `fn` with the context in r3 and the game's r3..r6 moved up one
  * register (r4..r7). */
@@ -53,6 +56,33 @@ gc_hook_\name:
     GC_HOOK audio_status, gc_on_audio_status
     GC_HOOK audio_stream, gc_on_audio_stream
     GC_HOOK fatal, gc_on_fatal
+    GC_HOOK load_queued, gc_on_load_queued
+    GC_HOOK load_callbacks_done, gc_on_load_callbacks_done
+
+/* Luigi's Mansion's loading thread: calls of `fn` that also get its
+ * request, which the thread keeps in r30 (the loader checked), after the
+ * game's r3 and r4: fn(ctx, r3, r4, request). */
+    .macro GC_LOAD_HOOK name, fn
+    .globl gc_hook_\name
+gc_hook_\name:
+    stwu 1, -0x20(1)
+    mflr 0
+    stw 0, 0x24(1)
+    mr 6, 30
+    mr 5, 4
+    mr 4, 3
+    bl 8f
+8:  mflr 3
+    addi 3, 3, gc_context_data - 8b
+    bl \fn
+    lwz 0, 0x24(1)
+    mtlr 0
+    addi 1, 1, 0x20
+    blr
+    .endm
+
+    GC_LOAD_HOOK load_alloc, gc_on_load_alloc
+    GC_LOAD_HOOK load_callbacks, gc_on_load_callbacks
 
 /* AIInitDMA(start, length): gc_on_ai_dma(ctx, start, length) mixes the
  * disc stream into the buffer, then the original runs from the replay
@@ -459,6 +489,6 @@ gc_exi_table:
     .balign 32
     .globl gc_context_data
 gc_context_data:
-    /* struct gc_rt_context, GC_RT_CONTEXT_BYTES (0x4A0) long: the magic, then zeros */
+    /* struct gc_rt_context, GC_RT_CONTEXT_BYTES (0x500) long: the magic, then zeros */
     .long 0x52574743
-    .fill 295, 4, 0
+    .fill 319, 4, 0
