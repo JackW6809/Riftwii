@@ -1126,9 +1126,9 @@ public:
 		Menu_VisibleArea(&vx, &vy, &vw, &vh);
 		player.Draw(vx, vy, vw, vh, 255);
 		if (player.Picture()) {
-			// The frame ends 20 of the banner's 456 units above its middle;
-			// the name starts just under it, clear of the bar below.
-			const f32 nameTop = vy + vh * (228.0f + 4.0f) / 456.0f;
+			// The name starts just under the frame and its shadow, clear of
+			// the bar below.
+			const f32 nameTop = vy + vh * (228.0f + riftwii::kGcBannerNameTop) / 456.0f;
 			caption.SetPosition(static_cast<int>(vx + vw / 2), static_cast<int>(nameTop));
 			caption.Draw();
 		}

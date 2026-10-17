@@ -440,15 +440,26 @@ static void test_banner_layout() {
         // The full banner is not an icon: fitting leaves it alone.
         gc_picture_fit(layout, 0.75f);
         const std::vector<LytQuad> quads = layout_quads(layout);
-        // The background, the frame's shadow and border, the picture last.
-        EXPECT_EQ(quads.size(), std::size_t(4));
-        if (quads.size() != 4) continue;
+        // The background, the frame's shadow layers and border, the picture last.
+        const std::size_t count = 3 + kGcBannerShadowLayers;
+        EXPECT_EQ(quads.size(), count);
+        if (quads.size() != count) continue;
         const LytQuad& background = quads[0];
-        const LytQuad& picture = quads[3];
+        const LytQuad& border = quads[count - 2];
+        const LytQuad& picture = quads[count - 1];
         EXPECT_EQ(layout.panes[static_cast<std::size_t>(picture.pane)].material, 1);
-        EXPECT_EQ(picture.x[1] - picture.x[0], 384.0f);
-        EXPECT_EQ(picture.y[0] - picture.y[2], 128.0f);
-        EXPECT_EQ(picture.y[0], 90.0f + 64.0f);
+        EXPECT_EQ(picture.x[1] - picture.x[0], 480.0f);
+        EXPECT_EQ(picture.y[0] - picture.y[2], 160.0f);
+        EXPECT_EQ(picture.y[0], 66.0f + 80.0f);
+        // The frame stays inside the view and ends above where the name
+        // starts, with room for the shadow.
+        EXPECT_TRUE(border.x[0] > -304.0f && border.x[1] < 304.0f && border.y[0] < 228.0f);
+        EXPECT_TRUE(border.y[2] - 11.0f > -kGcBannerNameTop);
+        // The shadow's layers, largest first, fade out past the border.
+        for (std::size_t i = 1; i + 2 < count; ++i) {
+            EXPECT_TRUE(quads[i].x[0] < border.x[0]);
+            EXPECT_TRUE(quads[i].color[0].a < 32);
+        }
         // The background covers the whole view: light grey, tinted toward
         // the accent (more at the bottom) when the picture has one.
         EXPECT_TRUE(background.x[0] <= -304.0f && background.x[1] >= 304.0f);
@@ -465,7 +476,7 @@ static void test_banner_layout() {
         std::vector<LytQuad> wide;
         LytScratch scratch;
         layout_quads(layout, wide, scratch, 0.75f);
-        EXPECT_EQ(wide[3].x[1] - wide[3].x[0], 384.0f * 0.75f);
+        EXPECT_EQ(wide[count - 1].x[1] - wide[count - 1].x[0], 480.0f * 0.75f);
         EXPECT_EQ(wide[0].x[1] - wide[0].x[0], quads[0].x[1] - quads[0].x[0]);
     }
 }

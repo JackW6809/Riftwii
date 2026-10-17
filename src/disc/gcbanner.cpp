@@ -315,21 +315,29 @@ Layout gc_banner_layout(Layout layout, const GcPictureColours& colours) {
     add_pane(layout, shaded_pane("background", root, layout.width + 32, layout.height + 32,
                                  mix(light_top, colours.accent, tint_top), mix(light_bottom, colours.accent, tint_bottom)));
 
-    // The picture in its frame, scaled by a whole number (4x).
-    const float scale = 4.0f;
+    // The picture in its frame, scaled by a whole number (5x): about four
+    // fifths of a 4:3 view's width and most of the room above the name,
+    // as a Wii banner fills the screen above the buttons.
+    const float scale = 5.0f;
     const float picture_w = kGcBannerWidth * scale, picture_h = kGcBannerHeight * scale;
     const float border = 6.0f;
     LytPane group = plain_pane(PaneKind::Null, "frame", root, picture_w, picture_h);
     group.flags = 1 | 4;  // keeps its shape when the menu stretches a banner to 16:9
-    // Above the middle: the menu writes the name under it, clear of the
-    // bar along the screen's bottom.
-    group.ty = 90.0f;
+    // Above the middle, its top clear of the favourite star in the top
+    // right corner at 4:3; the menu writes the name under it, clear of
+    // the bar along the screen's bottom (kGcBannerNameTop).
+    group.ty = 66.0f;
     const int frame = add_pane(layout, group);
-    const LytColor shadow{0, 0, 0, 64};
-    LytPane shade = shaded_pane("shadow", frame, picture_w + 2 * border, picture_h + 2 * border, shadow, shadow);
-    shade.tx = border / 2;
-    shade.ty = -border;
-    add_pane(layout, shade);
+    // A soft shadow, as under the menu's cards: layers a little larger
+    // each and faint, so it fades out from the frame's edge, a little
+    // below it as if lit from above.
+    const LytColor shadow{0, 0, 0, 14};
+    for (int layer = kGcBannerShadowLayers; layer >= 1; --layer) {
+        const float grow = border + 2.0f * static_cast<float>(layer);
+        LytPane shade = shaded_pane("shadow", frame, picture_w + 2 * grow, picture_h + 2 * grow, shadow, shadow);
+        shade.ty = -3.0f;
+        add_pane(layout, shade);
+    }
     const LytColor dark_top{58, 62, 72, 255}, dark_bottom{30, 33, 40, 255};
     add_pane(layout, shaded_pane("border", frame, picture_w + 2 * border, picture_h + 2 * border, dark_top, dark_bottom));
     LytPane image = plain_pane(PaneKind::Picture, "picture", frame, picture_w, picture_h);

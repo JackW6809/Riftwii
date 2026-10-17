@@ -84,11 +84,16 @@ GcPictureColours gc_picture_colours(const std::vector<std::uint8_t>& rgba);
 // whole width (3:1, so 128 x 43) and the bands above and below it shaded
 // from the picture's own top and bottom edges toward a darker rim, as a
 // Wii channel fills its tile. Else the full 608x456 banner: the picture
-// scaled up 4x in a dark frame in its upper part, where the menu writes
-// the game's name under it, on a light background tinted with the
-// picture's accent. The picture is texture 0, named kGcPictureTexture; it
-// keeps its shape on a 16:9 menu.
+// scaled up 5x in a dark frame with a soft shadow in its upper part, where
+// the menu writes the game's name under it (from kGcBannerNameTop), on a
+// light background tinted with the picture's accent. The picture is
+// texture 0, named kGcPictureTexture; it keeps its shape on a 16:9 menu.
 constexpr const char* kGcPictureTexture = "gcpicture";
+// Where the name under the full banner's frame starts: this many of the
+// banner's 456 units below its middle (the frame and its shadow end above).
+constexpr float kGcBannerNameTop = 34.0f;
+// The frame's soft shadow: this many faint layers, each a little larger.
+constexpr int kGcBannerShadowLayers = 4;
 Layout gc_picture_layout(bool icon, const GcPictureColours& colours = GcPictureColours());
 
 // The icon's picture fitted to the channel it is drawn in. `wide_x` is the
