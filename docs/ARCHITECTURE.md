@@ -168,7 +168,8 @@ Nintendont and nothing on the Starlet. IOS keeps running, and the game
 reaches the SD card, the Wii Remotes and the way back through it.
 
 **Listing.** `wii/launch/gclaunch.cpp` adds the `sd:/games/<folder>/game.iso`
-images whose header says GameCube to the SD card's games (`ImageGame::gamecube`). A patch-only
+images (or `game.rvz`, see [RVZ.md](RVZ.md#gamecube-games)) whose header says
+GameCube to the SD card's games (`ImageGame::gamecube`). A patch-only
 mod, `sd:/riftwii/patches/*.xdelta`, is listed as the game it makes when
 one of those images is its original (`wii/launch/gcpatch.cpp`, the VCDIFF
 reader `src/patching/vcdiff.cpp`). Starting it builds
@@ -214,6 +215,8 @@ start-up leaves it, and jumps to the game.
   Controllers, filled into the pad ports with no GameCube controller.
 - `gc_card.c`: memory card slot A, from an image in MEM2 at `0x91000000`
   written back to its file's sectors as the game saves.
+- `gc_rvz.c` (the RVZ build, `riftwii_gc_rvz.bin`): the disc read from an
+  RVZ, a group at a time ([RVZ.md](RVZ.md#gamecube-games)).
 - `gc_entry.S`: the hooks' entry points.
 
 **Leaving and crashing.** Holding HOME (HOME and - on a Wii Remote
@@ -249,7 +252,8 @@ from `sd:/riftwii/gc/saves`.
 | Bottom of the game's MEM2 arena | Resident runtime data (or the virtual SD card's code and state, about 49 KB), then the pad state, the screenshot state (a few KB: its picture is written straight from the frame buffer), then the crash blob's state (about 5 KB) |
 | `0x90000000`–`0x91000000` | A GameCube game's ARAM (in a GameCube game only) |
 | `0x91000000`–`0x91200000` | A GameCube game's memory card image |
-| `0x91200000`–`0x91300000` | A GameCube game's data buffers: the SD bounce buffer, the disc audio ring, the trace record, the Wii Remotes' state, the crash message and the disc runs |
+| `0x91200000`–`0x91300000` | A GameCube game's data buffers: the SD bounce buffer, the disc audio ring, the trace record, the Wii Remotes' state, the crash message and the disc runs (and an RVZ's reader) |
+| `0x91300000`–`0x91500000` | A GameCube game from an RVZ: Zstandard's workspace, a group as stored, and two decoded groups (about 430 KB with 128 KiB chunks) |
 | Under a GameCube game's FST | The GameCube blob and its context, the code moved from IOS's counter, the ARAM stubs, the memory card's struct, the way back's block and the DI registers' stand-in (an address ending in `0x6000`), then BI2's copy (`wii/launch/gcnative.cpp`); the game's arena ends below them. Mario Golf and Mario Power Tennis put their stack and ArenaLo at `0x817dc000`, so this stays small |
 | `0x933E0000` and up | IOS |
 
