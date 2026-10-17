@@ -24,6 +24,7 @@
 #include "riftwii/gcoverlay.hpp"
 #include "riftwii/patch.hpp"
 #include "riftwii/redirect.hpp"
+#include "riftwii/rvz.hpp"
 #include "sdfile.hpp"
 
 namespace riftwii::wii {
@@ -41,44 +42,82 @@ bool ends_with(const std::string& s, const char* tail) {
     return true;
 }
 
-// The first 0x20 bytes say what the image is: its ID and the GameCube magic.
-bool read_gc_id(const std::string& path, std::string& id) {
-    std::FILE* f = std::fopen(path.c_str(), "rb");
-    if (!f) return false;
-    std::uint8_t head[0x20];
-    const bool ok = std::fread(head, 1, sizeof(head), f) == sizeof(head);
-    std::fclose(f);
-    if (!ok || be32(head + 0x1C) != 0xC2339F3Du) return false;
-    id.assign(reinterpret_cast<const char*>(head), 6);
-    return true;
+bool is_gc_image_name(const std::string& name) {
+    return name[0] != '.' && (ends_with(name, ".iso") || ends_with(name, ".gcm") || ends_with(name, ".rvz"));
 }
 
-// The image read as a whole; disc files are ranges of it.
-class IsoFile {
+// A file on the card read with stdio.
+class CardFile final : public ByteSource {
 public:
-    explicit IsoFile(const std::string& path) : f_(std::fopen(path.c_str(), "rb")) {}
-    ~IsoFile() { close(); }
-    bool ok() const { return f_ != nullptr; }
-    void close() {
+    explicit CardFile(const std::string& path) : f_(std::fopen(path.c_str(), "rb")) {
+        if (f_ && fseeko(f_, 0, SEEK_END) == 0) size_ = static_cast<std::uint64_t>(ftello(f_));
+    }
+    ~CardFile() override {
         if (f_) std::fclose(f_);
-        f_ = nullptr;
     }
-    std::uint64_t size() {
-        if (fseeko(f_, 0, SEEK_END) != 0) return 0;
-        return static_cast<std::uint64_t>(ftello(f_));
-    }
-    bool read(std::uint64_t offset, std::uint8_t* out, std::size_t length) {
+    CardFile(const CardFile&) = delete;
+    CardFile& operator=(const CardFile&) = delete;
+    bool ok() const { return f_ != nullptr; }
+    std::uint64_t size() const override { return size_; }
+    bool read(std::uint64_t offset, std::uint8_t* destination, std::size_t length) const override {
+        if (offset > size_ || length > size_ - offset) return false;
         if (fseeko(f_, static_cast<off_t>(offset), SEEK_SET) != 0) return false;
-        return std::fread(out, 1, length, f_) == length;
+        return std::fread(destination, 1, length, f_) == length;
     }
 
 private:
     std::FILE* f_;
+    std::uint64_t size_ = 0;
 };
 
+// What the scan needs of an image: its first 0x60 bytes (ID, magic,
+// title) and, for an RVZ, check_rvz's verdict on it. Only an RVZ's
+// headers are read, never its groups.
+struct GcHead {
+    std::uint8_t bytes[0x60] = {};
+    bool rvz = false;
+    RvzVerdict verdict;
+    std::string describe;
+    std::uint64_t disc_bytes = 0;
+    std::uint32_t chunk_bytes = 0;
+};
+
+bool read_gc_head(const std::string& path, GcHead& out) {
+    out = GcHead{};
+    out.rvz = GcImageIsRvz(path);
+    auto file = std::make_shared<CardFile>(path);
+    if (!file->ok()) return false;
+    if (out.rvz) {
+        RvzHead head;
+        std::string error;
+        if (!read_rvz_head(*file, head, error)) {
+            logf("SD scan: %s: %s\n", path.c_str(), error.c_str());
+            return false;
+        }
+        if (head.disc_type != 1) return false;  // a Wii game's RVZ: not one of these
+        std::memcpy(out.bytes, head.disc_header.data(), sizeof(out.bytes));
+        out.verdict = check_rvz(head, file->size());
+        out.describe = describe_rvz(head);
+        out.disc_bytes = head.iso_size;
+        out.chunk_bytes = head.chunk_size;
+    } else if (!file->read(0, out.bytes, sizeof(out.bytes))) {
+        return false;
+    }
+    return be32(out.bytes + 0x1C) == 0xC2339F3Du;
+}
+
+// The first 0x20 bytes say what the image is: its ID and the GameCube magic.
+bool read_gc_id(const std::string& path, std::string& id) {
+    GcHead head;
+    if (!read_gc_head(path, head)) return false;
+    id.assign(reinterpret_cast<const char*>(head.bytes), 6);
+    return true;
+}
+
+// A range of the image's disc: a disc file, for the packs' planning.
 class IsoRange final : public ByteSource {
 public:
-    IsoRange(IsoFile& iso, std::uint64_t offset, std::uint64_t size) : iso_(iso), offset_(offset), size_(size) {}
+    IsoRange(const ByteSource& iso, std::uint64_t offset, std::uint64_t size) : iso_(iso), offset_(offset), size_(size) {}
     std::uint64_t size() const override { return size_; }
     bool read(std::uint64_t offset, std::uint8_t* destination, std::size_t length) const override {
         if (offset > size_ || length > size_ - offset) return false;
@@ -87,7 +126,7 @@ public:
     std::uint64_t disc_offset() const { return offset_; }
 
 private:
-    IsoFile& iso_;
+    const ByteSource& iso_;
     std::uint64_t offset_, size_;
 };
 
@@ -108,7 +147,7 @@ private:
 // so their sectors are known for the overlay).
 class GcProvider final : public ContentProvider {
 public:
-    GcProvider(IsoFile& iso, const Fst& fst) : iso_(iso), fst_(fst) {}
+    GcProvider(const ByteSource& iso, const Fst& fst) : iso_(iso), fst_(fst) {}
 
     OpenStatus open_disc(const std::string& disc_path, std::unique_ptr<ByteSource>& out, std::string& error) override {
         std::uint32_t index = fst_.find(disc_path, false);
@@ -167,7 +206,7 @@ public:
     }
 
 private:
-    IsoFile& iso_;
+    const ByteSource& iso_;
     const Fst& fst_;
     std::map<std::string, Fat32File> files_;  // outlives every SdSource
 };
@@ -317,6 +356,32 @@ bool plan_packs(const std::vector<PackageChoices>& packages, const std::uint8_t*
 
 }  // namespace
 
+bool GcImageIsRvz(const std::string& path) { return ends_with(path, ".rvz"); }
+
+bool OpenGcDisc(const std::string& path, std::unique_ptr<ByteSource>& out, std::string& error) {
+    if (!GcImageIsRvz(path)) {
+        std::unique_ptr<CardFile> iso(new CardFile(path));
+        if (!iso->ok()) {
+            error = "cannot open " + path;
+            return false;
+        }
+        out = std::move(iso);
+        return true;
+    }
+    auto file = std::make_shared<CardFile>(path);
+    if (!file->ok()) {
+        error = "cannot open " + path;
+        return false;
+    }
+    std::unique_ptr<RvzDiscSource> disc;
+    if (!RvzDiscSource::open(file, disc, error)) {
+        error = path + ": " + error;
+        return false;
+    }
+    out = std::move(disc);
+    return true;
+}
+
 bool FindGcImage(const std::string& game, const std::string& path, GcImage& out) {
     if (!path.empty()) {
         std::string id;
@@ -335,7 +400,7 @@ bool FindGcImage(const std::string& game, const std::string& path, GcImage& out)
         if (!inner) continue;
         while (dirent* file = readdir(inner)) {
             const std::string name = file->d_name;
-            if (name[0] == '.' || !(ends_with(name, ".iso") || ends_with(name, ".gcm"))) continue;
+            if (!is_gc_image_name(name)) continue;
             std::string id;
             const std::string full = dir + "/" + name;
             if (read_gc_id(full, id) && id.compare(0, game.size(), game) == 0) {
@@ -373,18 +438,21 @@ void ScanGcImages(std::vector<ImageGame>& out) {
         if (!inner) continue;
         while (dirent* file = readdir(inner)) {
             const std::string name = file->d_name;
-            if (name[0] == '.' || !(ends_with(name, ".iso") || ends_with(name, ".gcm"))) continue;
+            if (!is_gc_image_name(name)) continue;
             const std::string full = dir + "/" + name;
-            std::FILE* f = std::fopen(full.c_str(), "rb");
-            if (!f) continue;
-            std::uint8_t head[0x60];
-            const bool ok = std::fread(head, 1, sizeof(head), f) == sizeof(head);
-            std::fclose(f);
-            if (!ok || be32(head + 0x1C) != 0xC2339F3Du) continue;
+            GcHead found;
+            if (!read_gc_head(full, found)) continue;
+            const std::uint8_t* head = found.bytes;
             ImageGame g;
             g.device = ImageDevice::Sd;
             g.path = full;
-            g.format = UsbImageFormat::Iso;
+            g.format = found.rvz ? UsbImageFormat::Rvz : UsbImageFormat::Iso;
+            if (found.rvz) {
+                g.rvz_support = found.verdict.support;
+                g.rvz_reasons = found.verdict.reasons;
+                g.rvz_disc_bytes = found.disc_bytes;
+                g.rvz_chunk_bytes = found.chunk_bytes;
+            }
             g.id.assign(reinterpret_cast<const char*>(head), 6);
             g.disc_number = head[6];
             g.revision = head[7];
@@ -392,6 +460,10 @@ void ScanGcImages(std::vector<ImageGame>& out) {
             g.checked = true;
             g.gamecube = true;
             logf("SD scan: GameCube %s \"%s\" at %s\n", g.id.c_str(), g.title.c_str(), full.c_str());
+            if (found.rvz) {
+                logf("  %s\n", found.describe.c_str());
+                for (const std::string& r : g.rvz_reasons) logf("  %s\n", r.c_str());
+            }
             out.push_back(std::move(g));
         }
         closedir(inner);
@@ -406,11 +478,9 @@ namespace {
 // read from the image and the card, laid out past the image's end.
 bool plan_gc_packs(const GcImage& image, const std::vector<PackageChoices>& packages, GcOverlayPlan& plan,
                    std::string& error) {
-    IsoFile iso(image.path);
-    if (!iso.ok()) {
-        error = "cannot open " + image.path;
-        return false;
-    }
+    std::unique_ptr<ByteSource> disc;
+    if (!OpenGcDisc(image.path, disc, error)) return false;
+    const ByteSource& iso = *disc;
     const std::uint64_t iso_size = iso.size();
     std::vector<std::uint8_t> boot(0x440);
     if (!iso.read(0, boot.data(), boot.size())) {
@@ -452,6 +522,22 @@ GcConsoleSettings GcConsoleNow() {
 bool LaunchGcGame(const GcImage& wanted,const std::vector<PackageChoices>& packages, std::string& error) {
     GcImage image = wanted;
     if (!image.patch_source.empty() && !PrepareGcPatch(image, error)) return false;
+    // An RVZ is checked again here, as a Wii game's is before its launch:
+    // one RiftWii cannot play stops now, with the reason.
+    if (GcImageIsRvz(image.path)) {
+        GcHead head;
+        if (!read_gc_head(image.path, head)) {
+            error = "cannot read " + image.path;
+            return false;
+        }
+        logf("GameCube: %s is an RVZ: %s\n", image.path.c_str(), head.describe.c_str());
+        for (const std::string& r : head.verdict.reasons) logf("GameCube: %s\n", r.c_str());
+        if (head.verdict.support == RvzSupport::Unsupported) {
+            error = "This RVZ cannot be played. " +
+                    (head.verdict.reasons.empty() ? std::string() : head.verdict.reasons.front());
+            return false;
+        }
+    }
     // The game's own options, from the file the menu keeps them in (the
     // choices file, riftwii/launch.hpp's restore).
     {

@@ -114,6 +114,9 @@ void ScanGcPatches(std::vector<ImageGame>& games) {
         bool listed = false;
         for (const ImageGame& g : games) {
             if (!g.gamecube || !g.gc_patch_source.empty() || g.device != ImageDevice::Sd) continue;
+            // A patch is applied to an ISO's bytes as they are on the card,
+            // not to the disc inside an RVZ.
+            if (g.format == UsbImageFormat::Rvz) continue;
             File original(g.path);
             if (!original.f) continue;
             std::vector<std::uint8_t> head;

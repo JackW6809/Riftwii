@@ -828,6 +828,12 @@ msgstr "Este jogo precisa de quase toda a memória do Wii, e os blocos de {1} Ki
 msgid "Packs on USB are experimental; if it fails, copy them to SD."
 msgstr "Packs no USB são experimentais; se falhar, copie-os para o SD."
 
+msgid "RVZ is experimental for GameCube games; if it fails, use an ISO copy."
+msgstr "O RVZ é experimental para jogos de GameCube; se falhar, use uma cópia ISO."
+
+msgid "Play at your own risk:"
+msgstr "Jogue por sua conta e risco:"
+
 msgid "CTGP Revolution (a pack that starts a Homebrew Channel app) does not work from RiftWii yet: it stops on a black or green screen. Start CTGP from the Homebrew Channel instead."
 msgstr "O CTGP Revolution (um pack que inicia um app do Homebrew Channel) ainda não funciona pelo RiftWii: ele para numa tela preta ou verde. Inicie o CTGP pelo Homebrew Channel."
 

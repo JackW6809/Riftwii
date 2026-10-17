@@ -596,7 +596,14 @@ bool open_rvz_game(const ImageVolume& volume, const std::string& prefix, ImageGa
     if (!read_rvz_head(*image.pieces[0].source, head, error)) return false;
     DiscHeader header;
     if (!parse_disc_header(head.disc_header.data(), head.disc_header.size(), header, error)) return false;
-    const RvzVerdict verdict = check_rvz(head, image.pieces[0].file.entry.size);
+    RvzVerdict verdict = check_rvz(head, image.pieces[0].file.entry.size);
+    // A GameCube game is played from a folder of its own in sd:/games
+    // (wii/launch/gclaunch.hpp), not from the Wii games' folders.
+    if (head.disc_type == 1) {
+        verdict.support = RvzSupport::Unsupported;
+        verdict.reasons.assign(1, "It is a GameCube game: RiftWii plays those from a folder of their own in "
+                                  "sd:/games (sd:/games/<name>/game.rvz).");
+    }
     game.id = header.game_id;
     game.title = header.title;
     game.revision = header.version;

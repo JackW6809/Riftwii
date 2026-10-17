@@ -828,6 +828,12 @@ msgstr "이 게임은 Wii의 메모리를 거의 전부 사용하며, 이 RVZ의
 msgid "Packs on USB are experimental; if it fails, copy them to SD."
 msgstr "USB의 팩은 실험적인 기능입니다. 실패할 경우 SD 카드로 복사하세요."
 
+msgid "RVZ is experimental for GameCube games; if it fails, use an ISO copy."
+msgstr "GameCube 게임의 RVZ는 실험적인 기능입니다. 실패할 경우 ISO 사본을 사용하세요."
+
+msgid "Play at your own risk:"
+msgstr "사용 시 발생하는 문제는 사용자의 책임입니다:"
+
 msgid "CTGP Revolution (a pack that starts a Homebrew Channel app) does not work from RiftWii yet: it stops on a black or green screen. Start CTGP from the Homebrew Channel instead."
 msgstr "CTGP Revolution(홈브류 채널 앱을 통해 실행하는 팩)은 아직 RiftWii에서 정상적으로 작동하지 않으며, 검은색 또는 녹색 화면에서 멈춥니다. 대신 홈브류 채널에서 CTGP를 실행하세요."
 

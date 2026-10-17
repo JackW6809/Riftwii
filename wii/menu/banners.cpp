@@ -11,6 +11,7 @@
 #include <new>
 #include <set>
 
+#include "gclaunch.hpp"
 #include "log.hpp"
 #include "memlimits.hpp"
 #include "netsock.hpp"
@@ -61,43 +62,14 @@ bool WriteBanner(const std::string& id, const std::vector<std::uint8_t>& bytes, 
     return true;
 }
 
-// A GameCube image on the card, read with stdio.
-class CardFileSource final : public ByteSource {
-public:
-    explicit CardFileSource(const std::string& path) : f_(std::fopen(path.c_str(), "rb")) {
-        if (f_ && std::fseek(f_, 0, SEEK_END) == 0) {
-            const long end = std::ftell(f_);
-            size_ = end > 0 ? static_cast<std::uint64_t>(end) : 0;
-        }
-    }
-    ~CardFileSource() override {
-        if (f_) std::fclose(f_);
-    }
-    CardFileSource(const CardFileSource&) = delete;
-    CardFileSource& operator=(const CardFileSource&) = delete;
-    bool ok() const { return f_ != nullptr; }
-    std::uint64_t size() const override { return size_; }
-    bool read(std::uint64_t offset, std::uint8_t* destination, std::size_t length) const override {
-        // A GameCube disc is at most 1.4 GB: every offset fits in a long.
-        return offset + length <= size_ && std::fseek(f_, static_cast<long>(offset), SEEK_SET) == 0 &&
-               std::fread(destination, 1, length, f_) == length;
-    }
-
-private:
-    FILE* f_;
-    std::uint64_t size_ = 0;
-};
-
-// A GameCube game's disc banner: from its image, or for a patch-only mod
-// (wii/launch/gcpatch.hpp) from the original the patch is made from.
+// A GameCube game's disc banner: from its image (an ISO, or the disc an
+// RVZ holds), or for a patch-only mod (wii/launch/gcpatch.hpp) from the
+// original the patch is made from.
 bool ReadGameCubeDiscBanner(const ImageGame& game, std::vector<std::uint8_t>& bnr, std::string& error) {
     const std::string& image = game.gc_patch_source.empty() ? game.path : game.gc_patch_source;
-    CardFileSource disc(image);
-    if (!disc.ok()) {
-        error = "cannot open " + image;
-        return false;
-    }
-    if (!read_gc_disc_file(disc, "/opening.bnr", bnr, error)) return false;
+    std::unique_ptr<ByteSource> disc;
+    if (!OpenGcDisc(image, disc, error)) return false;
+    if (!read_gc_disc_file(*disc, "/opening.bnr", bnr, error)) return false;
     GcBanner check;
     return parse_gc_banner(bnr.data(), bnr.size(), false, check, error);
 }

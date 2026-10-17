@@ -738,6 +738,18 @@ T = {
         "USBのパックは試験的な機能です。うまくいかない場合はSDにコピーしてください。",
         "Packs no USB são experimentais; se falhar, copie-os para o SD.",
         "I pacchetti su USB sono sperimentali; se non funziona, copiali sulla SD."),
+    # A GameCube game from an RVZ: the note at Start, and before check_rvz's
+    # reasons (in English, as a Wii game's) when it plays at the player's risk.
+    "RVZ is experimental for GameCube games; if it fails, use an ISO copy.": (
+        "El RVZ es experimental para los juegos de GameCube; si falla, usa una copia ISO.",
+        "GameCubeのゲームのRVZは試験的な機能です。うまくいかない場合はISOのコピーを使ってください。",
+        "O RVZ é experimental para jogos de GameCube; se falhar, use uma cópia ISO.",
+        "L'RVZ è sperimentale per i giochi GameCube; se non funziona, usa una copia ISO."),
+    "Play at your own risk:": (
+        "Juega bajo tu propia responsabilidad:",
+        "自己責任でプレイしてください:",
+        "Jogue por sua conta e risco:",
+        "Gioca a tuo rischio:"),
     # A pack that starts a Homebrew Channel app (CTGP Revolution): not working yet.
     "CTGP Revolution (a pack that starts a Homebrew Channel app) does not work from RiftWii yet: it stops on a black or green screen. Start CTGP from the Homebrew Channel instead.": (
         "CTGP Revolution (un pack que inicia una app del Homebrew Channel) todavía no funciona desde RiftWii: se queda en una pantalla negra o verde. Inicia CTGP desde el Homebrew Channel.",
@@ -2424,6 +2436,10 @@ KO = {
         "이 게임은 Wii의 메모리를 거의 전부 사용하며, 이 RVZ의 {1} KiB 블록은 게임 중에 약 {2} KB를 차지합니다. Newer Super Mario Bros. Wii가 이 때문에 멈췄습니다. 멈추면 Dolphin에서 블록 크기 32 KiB로 RVZ를 다시 변환하세요.",
     "Packs on USB are experimental; if it fails, copy them to SD.":
         "USB의 팩은 실험적인 기능입니다. 실패할 경우 SD 카드로 복사하세요.",
+    "RVZ is experimental for GameCube games; if it fails, use an ISO copy.":
+        "GameCube 게임의 RVZ는 실험적인 기능입니다. 실패할 경우 ISO 사본을 사용하세요.",
+    "Play at your own risk:":
+        "사용 시 발생하는 문제는 사용자의 책임입니다:",
     "CTGP Revolution (a pack that starts a Homebrew Channel app) does not work from RiftWii yet: it stops on a black or green screen. Start CTGP from the Homebrew Channel instead.":
         "CTGP Revolution(홈브류 채널 앱을 통해 실행하는 팩)은 아직 RiftWii에서 정상적으로 작동하지 않으며, 검은색 또는 녹색 화면에서 멈춥니다. 대신 홈브류 채널에서 CTGP를 실행하세요.",
     "CTGP Revolution does not work from RiftWii yet (see Start).":
@@ -3975,6 +3991,10 @@ FR = {
         "Ce jeu utilise presque toute la mémoire de la Wii, et les blocs de {1} Kio de ce RVZ en prennent environ {2} Ko pendant le jeu: c'est ainsi que Newer Super Mario Bros. Wii plantait. S'il plante, reconvertissez le RVZ dans Dolphin avec une taille de bloc de 32 Kio.",
     "Packs on USB are experimental; if it fails, copy them to SD.":
         "Les packs sur USB sont expérimentaux; en cas de problème, copiez-les sur la carte SD.",
+    "RVZ is experimental for GameCube games; if it fails, use an ISO copy.":
+        "Le RVZ est expérimental pour les jeux GameCube; en cas de problème, utilisez une copie ISO.",
+    "Play at your own risk:":
+        "À utiliser à vos risques :",
     "CTGP Revolution (a pack that starts a Homebrew Channel app) does not work from RiftWii yet: it stops on a black or green screen. Start CTGP from the Homebrew Channel instead.":
         "CTGP Revolution ne fonctionne pas encore depuis RiftWii (blocage sur écran noir ou vert). Lancez-le directement depuis la Chaîne Homebrew.",
     "CTGP Revolution does not work from RiftWii yet (see Start).":

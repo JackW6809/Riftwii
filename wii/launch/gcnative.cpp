@@ -21,6 +21,7 @@
 #include "gc_bt.h"
 #include "gc_card.h"
 #include "gc_rt.h"
+#include "gc_rvz.h"
 #include "loadersettings.hpp"
 #include "ios_reload.hpp"
 #include "log.hpp"
@@ -29,11 +30,16 @@
 #include "riftwii/gclayout.hpp"
 #include "riftwii/gcoverlay.hpp"
 #include "riftwii/gxpatches.hpp"
+#include "riftwii/hook.hpp"
 #include "riftwii/redirect.hpp"
+#include "riftwii/rvz.hpp"
 #include "riftwii/sha1.hpp"
 #include "riftwii_gc_bin.h"
+#include "riftwii_gc_rvz_rel.h"
+#include "riftwii_gc_rvz_zst.h"
 #include "sdfile.hpp"
 #include "sdio.hpp"
+#include "zstd.h"
 
 namespace riftwii::wii {
 
@@ -58,6 +64,15 @@ constexpr std::uint32_t kBi2Bytes = 0x2000;
 // below IOS (0x933E0000).
 constexpr std::uint32_t kGcMem2Data = GC_CARD_IMAGE + GC_CARD_BYTES;
 constexpr std::uint32_t kGcMem2DataMax = 0x00100000;
+// An RVZ game's group buffers and Zstandard's workspace (gc_rvz.h), right
+// after the data buffers: 2 MB, which holds 512 KiB chunks (two decoded
+// groups, one as stored and the decoder's 48 KB), still far below IOS.
+// Nothing needs to be in them at the jump, so they are not staged.
+constexpr std::uint32_t kGcRvzCache = kGcMem2Data + kGcMem2DataMax;
+constexpr std::uint32_t kGcRvzCacheMax = 0x00200000;
+// The decoder's workspace: its tables and a 4 KiB literal buffer, as for
+// Wii games (runtime/resident/rt_hook.h's RT_RVZ_DCTX_BYTES).
+constexpr std::uint32_t kGcRvzDecoderBytes = 0xC000;
 // Disc audio read ahead (the ring of runtime/gc's gc_rt_stream): about 0.6 s,
 // four top-ups of GC_STREAM_CHUNK, so several frames without one (the card
 // busy with the game's own reads) do not run it dry.
@@ -85,12 +100,11 @@ struct Dol {
     std::uint32_t entry = 0;
 };
 
-bool read_at(std::FILE* f, std::uint64_t offset, void* out, std::size_t length) {
-    if (fseeko(f, static_cast<off_t>(offset), SEEK_SET) != 0) return false;
-    return std::fread(out, 1, length, f) == length;
+bool read_at(const ByteSource& disc, std::uint64_t offset, void* out, std::size_t length) {
+    return disc.read(offset, static_cast<std::uint8_t*>(out), length);
 }
 
-bool read_dol(std::FILE* f, std::uint32_t at, Dol& out, std::string& error) {
+bool read_dol(const ByteSource& f, std::uint32_t at, Dol& out, std::string& error) {
     std::uint8_t h[0x100];
     if (!read_at(f, at, h, sizeof(h))) {
         error = "cannot read the game's executable";
@@ -1337,6 +1351,111 @@ static void apply_picture_and_language(const GcImage& image, Code& code, ReplayH
     }
 }
 
+// An RVZ game's reader as the loader sets it up (gc_rvz.h): the RVZ's
+// group table for the disc, written to the card, and where the RVZ and that
+// file lie on the card.
+struct GcRvzSetup {
+    RvzRuntimeTable table;
+    RvzBufferSizes sizes;
+    std::vector<gc_rvz_extent> extents;        // the RVZ
+    std::vector<gc_rvz_extent> table_extents;  // sd:/riftwii/rvz/<ID>.groups
+    std::uint32_t disc_bytes = 0;
+    std::uint32_t chunk_bytes = 0;
+    std::uint8_t header[GC_RVZ_HEADER_BYTES] = {};
+};
+
+// A file's pieces on the card as the reader takes them: which of its
+// sectors lie where.
+std::vector<gc_rvz_extent> extents_of(const Fat32File& file) {
+    std::vector<gc_rvz_extent> out;
+    std::uint32_t file_sector = 0;
+    for (const auto& fragment : file.fragments) {
+        gc_rvz_extent e{};
+        e.file_sector = file_sector;
+        e.device_sector = static_cast<std::uint32_t>(fragment.sector);
+        e.count = static_cast<std::uint32_t>(fragment.sector_count);
+        out.push_back(e);
+        file_sector += e.count;
+    }
+    return out;
+}
+
+bool prepare_gc_rvz(const GcImage& image, const ByteSource& disc, const Fat32File& file, GcRvzSetup& out,
+                    std::string& error) {
+    const auto* source = dynamic_cast<const RvzDiscSource*>(&disc);
+    if (source == nullptr) {
+        error = "the RVZ was not opened as one";
+        return false;
+    }
+    const RvzImage& rvz = source->image();
+    if (rvz.head().iso_size > 0xFFFFFFFFull) {
+        error = "the RVZ's disc is larger than a GameCube disc";
+        return false;
+    }
+    if (!rvz.disc_runtime_table(out.table, error)) {
+        error = "the RVZ's groups cannot be read during play: " + error;
+        return false;
+    }
+    out.sizes = rvz_buffer_sizes(out.table);
+    out.disc_bytes = static_cast<std::uint32_t>(rvz.head().iso_size);
+    out.chunk_bytes = rvz.head().chunk_size;
+    std::memcpy(out.header, rvz.head().disc_header.data(), sizeof(out.header));
+    out.extents = extents_of(file);
+    if (out.extents.size() > GC_RVZ_MAX_EXTENTS) {
+        error = "the RVZ is in " + std::to_string(out.extents.size()) + " pieces on the SD card, more than the " +
+                std::to_string(GC_RVZ_MAX_EXTENTS) + " RiftWii can follow during play: copy it to the card again";
+        return false;
+    }
+    // The group table, 8 bytes a group (gc_rvz.h), read from the card a
+    // sector at a time during play.
+    mkdir("sd:/riftwii", 0777);
+    mkdir("sd:/riftwii/rvz", 0777);
+    const std::string path = "sd:/riftwii/rvz/" + image.id + ".groups";
+    {
+        std::FILE* f = std::fopen(path.c_str(), "wb");
+        const bool written =
+            f && std::fwrite(out.table.entries.data(), 1, out.table.entries.size(), f) == out.table.entries.size();
+        if (f) std::fclose(f);
+        if (!written) {
+            error = "cannot write " + path;
+            return false;
+        }
+    }
+    forget_sd_layout();  // the raw lookups' folder listings predate it
+    Fat32File groups;
+    if (!resolve_sd_file(path, groups, error)) {
+        error = path + ": " + error;
+        return false;
+    }
+    out.table_extents = extents_of(groups);
+    if (out.table_extents.size() > GC_RVZ_TABLE_EXTENTS) {
+        error = path + " is in too many pieces on the SD card";
+        return false;
+    }
+    logf("GameCube: %s, %u groups of %u KiB; group table %s (%u bytes, %u piece(s)), the RVZ in %u piece(s)\n",
+         describe_rvz(rvz.head()).c_str(), static_cast<unsigned>(out.table.group_count),
+         static_cast<unsigned>(out.chunk_bytes / 1024), path.c_str(),
+         static_cast<unsigned>(out.table.entries.size()), static_cast<unsigned>(out.table_extents.size()),
+         static_cast<unsigned>(out.extents.size()));
+    return true;
+}
+
+// The RVZ build of the blob out of its zstd frame (Makefile.runtime).
+bool unpack_gc_rvz_blob(std::vector<std::uint8_t>& out, std::string& error) {
+    const unsigned long long bytes = ZSTD_getFrameContentSize(riftwii_gc_rvz_zst, riftwii_gc_rvz_zst_size);
+    if (bytes == ZSTD_CONTENTSIZE_UNKNOWN || bytes == ZSTD_CONTENTSIZE_ERROR || bytes > (1u << 20)) {
+        error = "the GameCube RVZ blob in this build is damaged";
+        return false;
+    }
+    out.resize(static_cast<std::size_t>(bytes));
+    const std::size_t got = ZSTD_decompress(out.data(), out.size(), riftwii_gc_rvz_zst, riftwii_gc_rvz_zst_size);
+    if (ZSTD_isError(got) || got != out.size()) {
+        error = "the GameCube RVZ blob in this build is damaged";
+        return false;
+    }
+    return true;
+}
+
 bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string& error) {
     logf("GameCube (native): %s (%s)\n", image.id.c_str(), image.path.c_str());
     // Test presses for Dolphin runs with no controller to press with
@@ -1358,18 +1477,25 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // list: tells whether a game's crash comes from the raised addresses
     // without a build for it.
     const bool test_keep_aram = stat("sd:/riftwii/gc/keeparam", &st_press) == 0;
+    const bool rvz = GcImageIsRvz(image.path);
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
+    // The disc: the image file itself, or the disc an RVZ holds.
+    std::unique_ptr<ByteSource> disc;
+    if (!OpenGcDisc(image.path, disc, error)) return false;
+    const ByteSource& f = *disc;
     // The game's view of the disc: the image, then the packs' window
-    // (gcoverlay.hpp) when there are packs.
+    // (gcoverlay.hpp) when there are packs. An RVZ's bytes are read from it
+    // by their offset in the image (the blob's RVZ build).
     std::vector<GcRun> placed;
-    if (!gc_disc_runs(file.fragments, file.entry.size, pack, placed, error)) return false;
-
-    std::FILE* f = std::fopen(image.path.c_str(), "rb");
-    if (!f) {
-        error = "cannot open " + image.path;
+    if (rvz) {
+        if (!gc_disc_runs_rvz(disc->size(), pack, placed, error)) return false;
+    } else if (!gc_disc_runs(file.fragments, file.entry.size, pack, placed, error)) {
         return false;
     }
+    GcRvzSetup rvz_setup;
+    if (rvz && !prepare_gc_rvz(image, *disc, file, rvz_setup, error)) return false;
+
     std::vector<std::uint8_t> boot(0x440), bi2(kBi2Bytes);
     Dol dol;
     bool ok = read_at(f, 0, boot.data(), boot.size()) && read_at(f, 0x440, bi2.data(), bi2.size());
@@ -1387,7 +1513,6 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         error = "cannot read the game's FST";
         ok = false;
     }
-    std::fclose(f);
     if (!ok) return false;
 
 
@@ -1421,9 +1546,18 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // ArenaHi under their ArenaLo, and OSInit's arena clear ran past MEM1's
     // end. Code and the blob's context stay in MEM1, within reach of the
     // game's own branches.
-    const gc_rt_header& h = *reinterpret_cast<const gc_rt_header*>(riftwii_gc_bin);
-    if (riftwii_gc_bin_size < sizeof(h) || h.magic != GC_RT_MAGIC || h.version != GC_RT_VERSION ||
-        h.size > riftwii_gc_bin_size) {
+    // The blob: the RVZ build for an RVZ (Zstandard and RVZ packing, 50 KB
+    // more of MEM1), the plain one for an ISO.
+    std::vector<std::uint8_t> rvz_blob;
+    const std::uint8_t* blob_bytes = riftwii_gc_bin;
+    std::size_t blob_size = riftwii_gc_bin_size;
+    if (rvz) {
+        if (!unpack_gc_rvz_blob(rvz_blob, error)) return false;
+        blob_bytes = rvz_blob.data();
+        blob_size = rvz_blob.size();
+    }
+    const gc_rt_header& h = *reinterpret_cast<const gc_rt_header*>(blob_bytes);
+    if (blob_size < sizeof(h) || h.magic != GC_RT_MAGIC || h.version != GC_RT_VERSION || h.size > blob_size) {
         error = "the GameCube blob is damaged";
         return false;
     }
@@ -1469,9 +1603,33 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const std::uint32_t bt_addr = mem2_take(sizeof(gc_bt));
     const std::uint32_t crash_addr = mem2_take(GC_CRASH_CARD_BYTES);
     const std::uint32_t runs_addr = mem2_take(runs_bytes);
+    // An RVZ's reader: its state and the pieces of the RVZ on the card.
+    const std::uint32_t rvz_state_bytes =
+        rvz ? gc_rvz_state_bytes(static_cast<std::uint32_t>(rvz_setup.extents.size())) : 0;
+    const std::uint32_t rvz_addr = rvz ? mem2_take(rvz_state_bytes) : 0;
     const std::uint32_t mem2_bytes = mem2_next - kGcMem2Data;
     if (mem2_bytes > kGcMem2DataMax) {
         error = "the packs' disc layout is too large";
+        return false;
+    }
+    // An RVZ's buffers, in their own window after those (kGcRvzCache): the
+    // decoder's workspace, a group as stored, and the two slots' decoded
+    // groups (the game's reads and the disc audio stream's).
+    std::uint32_t rvz_next = kGcRvzCache;
+    auto rvz_take = [&rvz_next](std::uint32_t bytes) {
+        const std::uint32_t at = rvz_next;
+        rvz_next = (at + bytes + 31u) & ~31u;
+        return at;
+    };
+    const std::uint32_t rvz_dctx_addr = rvz && rvz_setup.sizes.decoder ? rvz_take(kGcRvzDecoderBytes) : 0;
+    const std::uint32_t rvz_stored_addr = rvz && rvz_setup.sizes.stored ? rvz_take(rvz_setup.sizes.stored) : 0;
+    const std::uint32_t rvz_slot_addr[GC_RVZ_SLOTS] = {rvz ? rvz_take(rvz_setup.sizes.group) : 0,
+                                                       rvz ? rvz_take(rvz_setup.sizes.group) : 0};
+    if (rvz_next - kGcRvzCache > kGcRvzCacheMax) {
+        logf("GameCube: the RVZ's %u KiB chunks need %u KB of buffers in game, more than the %u KB set aside\n",
+             static_cast<unsigned>(rvz_setup.chunk_bytes / 1024), static_cast<unsigned>((rvz_next - kGcRvzCache) / 1024),
+             static_cast<unsigned>(kGcRvzCacheMax / 1024));
+        error = "This RVZ's chunks are too large to read during play: convert it again in Dolphin with 128 KiB chunks.";
         return false;
     }
     // Built here, zeroed, and moved into MEM2 just before the jump with
@@ -1512,19 +1670,34 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
              "Remotes 0x%08x, crash message 0x%08x, %u run(s) 0x%08x\n",
              kGcMem2Data, static_cast<unsigned>(mem2_bytes), bounce_addr, stream_addr, adp_addr, trace_addr, bt_addr,
              crash_addr, static_cast<unsigned>(placed.size()), runs_addr);
+        if (rvz)
+            logf("GameCube: RVZ reader 0x%08x (%u bytes); buffers 0x%08x (%u bytes): decoder 0x%08x, stored group "
+                 "0x%08x (%u bytes), the game's group 0x%08x and the stream's 0x%08x (%u bytes each)\n",
+                 rvz_addr, static_cast<unsigned>(rvz_state_bytes), kGcRvzCache,
+                 static_cast<unsigned>(rvz_next - kGcRvzCache), rvz_dctx_addr, rvz_stored_addr,
+                 static_cast<unsigned>(rvz_setup.sizes.stored), rvz_slot_addr[0], rvz_slot_addr[1],
+                 static_cast<unsigned>(rvz_setup.sizes.group));
         const std::uint32_t game_floor = std::max(stack.address, arena_lo);
         if (game_floor > arena_hi) {
             logf("GameCube: the game's stack or arena starts at 0x%08x, above the arena's top 0x%08x: the FST and "
                  "RiftWii's part leave it no room\n",
                  game_floor, arena_hi);
-            error = "the game keeps its stack where RiftWii's part has to be (top of MEM1)";
+            error = rvz ? "the game keeps its stack where RiftWii's part has to be (top of MEM1), which is larger for "
+                          "an RVZ: use an ISO of it"
+                        : "the game keeps its stack where RiftWii's part has to be (top of MEM1)";
             return false;
         }
     }
 
     // The blob straight into place (above RiftWii's heap), its table to
     // MEM2's stage.
-    std::memcpy(reinterpret_cast<void*>(blob_addr), riftwii_gc_bin, h.size);
+    std::memcpy(reinterpret_cast<void*>(blob_addr), blob_bytes, h.size);
+    // The RVZ build's references to Zstandard's tables, for where it now is.
+    if (rvz && !apply_resident_relocs(reinterpret_cast<std::uint8_t*>(blob_addr), h.size, riftwii_gc_rvz_rel,
+                                      riftwii_gc_rvz_rel_size, blob_addr, error)) {
+        error = "the GameCube RVZ blob: " + error;
+        return false;
+    }
     auto* ctx = reinterpret_cast<gc_rt_context*>(blob_addr + h.context_offset);
     auto* runs = static_cast<gc_rt_run*>(staged(runs_addr));
     for (std::size_t i = 0; i < placed.size(); ++i) {
@@ -1535,6 +1708,9 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         if (r.kind == GcRun::Kind::Sd) {
             runs[i].kind = GC_RUN_SD;
             runs[i].source = static_cast<std::uint32_t>(r.sector);
+        } else if (r.kind == GcRun::Kind::Image) {
+            runs[i].kind = GC_RUN_RVZ;
+            runs[i].source = static_cast<std::uint32_t>(r.image_offset);
         } else if (r.kind == GcRun::Kind::Fst) {
             runs[i].kind = GC_RUN_MEM;
             runs[i].source = fst_addr + static_cast<std::uint32_t>(r.fst_offset);
@@ -1720,6 +1896,31 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     }
     ctx->runs = runs_addr;
     ctx->run_count = static_cast<std::uint32_t>(placed.size());
+    if (rvz) {
+        // The RVZ's reader (gc_rvz.h), staged with the rest of MEM2's data;
+        // its buffers need nothing in them.
+        auto* reader = static_cast<gc_rvz*>(staged(rvz_addr));
+        reader->magic = GC_RVZ_MAGIC;
+        reader->disc_bytes = rvz_setup.disc_bytes;
+        reader->chunk_bytes = rvz_setup.chunk_bytes;
+        reader->group_count = rvz_setup.table.group_count;
+        reader->stored_buffer = rvz_stored_addr;
+        reader->stored_bytes = rvz_stored_addr ? rvz_setup.sizes.stored : 0;
+        reader->dctx_buffer = rvz_dctx_addr;
+        reader->dctx_bytes = rvz_dctx_addr ? kGcRvzDecoderBytes : 0;
+        for (std::uint32_t s = 0; s < GC_RVZ_SLOTS; ++s) {
+            reader->slots[s].buffer = rvz_slot_addr[s];
+            reader->slots[s].buffer_bytes = rvz_setup.sizes.group;
+            reader->slots[s].group = GC_RVZ_NO_GROUP;
+        }
+        std::memcpy(reader->header, rvz_setup.header, sizeof(reader->header));
+        reader->entry_sector = GC_RVZ_NO_GROUP;
+        reader->table_extent_count = static_cast<std::uint32_t>(rvz_setup.table_extents.size());
+        std::copy(rvz_setup.table_extents.begin(), rvz_setup.table_extents.end(), reader->table_extents);
+        reader->extent_count = static_cast<std::uint32_t>(rvz_setup.extents.size());
+        std::copy(rvz_setup.extents.begin(), rvz_setup.extents.end(), reader->extents);
+        ctx->rvz = rvz_addr;
+    }
     ctx->set_alarm = low.set_alarm;
     ctx->alarm_entry = blob_addr + h.alarm_entry;
     ctx->bounce = bounce_addr;
