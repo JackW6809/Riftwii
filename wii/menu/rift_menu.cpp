@@ -3040,6 +3040,7 @@ static int MenuSource(FrontendState& state)
 			icon->Draw(b.x, b.y, b.w, b.h, b.alpha, &clip);
 			return true;
 		});
+	grid.SetPagePeek(riftwii::wii::Settings().page_peek != "off");
 	grid.SetItems(&items);
 	grid.Focus(g_homeFocus);
 	HomeBar bar;

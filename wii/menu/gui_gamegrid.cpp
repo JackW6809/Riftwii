@@ -494,11 +494,14 @@ int GuiGameGrid::ArrowAt(int x, int y) const {
 void GuiGameGrid::DrawNameTile(int index, Slot& s, float x, float y, bool on, int alpha) {
     const int tileW = Geo().tileW, tileH = Geo().tileH;
     const GridItem& item = (*items)[index];
-    // The texts are drawn at the grid's alpha times their own: as faded as
-    // the tile (a peeking or sliding one).
-    const int gridAlpha = GetAlpha();
-    const int textAlpha = gridAlpha > 0 ? std::min(255, alpha * 255 / gridAlpha) : 0;
-    for (GuiText* t : {s.lines[0], s.lines[1], s.id, s.badge, s.mods}) t->SetAlpha(textAlpha);
+    if (PagePeek()) {
+        // The texts are drawn at the grid's alpha times their own: as faded
+        // as the tile, peeking or sliding along the strip. (Elsewhere they
+        // stay as they were, whole while the tile fades.)
+        const int gridAlpha = GetAlpha();
+        const int textAlpha = gridAlpha > 0 ? std::min(255, alpha * 255 / gridAlpha) : 0;
+        for (GuiText* t : {s.lines[0], s.lines[1], s.id, s.badge, s.mods}) t->SetAlpha(textAlpha);
+    }
     if (channels && skin::channelCard9.data) {
         // A game without a banner in the Channels view: the channel's own
         // box (as the icons' and the empty places'), with its name in it.
@@ -678,7 +681,7 @@ void GuiGameGrid::DrawChannelLabel(int slot, int alpha) {
 // Channels only, as the Wii Menu's home screen: the other views' tiles
 // fill the screen between the arrows.
 bool GuiGameGrid::PagePeek() const {
-    return channels && iconDrawer && skin::channelCard9.data && riftwii::wii::Settings().page_peek != "off";
+    return pagePeek && channels && iconDrawer && skin::channelCard9.data;
 }
 
 // A page's columns and the gap after the last: the next page's first
