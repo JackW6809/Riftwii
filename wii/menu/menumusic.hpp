@@ -23,9 +23,12 @@ bool MenuMusicFound();
 // is playing; the caller then shuts the audio down itself, as before.
 bool MenuMusicKeepForLaunch();
 // Fades the kept music out over half a second, stops its decoder and shuts
-// the audio down, saying `why` in the log. Called before the launch lets
-// go of what the running IOS gives it (an IOS reload, or the game taking
-// over) and when a launch fails. Does nothing when no music was kept.
+// the audio down, saying `why` in the log. Called before the game's IOS
+// is loaded or the game is loaded over RiftWii, and when a launch fails.
+// Does nothing when no music was kept.
 void LaunchMusicEnd(const char* why);
+// Says in the log, with how far into the track it is, whether the kept
+// music is still playing `when` (a cIOS reload, which it plays across).
+void LaunchMusicNote(const char* when);
 
 }  // namespace riftwii::wii

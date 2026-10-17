@@ -122,4 +122,14 @@ void LaunchMusicEnd(const char* why) {
          static_cast<unsigned>(ticks_to_millisecs(gettime() - start)), why);
 }
 
+void LaunchMusicNote(const char* when) {
+    if (!g_kept_for_launch) return;
+    // The track's position moves only while the decoder runs, so two notes
+    // either side of a reload show whether it played across.
+    const s32 at_ms = GetTimeOgg();
+    const bool running = StatusOgg() == 1;
+    logf("Menu music: %s %s, %d.%01d s into the track\n", running ? "playing" : "NOT playing", when,
+         static_cast<int>(at_ms / 1000), static_cast<int>(at_ms % 1000 / 100));
+}
+
 }  // namespace riftwii::wii

@@ -1789,6 +1789,17 @@ std::string release_for_reload() {
     return note;
 }
 
+// Before a launch's cIOS reload: the menu's music plays on across it
+// (reload_ios says why that is safe), or ends here as it first did with
+// debug_off = ciosmusic, should the new way misbehave on a console.
+void music_before_cios_reload(const char* what) {
+    if (debug_off("ciosmusic")) {
+        LaunchMusicEnd((std::string(what) + " is loaded next; debug_off = ciosmusic").c_str());
+    } else {
+        LaunchMusicNote("before the reload");
+    }
+}
+
 // After the reload, the log open again: what release_for_reload found, and
 // the heap as the new IOS left it.
 void log_release_heap(const std::string& before_reload) {
@@ -1812,7 +1823,7 @@ bool activate_disc_cios(int cios_slot, const char* log_path, std::string& error,
         }
         logf("Disc: reload IOS%d for %s; releasing Wii Remotes, USB, SD and DI\n", slot, purpose);
         mem::CheckHeap("before the cIOS reload");
-        LaunchMusicEnd("the disc's cIOS is loaded next");
+        music_before_cios_reload("the disc's cIOS");
         LogClose();
         const std::string released = release_for_reload();
         const ReloadResult r = reload_ios(slot, error, true);
@@ -1826,6 +1837,7 @@ bool activate_disc_cios(int cios_slot, const char* log_path, std::string& error,
             continue;
         }
         logf("Disc: reloaded IOS%d rev %d (%s)\n", IOS_GetVersion(), IOS_GetRevision(), last_reload_detail().c_str());
+        LaunchMusicNote("after the reload");
         error.clear();
         return true;
     }
@@ -1928,7 +1940,7 @@ bool activate_image_game(const ImageGame& game, int cios_slot, void*& storage, s
     // hardware access, which an IOS reload ends: the running IOS's ES is
     // told to leave it on for the cIOS.
     if (block_ios_reload) keep_hardware_access(device_name(game.device));
-    LaunchMusicEnd("the game's cIOS is loaded next");
+    music_before_cios_reload("the game's cIOS");
     LogClose();
     const std::string released = release_for_reload();
     const PadPairings pads_before = ReadPadPairings();
@@ -1949,6 +1961,7 @@ bool activate_image_game(const ImageGame& game, int cios_slot, void*& storage, s
     log_release_heap(released);
     logf("%s: reloaded IOS%d rev %d for slot %d (%s)\n", device_name(game.device), running, revision, cios_slot,
          last_reload_detail().c_str());
+    LaunchMusicNote("after the reload");
     {
         // fakemote writes its pairings when its IOS starts; entries that
         // appear across this reload prove it is in this slot.
