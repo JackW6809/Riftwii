@@ -1474,6 +1474,14 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     if (bi2_arg_offset != 0)
         logf("GameCube: bi2 argument offset 0x%x: the game's __start sets ArenaHi from it (0x%08x), below the blob\n",
              static_cast<unsigned>(bi2_arg_offset), static_cast<unsigned>((bi2_addr + bi2_arg_offset + 4) & ~31u));
+    // A simulated memory size above a retail console's 24 MB (a development
+    // kit's 48 MB left in bi2.bin) is brought down to 24 MB, as Swiss does
+    // for a disc that has one: a game that sizes its memory from it writes
+    // past MEM1's end.
+    if (be32(&bi2[4]) > 0x01800000) {
+        store32(bi2_addr + 4, 0x01800000);
+        logf("GameCube: bi2's simulated memory size lowered to a GameCube's 24 MB\n");
+    }
 
     // The trace and the memory cards live in sd:/riftwii/gc. mkdir makes one
     // level at a time, and a launch that did not come through the menu
