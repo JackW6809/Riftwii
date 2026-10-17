@@ -27,6 +27,7 @@
 #include "riftwii/fat32.hpp"
 #include "riftwii/gccard.hpp"
 #include "riftwii/gcoverlay.hpp"
+#include "riftwii/gxpatches.hpp"
 #include "riftwii/redirect.hpp"
 #include "riftwii/sha1.hpp"
 #include "riftwii_gc_bin.h"
@@ -1602,13 +1603,19 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const bool on_wii = !running_in_dolphin();
     const unsigned dsp_patched = on_wii ? patch_dsp_programs(dol) : 0;
     std::vector<std::uint32_t> stub_words;
+    // A game whose own checks need the SDK's ARAM addresses keeps them
+    // (gxpatches.hpp's gc_keeps_aram_addresses).
+    const bool keep_aram = gc_keeps_aram_addresses(image.id);
     const unsigned aram_raised =
-        dsp_patched ? 0 : raise_aram_base(code, find_aram_check(code), stubs_addr, stub_words);
+        dsp_patched || keep_aram ? 0 : raise_aram_base(code, find_aram_check(code), stubs_addr, stub_words);
     for (std::size_t i = 0; i < stub_words.size(); ++i) store32(stubs_addr + 4 * i, stub_words[i]);
     DCFlushRange(reinterpret_cast<void*>(stubs_addr), kStubBytes);
     ICInvalidateRange(reinterpret_cast<void*>(stubs_addr), kStubBytes);
     if (dsp_patched)
         logf("GameCube: %u sound program(s) patched to read ARAM from MEM2 (a Wii)\n", dsp_patched);
+    else if (keep_aram)
+        logf("GameCube: ARAM addresses left as the SDK gives them: %s checks them against its own limit "
+             "(its sound may play wrong)\n", image.id.c_str());
     else
         logf("GameCube: ARAM addresses from 0x10004000 (%u place(s)) for the sound program to read MEM2 (%s)\n",
              aram_raised, on_wii ? "a Wii, the program not one Nintendont's list knows" : "Dolphin");

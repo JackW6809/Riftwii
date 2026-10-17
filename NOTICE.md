@@ -119,6 +119,11 @@ only (how its choices files and macros work), never copied. Behavioural referenc
   The lookup tables themselves are not in RiftWii: the loader finds each
   game's own (`find_extension_tables` in `src/patching/wpadlog.cpp`) and the
   translator uses them where they are.
+- The GameCube loader's per-game list `gc_keeps_aram_addresses`
+  (`src/patching/gxpatches.cpp`) rests on Mario Party 4's sound manager as
+  its community decompilation shows it (https://github.com/mariopartyrd/marioparty4,
+  `src/msm/msmsys.c` and `src/game/audio.c`, main as of 2026-10-17): what
+  the game checks, read for behaviour only; no code was used.
 - Game banners and channel icons (`src/disc/bnr.cpp`, `src/disc/tpl.cpp`,
   `src/disc/brlyt.cpp`, `src/disc/brlan.cpp`, `src/disc/wiicrypt.cpp`, `wii/menu/banners.*`,
   `wii/menu/bannerplay.*`, `wii/menu/otpkey.*`, `src/disc/bnrsound.cpp`, `wii/menu/bannersound.*`)

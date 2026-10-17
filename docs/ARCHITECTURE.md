@@ -196,7 +196,9 @@ start-up leaves it, and jumps to the game.
   callbacks; a GameCube drive's timing unless Disc reads is Fast; disc
   audio streaming mixed into the game's AI DMA; ARAM kept in MEM2 at
   `0x90000000` (a Wii's ARAM DMA moves nothing in Wii mode), with the
-  game's ARAM addresses raised so its own sound program reads MEM2, and
+  game's ARAM addresses raised so its own sound program reads MEM2
+  (except in games whose own checks need them as they are,
+  `gc_keeps_aram_addresses`: Mario Party 4), and
   each `ARStartDMA` called with interrupts off returning only once its
   interrupt is pending (a Wii's
   instant transfers otherwise let ARQ's chained chunks finish in the
