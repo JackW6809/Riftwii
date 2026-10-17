@@ -26,6 +26,7 @@
 #include "log.hpp"
 #include "riftwii/fat32.hpp"
 #include "riftwii/gccard.hpp"
+#include "riftwii/gclayout.hpp"
 #include "riftwii/gcoverlay.hpp"
 #include "riftwii/gxpatches.hpp"
 #include "riftwii/redirect.hpp"
@@ -52,6 +53,11 @@ constexpr std::uint32_t kLoaderCeiling = 0x81200000;  // its heap's top (memlimi
 constexpr std::uint32_t kGameFloor = 0x80003100;
 constexpr std::uint32_t kBounceBytes = 0x8000;
 constexpr std::uint32_t kBi2Bytes = 0x2000;
+// The blob's data buffers in MEM2 (the layout in LaunchGcNative): after
+// the memory card's image, which follows the game's 16 MB of ARAM, and far
+// below IOS (0x933E0000).
+constexpr std::uint32_t kGcMem2Data = GC_CARD_IMAGE + GC_CARD_BYTES;
+constexpr std::uint32_t kGcMem2DataMax = 0x00100000;
 // Disc audio read ahead (the ring of runtime/gc's gc_rt_stream): about 0.6 s,
 // four top-ups of GC_STREAM_CHUNK, so several frames without one (the card
 // busy with the game's own reads) do not run it dry.
@@ -1394,14 +1400,27 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
          low.read, low.seek, low.disk_id, low.inquiry, low.stop_motor, low.request_error, low.audio_stream,
          low.audio_status, low.audio_config, low.reset, low.set_alarm);
 
-    // Top of MEM1, as the apploader leaves it: the FST, then (ours) the
-    // blob's buffers, the blob, the DI registers' stand-in and BI2's copy;
-    // the arena below. BI2 sits lowest, right on the arena's top: a disc
-    // whose bi2.bin still has developer arguments (Soulcalibur II's
-    // "Final_US.elf -O ...", argument offset 0x1FCC) has the SDK's __start
-    // set ArenaHi to BI2 plus that offset, and OSInit then clears the
-    // arena up to there. Above everything of ours, that wiped the blob;
-    // below it, the new ArenaHi stays inside BI2's own copy.
+    // Where RiftWii's part goes. MEM1's top, as the apploader leaves it:
+    // the FST, then (ours) the blob with its context, the code moved from
+    // IOS's counter, the ARAM stubs, the memory card's struct and the way
+    // back's block, packed around the DI registers' stand-in
+    // (riftwii/gclayout.hpp), and BI2's copy under them all, right on the
+    // arena's top. BI2 sits lowest: a disc whose bi2.bin still has
+    // developer arguments (Soulcalibur II's "Final_US.elf -O ...",
+    // argument offset 0x1FCC) has the SDK's __start set ArenaHi to BI2
+    // plus that offset, and OSInit then clears the arena up to there.
+    // Above everything of ours, that wiped the blob; below it, the new
+    // ArenaHi stays inside BI2's own copy.
+    //
+    // The blob's data buffers live in MEM2 after the memory card's image
+    // (kGcMem2Data): IOS reads and writes MEM2 as well as MEM1, the game
+    // never sees it, and it keeps the top of MEM1 small. Some games link
+    // their stack and ArenaLo up there: Mario Golf: Toadstool Tour and
+    // Mario Power Tennis start the stack at 0x817dc000, 0x24000 bytes under
+    // MEM1's end. The 0x2c000 bytes RiftWii's part took there before put
+    // ArenaHi under their ArenaLo, and OSInit's arena clear ran past MEM1's
+    // end. Code and the blob's context stay in MEM1, within reach of the
+    // game's own branches.
     const gc_rt_header& h = *reinterpret_cast<const gc_rt_header*>(riftwii_gc_bin);
     if (riftwii_gc_bin_size < sizeof(h) || h.magic != GC_RT_MAGIC || h.version != GC_RT_VERSION ||
         h.size > riftwii_gc_bin_size) {
@@ -1409,40 +1428,100 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         return false;
     }
     // The context the blob reserves (gc_entry.S) must hold the whole
-    // struct: one that ends past the blob writes into what lies above it,
-    // the game's FST.
+    // struct: one that ends past the blob writes into what lies above it.
     if (h.context_offset + sizeof(gc_rt_context) > h.size) {
         error = "the GameCube blob's context is smaller than gc_rt_context";
         return false;
     }
-    const std::uint32_t runs_bytes = static_cast<std::uint32_t>(placed.size() * sizeof(gc_rt_run));
     const std::uint32_t fst_addr = (kMem1Top - fst_max) & ~31u;
-    const std::uint32_t bounce_addr = (fst_addr - kBounceBytes) & ~31u;
-    const std::uint32_t adp_addr = (bounce_addr - kStreamBytes) & ~31u;
-    const std::uint32_t stream_addr = (adp_addr - sizeof(gc_rt_stream)) & ~31u;
-    const std::uint32_t trace_addr = (stream_addr - 512) & ~31u;
-    const std::uint32_t bt_addr = (trace_addr - sizeof(gc_bt)) & ~31u;
-    const std::uint32_t card_addr = (bt_addr - sizeof(gc_card)) & ~31u;
-    const std::uint32_t leave_addr = (card_addr - kLeaveBytes) & ~31u;
-    const std::uint32_t crash_addr = (leave_addr - GC_CRASH_CARD_BYTES) & ~31u;
-    const std::uint32_t runs_addr = (crash_addr - runs_bytes) & ~31u;
-    const std::uint32_t stubs_addr = (runs_addr - kStubBytes) & ~31u;
-    const std::uint32_t moved_addr = (stubs_addr - kMovedBytes) & ~31u;
-    const std::uint32_t blob_addr = (moved_addr - h.size) & ~31u;
-    // The DI registers' stand-in: its address must end in 0x6000, as the
-    // game adds that to the upper half it loads.
-    const std::uint32_t di_regs = ((blob_addr - 0x40 - 0x6000) & ~0xFFFFu) + 0x6000;
-    const std::uint32_t bi2_addr = (di_regs - kBi2Bytes) & ~31u;
-    const std::uint32_t arena_hi = bi2_addr;
+    enum Mem1Piece { kPieceBlob, kPieceCard, kPieceMoved, kPieceLeave, kPieceStubs, kMem1Pieces };
+    std::vector<GcMem1Piece> mem1_pieces(kMem1Pieces);
+    mem1_pieces[kPieceBlob].bytes = h.size;  // the biggest first: it packs best
+    mem1_pieces[kPieceCard].bytes = sizeof(gc_card);
+    mem1_pieces[kPieceMoved].bytes = kMovedBytes;
+    mem1_pieces[kPieceLeave].bytes = kLeaveBytes;
+    mem1_pieces[kPieceStubs].bytes = kStubBytes;
+    const GcMem1Plan mem1 = plan_gc_mem1(fst_addr, mem1_pieces, kBi2Bytes);
+    const std::uint32_t blob_addr = mem1_pieces[kPieceBlob].address;
+    const std::uint32_t card_addr = mem1_pieces[kPieceCard].address;
+    const std::uint32_t moved_addr = mem1_pieces[kPieceMoved].address;
+    const std::uint32_t leave_addr = mem1_pieces[kPieceLeave].address;
+    const std::uint32_t stubs_addr = mem1_pieces[kPieceStubs].address;
+    const std::uint32_t di_regs = mem1.di_regs;
+    const std::uint32_t bi2_addr = mem1.bi2;
+    const std::uint32_t arena_hi = mem1.arena_hi;
     if (arena_hi < kLoaderCeiling) {
         error = "the game's FST is too large";
         return false;
     }
+    // MEM2, one after another from kGcMem2Data, each 32-byte aligned.
+    const std::uint32_t runs_bytes = static_cast<std::uint32_t>(placed.size() * sizeof(gc_rt_run));
+    std::uint32_t mem2_next = kGcMem2Data;
+    auto mem2_take = [&mem2_next](std::uint32_t bytes) {
+        const std::uint32_t at = mem2_next;
+        mem2_next = (at + bytes + 31u) & ~31u;
+        return at;
+    };
+    const std::uint32_t bounce_addr = mem2_take(kBounceBytes);
+    const std::uint32_t adp_addr = mem2_take(kStreamBytes);
+    const std::uint32_t stream_addr = mem2_take(sizeof(gc_rt_stream));
+    const std::uint32_t trace_addr = mem2_take(512);
+    const std::uint32_t bt_addr = mem2_take(sizeof(gc_bt));
+    const std::uint32_t crash_addr = mem2_take(GC_CRASH_CARD_BYTES);
+    const std::uint32_t runs_addr = mem2_take(runs_bytes);
+    const std::uint32_t mem2_bytes = mem2_next - kGcMem2Data;
+    if (mem2_bytes > kGcMem2DataMax) {
+        error = "the packs' disc layout is too large";
+        return false;
+    }
+    // Built here, zeroed, and moved into MEM2 just before the jump with
+    // the card's image: the loader's own heap may be where it goes.
+    std::vector<std::uint8_t> mem2_stage(mem2_bytes, 0);
+    auto staged = [&mem2_stage](std::uint32_t mem2_address) {
+        return static_cast<void*>(mem2_stage.data() + (mem2_address - kGcMem2Data));
+    };
 
-    // The blob and its table, straight into place (above RiftWii's heap).
+    // The game's own layout at the top of MEM1: its stack's top (the r1
+    // that __init_registers sets) and ArenaLo (OSInit's __ArenaLo). The
+    // arena's top has to stay at or above both, or OSInit's clear wraps
+    // and the stack runs down into RiftWii's part.
+    {
+        const GcCodeReader read = [&code](std::uint32_t address, std::uint32_t& word) {
+            if (!code.has(address)) return false;
+            word = code.at(address);
+            return true;
+        };
+        std::vector<GcTextRange> text_ranges;
+        for (const Section& s : dol.text)
+            text_ranges.push_back({s.address, s.address + static_cast<std::uint32_t>(s.bytes.size())});
+        const GcStackTop stack = find_gc_stack_top(read, dol.entry);
+        const std::uint32_t arena_lo = find_gc_arena_lo(read, text_ranges);
+        logf("GameCube: the game's stack top 0x%08x (set at 0x%08x), its ArenaLo 0x%08x (0: not found)\n",
+             stack.address, stack.set_at, arena_lo);
+        logf("GameCube: MEM1 from the arena's top 0x%08x: BI2 0x%08x, DI stand-in 0x%08x, blob 0x%08x (%u bytes, "
+             "context 0x%08x), memory card 0x%08x, way back 0x%08x, code at IOS's counter 0x%08x, ARAM stubs "
+             "0x%08x, FST 0x%08x (%u bytes)\n",
+             arena_hi, bi2_addr, di_regs, blob_addr, static_cast<unsigned>(h.size), blob_addr + h.context_offset,
+             card_addr, leave_addr, moved_addr, stubs_addr, fst_addr, static_cast<unsigned>(fst_max));
+        logf("GameCube: MEM2 0x%08x (%u bytes): bounce 0x%08x, stream 0x%08x (ring 0x%08x), trace 0x%08x, Wii "
+             "Remotes 0x%08x, crash message 0x%08x, %u run(s) 0x%08x\n",
+             kGcMem2Data, static_cast<unsigned>(mem2_bytes), bounce_addr, stream_addr, adp_addr, trace_addr, bt_addr,
+             crash_addr, static_cast<unsigned>(placed.size()), runs_addr);
+        const std::uint32_t game_floor = std::max(stack.address, arena_lo);
+        if (game_floor > arena_hi) {
+            logf("GameCube: the game's stack or arena starts at 0x%08x, above the arena's top 0x%08x: the FST and "
+                 "RiftWii's part leave it no room\n",
+                 game_floor, arena_hi);
+            error = "the game keeps its stack where RiftWii's part has to be (top of MEM1)";
+            return false;
+        }
+    }
+
+    // The blob straight into place (above RiftWii's heap), its table to
+    // MEM2's stage.
     std::memcpy(reinterpret_cast<void*>(blob_addr), riftwii_gc_bin, h.size);
     auto* ctx = reinterpret_cast<gc_rt_context*>(blob_addr + h.context_offset);
-    auto* runs = reinterpret_cast<gc_rt_run*>(runs_addr);
+    auto* runs = static_cast<gc_rt_run*>(staged(runs_addr));
     for (std::size_t i = 0; i < placed.size(); ++i) {
         const GcRun& r = placed[i];
         runs[i].disc = static_cast<std::uint32_t>(r.disc);
@@ -1631,7 +1710,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     if (broken_promise && !g_crash_card.empty())
         logf("GameCube: the crash screen's message is left out, as it promises a way back there is not\n");
     if (g_crash_card.size() == GC_CRASH_CARD_BYTES && !broken_promise) {
-        std::memcpy(reinterpret_cast<void*>(crash_addr), g_crash_card.data(), GC_CRASH_CARD_BYTES);
+        std::memcpy(staged(crash_addr), g_crash_card.data(), GC_CRASH_CARD_BYTES);
         ctx->crash_card = crash_addr;
     }
     ctx->runs = runs_addr;
@@ -1647,8 +1726,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     ctx->beat_ticks = 30375000;  // half a second of the bus clock / 4
     ctx->di_regs = di_regs;
     std::memset(reinterpret_cast<void*>(di_regs), 0, 0x40);
-    auto* stream = reinterpret_cast<gc_rt_stream*>(stream_addr);
-    std::memset(stream, 0, sizeof(*stream));
+    auto* stream = static_cast<gc_rt_stream*>(staged(stream_addr));
     stream->buf = adp_addr;
     stream->buf_bytes = kStreamBytes;
     stream->sample = 28;
@@ -1656,9 +1734,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     ctx->trace_sector = trace_sector;
     ctx->trace_count = trace_count;
     ctx->trace_buf = trace_addr;
-    // The Wii Remotes' state (gc_bt.h): the blob opens the Bluetooth
-    // controller at the game's first PADRead.
-    std::memset(reinterpret_cast<void*>(bt_addr), 0, sizeof(gc_bt));
+    // The Wii Remotes' state (gc_bt.h), zeroed in MEM2's stage: the blob
+    // opens the Bluetooth controller at the game's first PADRead.
     ctx->bt = bt_addr;
     auto* memcard = reinterpret_cast<gc_card*>(card_addr);
     std::memset(memcard, 0, sizeof(*memcard));
@@ -1800,18 +1877,23 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
          ai_dma ? "" : " (not found: no disc audio streaming)");
     if (low.reset != 0) code.put(low.reset, 0x4E800020);  // blr: the drive is not there to reset
-    // Where everything above the arena went, for reading a crash's
-    // addresses (Wind Waker and Metroid Prime were seen running at the
-    // memory card's struct).
-    logf("GameCube: above the arena (0x%08x): blob 0x%08x (context 0x%08x), code at IOS's counter 0x%08x, "
-         "ARAM stubs 0x%08x, memory card 0x%08x, Wii Remotes 0x%08x, trace 0x%08x, FST 0x%08x\n",
-         arena_hi, blob_addr, blob_addr + h.context_offset, moved_addr, stubs_addr, card_addr, bt_addr, trace_addr,
-         fst_addr);
 
     // The SD card goes to the blob only now, after every patch above, so
     // their log lines still reach boot.log (testers send it). The card,
     // opened and selected: IOS lets one owner have the slot, so the file
     // system lets go first, as a Wii game's launch does.
+    // What goes to MEM2 at the jump, as one block: the card's image (when
+    // the game has a card) and the blob's buffers right after it.
+    const std::uint32_t mem2_card_bytes = ctx->card ? GC_CARD_BYTES : 0;
+    const std::uint32_t mem2_from = kGcMem2Data - mem2_card_bytes;
+    std::vector<std::uint8_t> mem2_image;
+    if (ctx->card) {
+        card_image.resize(GC_CARD_BYTES + mem2_bytes);
+        std::memcpy(card_image.data() + GC_CARD_BYTES, mem2_stage.data(), mem2_bytes);
+        mem2_image.swap(card_image);
+    } else {
+        mem2_image.swap(mem2_stage);
+    }
     logf("Releasing the SD card (the log ends here; the rest is on screen)\n");
     LogClose();
     fatUnmount("sd:");
@@ -1901,6 +1983,12 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // A first trace record through the blob's own IPC, as the game will
     // use it. The guarded bytes in memory before the checks' IOS requests compare them.
     DCFlushRange(reinterpret_cast<void*>(0x80003100), 0x100);
+    // MEM2 now, before the blob's first trace record (its buffer is
+    // there): one move of what was put together above. The heap it comes
+    // from may be where it goes; memmove copes with one overlapping copy,
+    // and nothing reads the heap after.
+    std::memmove(reinterpret_cast<void*>(mem2_from), mem2_image.data(), mem2_image.size());
+    DCFlushRange(reinterpret_cast<void*>(mem2_from), mem2_image.size());
     reinterpret_cast<void (*)(std::uint32_t)>(blob_addr + h.trace_now)(GC_TRACE_JUMP);
     // Until the game's OS installs its own exception handlers, every
     // vector goes to the blob's crash screen (gc_on_fatal), so a crash in
@@ -1929,12 +2017,6 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
             for (std::size_t i = 0; i < sizeof(stub) / sizeof(stub[0]); ++i)
                 store32(0x80000000 + vector * 0x100 + 4 * i, stub[i]);
         }
-    }
-    // The card's image into MEM2 last: the heap it comes from may be
-    // where it goes (memmove copes), and nothing reads the heap after.
-    if (ctx->card) {
-        std::memmove(reinterpret_cast<void*>(GC_CARD_IMAGE), card_image.data(), GC_CARD_BYTES);
-        DCFlushRange(reinterpret_cast<void*>(GC_CARD_IMAGE), GC_CARD_BYTES);
     }
     DCFlushRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);
     ICInvalidateRange(reinterpret_cast<void*>(0x80000000), kLoaderStart - 0x80000000);

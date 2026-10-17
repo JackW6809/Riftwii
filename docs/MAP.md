@@ -59,7 +59,7 @@ and `vendor-*` is third-party code.
 | Downloads: game names, covers, cheats, updates | `wii/online/online.cpp`, `src/net/http.cpp`, `wii/online/netsock.cpp`, `wii/online/tls.cpp`, `src/data/titles.cpp`, `src/art/coverart.cpp`, `src/net/update.cpp` |
 | Packs served from a PC (RiiFS) | `wii/online/netpacks.cpp`, `src/net/riifs.cpp`, `src/net/riifs_sync.cpp`, `docs/RIIFS.md` |
 | Returning to RiftWii (or another title) when a game exits | `src/patching/returnto.cpp`, `apply_return_to` in `wii/launch/boot.cpp`, `wii/core/restart.cpp` |
-| GameCube games (RiftWii's own loader, in Wii mode) | `wii/launch/gclaunch.cpp`, `wii/launch/gcnative.cpp`, `wii/launch/gcpatch.cpp`, `runtime/gc/`, `src/patching/vcdiff.cpp`, `src/patching/gcoverlay.cpp`, `src/fs/gccard.cpp` |
+| GameCube games (RiftWii's own loader, in Wii mode) | `wii/launch/gclaunch.cpp`, `wii/launch/gcnative.cpp`, `wii/launch/gcpatch.cpp`, `runtime/gc/`, `src/patching/vcdiff.cpp`, `src/patching/gcoverlay.cpp`, `src/patching/gclayout.cpp`, `src/fs/gccard.cpp` |
 | Being started by another loader | `wii/launch/headless.cpp`, `src/patching/launchargs.cpp`, `docs/HEADLESS.md` |
 | The Wii Menu channel | `channel/`, `wii/launch/channel.cpp`, `tools/make_channel.py`, `docs/CHANNEL.md` |
 | Memory the menu may use | `wii/core/memlimits.cpp` |
@@ -214,6 +214,7 @@ document it.
 | `launchargs` | Arguments from another loader |
 | `vcdiff` | Applying VCDIFF (xdelta) patches |
 | `gcoverlay` | GameCube packs: their files laid out past the image, the new FST, and the runs the GameCube loader serves the disc from |
+| `gclayout` | The GameCube loader's MEM1 layout: the game's stack top and ArenaLo found in its code, RiftWii's pieces packed under the FST around the DI registers' stand-in |
 
 ### `src/disc/`: wii discs, executables, banners and fonts
 

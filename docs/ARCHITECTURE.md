@@ -186,7 +186,10 @@ instructions, not by per-game addresses: `DVDLow*`, `PADRead`,
 `OSGetProgressiveMode`, `OSGetLanguage`, `VIConfigure` and
 `GXSetProjection`. Each found function is branched to the blob; one not
 found leaves its feature off, with a `boot.log` line. Then it places the
-blob and its buffers under the FST, opens `/dev/sdio/slot0` and `/dev/es`
+blob under the FST and its data buffers in MEM2 (see Memory), checks
+that the game's own stack top and ArenaLo (found in `__init_registers`
+and `OSInit`, `src/patching/gclayout.cpp`) stay under the arena's top,
+opens `/dev/sdio/slot0` and `/dev/es`
 (IOS keeps both open across the jump), writes low memory as a GameCube's
 start-up leaves it, and jumps to the game.
 
@@ -246,7 +249,8 @@ from `sd:/riftwii/gc/saves`.
 | Bottom of the game's MEM2 arena | Resident runtime data (or the virtual SD card's code and state, about 49 KB), then the pad state, the screenshot state (a few KB: its picture is written straight from the frame buffer), then the crash blob's state (about 5 KB) |
 | `0x90000000`–`0x91000000` | A GameCube game's ARAM (in a GameCube game only) |
 | `0x91000000`–`0x91200000` | A GameCube game's memory card image |
-| Under a GameCube game's FST | The GameCube blob, its context and buffers (`wii/launch/gcnative.cpp`); the game's arena ends below them |
+| `0x91200000`–`0x91300000` | A GameCube game's data buffers: the SD bounce buffer, the disc audio ring, the trace record, the Wii Remotes' state, the crash message and the disc runs |
+| Under a GameCube game's FST | The GameCube blob and its context, the code moved from IOS's counter, the ARAM stubs, the memory card's struct, the way back's block and the DI registers' stand-in (an address ending in `0x6000`), then BI2's copy (`wii/launch/gcnative.cpp`); the game's arena ends below them. Mario Golf and Mario Power Tennis put their stack and ArenaLo at `0x817dc000`, so this stays small |
 | `0x933E0000` and up | IOS |
 
 `wii/core/memlimits.cpp` keeps the loader's heap between the end of its own
