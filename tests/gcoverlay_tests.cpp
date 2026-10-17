@@ -273,8 +273,48 @@ static void test_no_pack() {
     EXPECT_TRUE(past);
 }
 
+// An image read from its RVZ: the same view, the image's bytes named by
+// their offset in it.
+static void test_rvz() {
+    Disc d = make_disc();
+    Bytes card;
+    std::vector<GcFile> files(1);
+    files[0].disc_path = "/dir/b.bin";
+    GcPiece orig;
+    orig.kind = GcPiece::Kind::Image;
+    orig.source = 0x20000;
+    orig.length = 0x40;
+    files[0].pieces.push_back(orig);
+    files[0].pieces.push_back(on_card(card, 50, 3, pattern(0x20, 4)));
+    GcOverlayPlan plan;
+    std::string error;
+    Bytes boot(d.image.begin(), d.image.begin() + 0x440);
+    EXPECT_TRUE(plan_gc_overlay(boot, d.fst, d.image.size(), files, plan, error));
+    std::vector<GcRun> runs;
+    EXPECT_TRUE(gc_disc_runs_rvz(d.image.size(), &plan, runs, error));
+    expect_contiguous(runs);
+    EXPECT_TRUE(!runs.empty() && runs[0].kind == GcRun::Kind::Image && runs[0].disc == 0 &&
+                runs[0].length == d.image.size() && runs[0].image_offset == 0);
+    bool moved = false, from_card = false;
+    for (const GcRun& r : runs) {
+        if (r.kind == GcRun::Kind::Image && r.disc >= d.image.size()) {
+            moved = r.image_offset == 0x20000 && r.length == 0x40;
+        }
+        if (r.kind == GcRun::Kind::Sd) from_card = true;
+    }
+    EXPECT_TRUE(moved);
+    EXPECT_TRUE(from_card);
+    EXPECT_TRUE(gc_disc_runs_rvz(d.image.size(), nullptr, runs, error));
+    EXPECT_EQ(runs.size(), std::size_t(1));
+    // A piece past the image's end cannot be served.
+    files[0].pieces[0].source = d.image.size() - 0x20;
+    EXPECT_TRUE(plan_gc_overlay(boot, d.fst, d.image.size(), files, plan, error));
+    EXPECT_FALSE(gc_disc_runs_rvz(d.image.size(), &plan, runs, error));
+}
+
 int main() {
     test_full_mod();
+    test_rvz();
     test_refusals();
     test_no_pack();
     if (g_failures == 0) std::cout << "gcoverlay: all passed" << std::endl;

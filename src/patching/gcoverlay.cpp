@@ -146,14 +146,32 @@ bool plan_gc_overlay(const std::vector<std::uint8_t>& boot, const std::vector<st
     return true;
 }
 
-bool gc_disc_runs(const std::vector<Fragment>& image, std::uint64_t image_size, const GcOverlayPlan* plan,
-                  std::vector<GcRun>& out, std::string& error) {
+namespace {
+
+// gc_disc_runs and gc_disc_runs_rvz: `image` is the image file's fragments
+// on the card, or null for an image read from its RVZ.
+bool disc_runs(const std::vector<Fragment>* image, std::uint64_t image_size, const GcOverlayPlan* plan,
+               std::vector<GcRun>& out, std::string& error) {
     out.clear();
     std::uint64_t at = 0;
-    // Bytes of the image (from its file's fragments) at `disc`.
+    // Bytes of the image at `disc`: from its file's fragments, or by their
+    // offset in the image.
     auto from_image = [&](std::uint64_t disc, std::uint64_t source, std::uint64_t length) {
+        if (image == nullptr) {
+            if (source > image_size || length > image_size - source) {
+                error = "a piece lies past the image's end";
+                return false;
+            }
+            GcRun r;
+            r.kind = GcRun::Kind::Image;
+            r.disc = disc;
+            r.length = length;
+            r.image_offset = source;
+            out.push_back(r);
+            return true;
+        }
         std::vector<PlacedRun> placed;
-        if (!place_on_fragments(image, source, length, placed, error)) return false;
+        if (!place_on_fragments(*image, source, length, placed, error)) return false;
         for (const PlacedRun& p : placed) {
             GcRun r;
             r.kind = GcRun::Kind::Sd;
@@ -219,6 +237,18 @@ bool gc_disc_runs(const std::vector<Fragment>& image, std::uint64_t image_size, 
         return false;
     }
     return true;
+}
+
+}  // namespace
+
+bool gc_disc_runs(const std::vector<Fragment>& image, std::uint64_t image_size, const GcOverlayPlan* plan,
+                  std::vector<GcRun>& out, std::string& error) {
+    return disc_runs(&image, image_size, plan, out, error);
+}
+
+bool gc_disc_runs_rvz(std::uint64_t image_size, const GcOverlayPlan* plan, std::vector<GcRun>& out,
+                      std::string& error) {
+    return disc_runs(nullptr, image_size, plan, out, error);
 }
 
 }  // namespace riftwii

@@ -55,13 +55,16 @@ bool plan_gc_overlay(const std::vector<std::uint8_t>& boot, const std::vector<st
 
 // One stretch of the game's view of the disc, as the loader serves it.
 struct GcRun {
-    enum class Kind { Sd, Zero, Fst };  // Fst: the plan's FST, which the loader keeps in memory
+    // Fst: the plan's FST, which the loader keeps in memory. Image: bytes
+    // of an image the blob reads by its own offsets (an RVZ).
+    enum class Kind { Sd, Zero, Fst, Image };
     Kind kind = Kind::Zero;
     std::uint64_t disc = 0;
     std::uint64_t length = 0;
     std::uint64_t sector = 0;  // Sd: the first 512-byte sector
     std::uint32_t skip = 0;    // Sd: bytes into it
     std::uint64_t fst_offset = 0;  // Fst: bytes into the plan's FST
+    std::uint64_t image_offset = 0;  // Image: where its bytes start in the image
 };
 
 // The whole view, sorted and without gaps: the image (its file's SD
@@ -69,5 +72,11 @@ struct GcRun {
 // between the window's files as zeros.
 bool gc_disc_runs(const std::vector<Fragment>& image, std::uint64_t image_size, const GcOverlayPlan* plan,
                   std::vector<GcRun>& out, std::string& error);
+
+// The same for an image read from its RVZ (docs/RVZ.md): the image's
+// bytes, in place and in the window, are Image runs that name their offset
+// in the image, which the blob's RVZ build serves from the RVZ.
+bool gc_disc_runs_rvz(std::uint64_t image_size, const GcOverlayPlan* plan, std::vector<GcRun>& out,
+                      std::string& error);
 
 }  // namespace riftwii

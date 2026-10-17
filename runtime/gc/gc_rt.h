@@ -32,6 +32,7 @@
 #define GC_RUN_SD 0u    /* `source` is a 512-byte sector of the card, `skip` bytes into it */
 #define GC_RUN_ZERO 1u
 #define GC_RUN_MEM 2u   /* `source` is an address (bytes the loader placed in memory) */
+#define GC_RUN_RVZ 3u   /* `source` is the image's disc offset, read from its RVZ (gc_rvz.h; the RVZ build only) */
 
 /* One stretch of the game's view of the disc. Sorted by `disc`, no gaps
  * the game reads (a read past the last run fails). */
@@ -130,7 +131,13 @@ enum gc_trace_word {
     GC_TR_AR_WAIT_LONGEST, /* the longest of those waits, timebase ticks */
     GC_TR_AR_WAIT_TIMEOUTS, /* waits given up: the interrupt did not show in time */
     GC_TR_PROJECTION_CALLERS, /* 16 words: gc_rt_context.projection_callers */
-    GC_TR_WORDS = GC_TR_PROJECTION_CALLERS + 16
+    /* An RVZ game (gc_rvz.h): groups decoded, the time spent serving its
+     * reads (card and decoding, timebase ticks, wraps), and its last
+     * error << 24 | failures. */
+    GC_TR_RVZ_GROUPS = GC_TR_PROJECTION_CALLERS + 16,
+    GC_TR_RVZ_TICKS,
+    GC_TR_RVZ_ERROR,
+    GC_TR_WORDS
 };
 typedef char gc_trace_fits[(GC_TR_WORDS * 4 <= 512) ? 1 : -1];
 /* where: what wrote the record */
@@ -301,6 +308,10 @@ struct gc_rt_context {
     uint32_t guard_copy[64];
     uint32_t bt;              /* struct gc_bt (loader-placed), 0: no Wii Remotes */
     uint32_t card;            /* struct gc_card (loader-placed), 0: the real slot A */
+    /* An RVZ game (the blob's RVZ build): the disc's GC_RUN_RVZ runs are
+     * read from it. */
+    uint32_t rvz;             /* struct gc_rvz (loader-placed), 0: an ISO */
+    uint32_t rvz_ticks;       /* timebase ticks spent in its reads (card and decoding), wraps */
     /* The way back to RiftWii: holding HOME (or L, R, Z and Start) for
      * leave_hold ticks launches the title in leave_buf through /dev/es. */
     uint32_t leave_fd;        /* /dev/es, opened by the loader; 0xFFFFFFFF: no way back */
@@ -367,6 +378,7 @@ void gc_irq_restore(uint32_t msr);
 struct gc_bt;
 int32_t gc_ipc_send(uint32_t phys, struct gc_bt* bt);
 int32_t gc_sd_write(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t buf);
+int gc_sd_read(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t target);
 uint32_t gc_ipc_take(void);
 #endif
 

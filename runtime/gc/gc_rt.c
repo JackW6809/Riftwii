@@ -6,6 +6,9 @@
 #include "gc_rt.h"
 #include "gc_bt.h"
 #include "gc_card.h"
+#ifdef RT_RVZ
+#include "gc_rvz.h"
+#endif
 
 /* Hollywood's IPC registers, uncached (wiibrew "Hardware/IPC"): the
  * request's physical address, the control bits, IOS's reply. */
@@ -153,7 +156,7 @@ static int32_t gc_ioctlv(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl,
 }
 
 /* CMD18: `count` sectors from `sector` into `target` (32-byte aligned). */
-static int gc_sd_read(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t target) {
+int gc_sd_read(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t target) {
     uint32_t* q = ctx->request;
     int32_t result;
     q[0] = GC_SD_READMULTIBLOCK;
@@ -219,12 +222,40 @@ static int gc_read_sd_run(struct gc_rt_context* ctx, const struct gc_rt_run* run
     return 1;
 }
 
-/* The game's view of the disc, `length` bytes from `offset` into `dst`. */
-static int gc_read_disc_unlocked(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset) {
+#ifdef RT_RVZ
+/* gc_rvz.c's card reads (gc_rvz.h): `io` is the context. */
+int gc_rvz_device_read(void* io, uint32_t sector, uint32_t count, uintptr_t target) {
+    return gc_sd_read((struct gc_rt_context*)io, sector, count, (uint32_t)target);
+}
+
+/* `length` bytes of the image from its disc offset `offset`, out of the
+ * RVZ (gc_rvz.h), through the cache slot of the game's reads or the
+ * stream's. The time it takes is counted for the trace. */
+static int gc_read_rvz(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset, uint32_t stream) {
+    struct gc_rvz* rvz = (struct gc_rvz*)(uintptr_t)ctx->rvz;
+    uint32_t t0, t1;
+    int ok;
+    if (rvz == 0) return 0;
+    __asm__ volatile("mftb %0" : "=r"(t0));
+    ok = gc_rvz_read(rvz, ctx, stream ? GC_RVZ_SLOT_STREAM : GC_RVZ_SLOT_GAME, dst, length, offset);
+    __asm__ volatile("mftb %0" : "=r"(t1));
+    ctx->rvz_ticks += t1 - t0;
+    return ok;
+}
+#endif
+
+/* The game's view of the disc, `length` bytes from `offset` into `dst`.
+ * `stream`: a read for disc audio streaming (an RVZ keeps its own group
+ * for it). */
+static int gc_read_disc_unlocked(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset,
+                                 uint32_t stream) {
     const struct gc_rt_run* runs = (const struct gc_rt_run*)(uintptr_t)ctx->runs;
     const uint32_t start = (uint32_t)(uintptr_t)dst;
     const uint32_t total = length;
     uint32_t i = 0;
+#ifndef RT_RVZ
+    (void)stream;
+#endif
     while (length != 0) {
         uint32_t at;
         uint32_t n;
@@ -235,6 +266,12 @@ static int gc_read_disc_unlocked(struct gc_rt_context* ctx, uint8_t* dst, uint32
         if (n > length) n = length;
         if (runs[i].kind == GC_RUN_SD) {
             if (!gc_read_sd_run(ctx, &runs[i], at, dst, n)) return 0;
+        } else if (runs[i].kind == GC_RUN_RVZ) {
+#ifdef RT_RVZ
+            if (!gc_read_rvz(ctx, dst, n, runs[i].source + at, stream)) return 0;
+#else
+            return 0;  /* the loader gives RVZ runs to the RVZ build only */
+#endif
         } else if (runs[i].kind == GC_RUN_MEM) {
             gc_copy(dst, (const uint8_t*)(uintptr_t)(runs[i].source + at), n);
         } else {
@@ -252,11 +289,12 @@ static int gc_read_disc_unlocked(struct gc_rt_context* ctx, uint8_t* dst, uint32
 /* ctx->busy: a read is using the IPC buffers. The AI interrupt's stream
  * refill finds it set when it interrupted the game's own read, and waits
  * for the next buffer instead. */
-static int gc_read_disc(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset) {
+static int gc_read_disc(struct gc_rt_context* ctx, uint8_t* dst, uint32_t length, uint32_t offset,
+                        uint32_t stream) {
     int ok;
     if (ctx->busy) return 0;
     ctx->busy = 1;
-    ok = gc_read_disc_unlocked(ctx, dst, length, offset);
+    ok = gc_read_disc_unlocked(ctx, dst, length, offset, stream);
     ctx->busy = 0;
     return ok;
 }
@@ -447,6 +485,14 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_PROJECTIONS] = ctx->projections;
     w[GC_TR_ORTHOGRAPHICS] = ctx->orthographics;
     for (i = 0; i < GC_PROJECTION_CALLERS * 4; ++i) w[GC_TR_PROJECTION_CALLERS + i] = ctx->projection_callers[i];
+#ifdef RT_RVZ
+    if (ctx->rvz) {
+        const struct gc_rvz* rvz = (const struct gc_rvz*)(uintptr_t)ctx->rvz;
+        w[GC_TR_RVZ_GROUPS] = rvz->groups_loaded;
+        w[GC_TR_RVZ_TICKS] = ctx->rvz_ticks;
+        w[GC_TR_RVZ_ERROR] = rvz->last_error << 24 | (rvz->failures & 0xFFFFFFu);
+    }
+#endif
     w[GC_TR_AR_WAITS] = ctx->ar_waits;
     w[GC_TR_AR_WAIT_LONGEST] = ctx->ar_wait_longest;
     w[GC_TR_AR_WAIT_TIMEOUTS] = ctx->ar_wait_timeouts;
@@ -598,15 +644,27 @@ uint32_t gc_on_read(struct gc_rt_context* ctx, uint32_t addr, uint32_t length, u
  * they do while a drive's DMA runs. With all of it there, the game's
  * callback runs once the drive would have finished too. */
 static void gc_read_step(struct gc_rt_context* ctx) {
-    const uint32_t piece = ctx->read_length < GC_READ_PIECE ? ctx->read_length : GC_READ_PIECE;
+    uint32_t piece = ctx->read_length < GC_READ_PIECE ? ctx->read_length : GC_READ_PIECE;
     uint32_t now, spent, wait;
+#ifdef RT_RVZ
+    /* From an RVZ a piece ends where its group does, so one turn of the
+     * alarm decodes at most one group and the interrupts get their turn
+     * between decodes. The decoding is part of the time the read takes:
+     * the callback still waits for a drive's time on top only when that
+     * is longer, and with Fast it comes as soon as the bytes are there. */
+    if (ctx->rvz != 0) {
+        const uint32_t chunk = ((const struct gc_rvz*)(uintptr_t)ctx->rvz)->chunk_bytes;
+        const uint32_t to_edge = chunk - ctx->read_offset % chunk;
+        if (piece > to_edge) piece = to_edge;
+    }
+#endif
     if (piece != 0 && !ctx->read_failed) {
         if (ctx->busy) {
             /* The IPC buffers are taken (the way back is starting): later. */
             gc_arm(ctx, ctx->delay_ticks);
             return;
         }
-        if (gc_read_disc(ctx, (uint8_t*)(uintptr_t)ctx->read_addr, piece, ctx->read_offset)) {
+        if (gc_read_disc(ctx, (uint8_t*)(uintptr_t)ctx->read_addr, piece, ctx->read_offset, 0)) {
             ctx->read_addr += piece;
             ctx->read_offset += piece;
             ctx->read_length -= piece;
@@ -714,7 +772,7 @@ uint32_t gc_on_load_callbacks_done(struct gc_rt_context* ctx, uint32_t group) {
 
 uint32_t gc_on_disk_id(struct gc_rt_context* ctx, uint32_t id, uint32_t cb) {
     gc_command_seen(ctx, 1);
-    gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)id, 0x20, 0) ? GC_DI_TC : GC_DI_DE);
+    gc_complete(ctx, cb, gc_read_disc(ctx, (uint8_t*)(uintptr_t)id, 0x20, 0, 0) ? GC_DI_TC : GC_DI_DE);
     return 1;
 }
 
@@ -838,7 +896,7 @@ static void gc_stream_fetch(struct gc_rt_context* ctx) {
     n &= ~(GC_SECTOR - 1);
     if (n > st->start + st->length - st->pos) n = (st->start + st->length - st->pos) & ~(GC_ADP_BLOCK - 1);
     if (n == 0) return;
-    if (!gc_read_disc(ctx, (uint8_t*)(uintptr_t)(st->buf + at), n, st->pos)) {
+    if (!gc_read_disc(ctx, (uint8_t*)(uintptr_t)(st->buf + at), n, st->pos, 1)) {
         st->fetch_busy++;
         return;
     }
