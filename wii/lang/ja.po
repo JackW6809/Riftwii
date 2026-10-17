@@ -1473,20 +1473,11 @@ msgstr "ゲームキューブの操作: {1}"
 msgid "Its buttons are the game's own, as on a GameCube."
 msgstr "ボタンはゲームキューブと同じです。"
 
-msgid "Left stick"
-msgstr "左スティック"
-
-msgid "Right stick"
-msgstr "右スティック"
-
 msgid "Stick"
 msgstr "スティック"
 
 msgid "C-stick"
 msgstr "Cスティック"
-
-msgid "D-pad"
-msgstr "十字ボタン"
 
 msgid "Saved {1}"
 msgstr "保存日 {1}"

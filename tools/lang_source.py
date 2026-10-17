@@ -1357,11 +1357,8 @@ T = {
     "Wii Remote, held sideways": ("Mando de Wii, en horizontal", "Wiiリモコン(横持ち)", "Comando Wii, na horizontal", "Telecomando Wii, in orizzontale"),
     "GameCube controls: {1}": ("Controles de GameCube: {1}", "ゲームキューブの操作: {1}", "Controlos de GameCube: {1}", "Comandi GameCube: {1}"),
     "Its buttons are the game's own, as on a GameCube.": ("Sus botones son los del juego, como en una GameCube.", "ボタンはゲームキューブと同じです。", "Os botões são os do jogo, como numa GameCube.", "I pulsanti sono quelli del gioco, come su un GameCube."),
-    "Left stick": ("Palanca izquierda", "左スティック", "Manípulo esquerdo", "Levetta sinistra"),
-    "Right stick": ("Palanca derecha", "右スティック", "Manípulo direito", "Levetta destra"),
     "Stick": ("Palanca", "スティック", "Manípulo", "Levetta"),
     "C-stick": ("Stick C", "Cスティック", "Stick C", "Stick C"),
-    "D-pad": ("Cruceta", "十字ボタン", "Cruz direcional", "Croce direzionale"),
     "Saved {1}": ("Guardada el {1}", "保存日 {1}", "Guardado a {1}", "Salvato il {1}"),
     "{1} of {2} blocks free": ("{1} de {2} bloques libres", "{2}ブロック中{1}ブロックが空き", "{1} de {2} blocos livres", "{1} blocchi liberi su {2}"),
     "Working out the time left...": ("Calculando el tiempo restante...", "残り時間を計算しています...", "A calcular o tempo restante...", "Calcolo del tempo rimanente..."),
@@ -2875,16 +2872,10 @@ KO = {
         "게임큐브 조작: {1}",
     "Its buttons are the game's own, as on a GameCube.":
         "버튼은 게임큐브와 같습니다.",
-    "Left stick":
-        "왼쪽 스틱",
-    "Right stick":
-        "오른쪽 스틱",
     "Stick":
         "스틱",
     "C-stick":
         "C스틱",
-    "D-pad":
-        "십자 버튼",
     "Saved {1}":
         "저장일 {1}",
     "{1} of {2} blocks free":
@@ -4600,16 +4591,10 @@ FR = {
         "Commandes GameCube : {1}",
     "Its buttons are the game's own, as on a GameCube.":
         "Ses boutons sont ceux du jeu, comme sur une GameCube.",
-    "Left stick":
-        "Stick gauche",
-    "Right stick":
-        "Stick droit",
     "Stick":
         "Stick",
     "C-stick":
         "Stick C",
-    "D-pad":
-        "Croix directionnelle",
     "Saved {1}":
         "Enregistrée le {1}",
     "{1} of {2} blocks free":

@@ -4659,22 +4659,36 @@ struct ConnectedPads {
 };
 static ConnectedPads PadsConnectedNow();
 
-// One controller's buttons as the GameCube controller's, in two columns:
-// each button's picture (Kenney's, as the prompts draw them; the theme's
-// badge with its name for one without; a word for a stick or the D-pad),
-// then the GameCube button it is.
+// One controller's buttons as the GameCube controller's, in two columns.
+// Each row reads the same way: the badges of the buttons in the player's
+// hand, an arrow, then the GameCube button they are. A badge is Kenney's
+// picture where there is one (as the prompts draw it), RiftWii's own for
+// the Control Stick and the D-pad, the stick's picture with L or R on it
+// for a Classic Controller's sticks, or the theme's round badge with the
+// button's name. A column's arrows line up, so the controller's side and
+// the GameCube's read as columns of their own.
 class GcControlsTable : public GuiElement {
 public:
-	struct Pair { std::string button, gamecube; };
-	GcControlsTable(std::vector<Pair> pairs, int left, int right) : pairs(std::move(pairs)), left(left), right(right)
+	// `buttons`: one button name or more, apart by spaces ("ZL ZR": both
+	// are the one GameCube button). "LS" and "RS": a Classic Controller's
+	// left and right sticks.
+	struct Pair { std::string buttons, gamecube; };
+	GcControlsTable(const std::vector<Pair>& pairs, int left, int right) : left(left), right(right),
+		arrow("\xE2\x86\x92", 18, skin::kInkSoft)  // U+2192, in the leave line's quieter colour
 	{
-		for (const Pair& p : this->pairs) {
-			const bool picture = skin::ButtonIcon(p.button, kBadge).data != nullptr;
-			const bool word = !picture && p.button.size() > 2;
-			labels.emplace_back(new GuiText(p.button.c_str(), word ? 16 : 14, word ? skin::kInk : skin::kCard));
-			names.emplace_back(new GuiText(p.gamecube.c_str(), 18, skin::kInk));
-			labels.back()->SetAlignment(word ? ALIGN_H::LEFT : ALIGN_H::CENTRE, ALIGN_V::MIDDLE);
-			names.back()->SetAlignment(ALIGN_H::LEFT, ALIGN_V::MIDDLE);
+		arrow.SetAlignment(ALIGN_H::LEFT, ALIGN_V::MIDDLE);
+		for (const Pair& p : pairs) {
+			Row row;
+			std::size_t start = 0;
+			while (start < p.buttons.size()) {
+				std::size_t end = p.buttons.find(' ', start);
+				if (end == std::string::npos) end = p.buttons.size();
+				row.badges.push_back(MakeBadge(p.buttons.substr(start, end - start)));
+				start = end + 1;
+			}
+			row.name.reset(new GuiText(p.gamecube.c_str(), 18, skin::kInk));
+			row.name->SetAlignment(ALIGN_H::LEFT, ALIGN_V::MIDDLE);
+			rows.push_back(std::move(row));
 		}
 	}
 	void Draw() override
@@ -4682,26 +4696,28 @@ public:
 		// Hidden while another controller's card is shown.
 		if (!IsVisible()) return;
 		const int column = (right - left) / 2;
-		const int rows = static_cast<int>((pairs.size() + 1) / 2);
-		for (std::size_t i = 0; i < pairs.size(); ++i) {
+		const int perColumn = static_cast<int>((rows.size() + 1) / 2);
+		// Each column's arrows sit just past its widest group of badges.
+		int arrowOffset[2] = {0, 0};
+		for (std::size_t i = 0; i < rows.size(); ++i) {
+			const int col = static_cast<int>(i) / perColumn;
+			arrowOffset[col] = std::max(arrowOffset[col], BadgesWidth(rows[i]) + kGap);
+		}
+		const int arrowWidth = arrow.GetTextWidth();
+		for (std::size_t i = 0; i < rows.size(); ++i) {
 			// Down the first column, then the second.
-			const int col = static_cast<int>(i) / rows, row = static_cast<int>(i) % rows;
-			const int x = left + col * column, y = kTop + row * kRow;
-			const skin::Tex& picture = skin::ButtonIcon(pairs[i].button, kBadge);
-			int nameX = x + kBadge + 12;
-			if (picture.data) {
-				skin::Draw(picture, x, y);
-			} else if (pairs[i].button.size() <= 2) {
-				skin::Draw(skin::promptButton, x, y);
-				labels[i]->SetPosition(x + kBadge / 2, y + kBadge / 2 - 1);
-				labels[i]->Draw();
-			} else {
-				labels[i]->SetPosition(x, y + kBadge / 2);
-				labels[i]->Draw();
-				nameX = x + labels[i]->GetTextWidth() + 12;
+			const int col = static_cast<int>(i) / perColumn, line = static_cast<int>(i) % perColumn;
+			const int x = left + col * column, y = kTop + line * kRow;
+			int badgeX = x;
+			for (Badge& badge : rows[i].badges) {
+				DrawBadge(badge, badgeX, y);
+				badgeX += kBadge + kBadgeGap;
 			}
-			names[i]->SetPosition(nameX, y + kBadge / 2);
-			names[i]->Draw();
+			const int arrowX = x + arrowOffset[col];
+			arrow.SetPosition(arrowX, y + kBadge / 2 - 1);
+			arrow.Draw();
+			rows[i].name->SetPosition(arrowX + arrowWidth + kGap, y + kBadge / 2);
+			rows[i].name->Draw();
 		}
 	}
 	// Five rows (a Classic Controller's ten buttons) and the leave line
@@ -4712,9 +4728,55 @@ public:
 	static constexpr int kBadge = 24, kTop = PopupBox::kBodyY, kRow = 23;
 	static constexpr int kLeaveY = PopupBox::kButtonY - 10 - 18;  // its 15-point line ends above the buttons
 private:
-	std::vector<Pair> pairs;
-	std::vector<std::unique_ptr<GuiText>> labels, names;
+	static constexpr int kBadgeGap = 4, kGap = 8;
+	struct Badge {
+		std::string button;
+		std::unique_ptr<GuiText> letters;  // on the theme's badge or a stick's picture; none on Kenney's
+	};
+	struct Row {
+		std::vector<Badge> badges;
+		std::unique_ptr<GuiText> name;
+	};
+	static bool IsClassicStick(const std::string& button) { return button == "LS" || button == "RS"; }
+	static Badge MakeBadge(const std::string& button)
+	{
+		Badge badge;
+		badge.button = button;
+		if (IsClassicStick(button)) {
+			// The stick's L or R, small enough for the middle of its picture.
+			badge.letters.reset(new GuiText(button.substr(0, 1).c_str(), 12, skin::kCard));
+		} else if (!skin::ButtonIcon(button, kBadge).data) {
+			badge.letters.reset(new GuiText(button.c_str(), 14, skin::kCard));
+		}
+		if (badge.letters) badge.letters->SetAlignment(ALIGN_H::CENTRE, ALIGN_V::MIDDLE);
+		return badge;
+	}
+	static int BadgesWidth(const Row& row)
+	{
+		const int count = static_cast<int>(row.badges.size());
+		return count * kBadge + (count - 1) * kBadgeGap;
+	}
+	static void DrawBadge(Badge& badge, int x, int y)
+	{
+		if (IsClassicStick(badge.button)) {
+			// Beside the Classic Controller's other buttons, which are the
+			// theme's badges and fill all kBadge: the stick's picture a
+			// size up (its disc fills 3/4 of it) to be as big, which also
+			// leaves room for the letter.
+			const int size = kBadge * 4 / 3, margin = (size - kBadge) / 2;
+			skin::Draw(skin::ButtonIcon("Stick", size), x - margin, y - margin);
+		} else {
+			const skin::Tex& icon = skin::ButtonIcon(badge.button, kBadge);
+			skin::Draw(icon.data ? icon : skin::promptButton, x, y);
+		}
+		if (badge.letters) {
+			badge.letters->SetPosition(x + kBadge / 2, y + kBadge / 2 - 1);
+			badge.letters->Draw();
+		}
+	}
+	std::vector<Row> rows;
 	int left, right;
+	GuiText arrow;
 };
 
 // One kind of controller's GameCube buttons, and how it leaves the game.
@@ -4735,16 +4797,16 @@ static std::vector<GcControlsCard> GcControlsCards()
 	const std::string leaveHome = tr("Hold HOME for two seconds to leave the game.");
 	if (pads.classic)
 		cards.push_back({tr("Classic Controller"),
-			{{"a", "A"}, {"b", "B"}, {"x", "X"}, {"y", "Y"}, {"L", "L"}, {"R", "R"}, {"ZL", "Z"}, {"+", "Start"},
-				{tr("Left stick"), tr("Stick")}, {tr("Right stick"), tr("C-stick")}}, leaveHome});
+			{{"a", "A"}, {"b", "B"}, {"x", "X"}, {"y", "Y"}, {"L", "L"}, {"R", "R"}, {"ZL ZR", "Z"}, {"+", "Start"},
+				{"LS", tr("Stick")}, {"RS", tr("C-stick")}}, leaveHome});
 	if (pads.nunchuk)
 		cards.push_back({tr("Wii Remote and Nunchuk"),
 			{{"A", "A"}, {"B", "B"}, {"1", "X"}, {"2", "Y"}, {"C", "L"}, {"Z", "R"}, {"-", "Z"}, {"+", "Start"},
-				{tr("Stick"), tr("Stick")}, {tr("D-pad"), tr("C-stick")}}, leaveHome});
+				{"Stick", tr("Stick")}, {"D-pad", tr("C-stick")}}, leaveHome});
 	if ((pads.remote && !pads.nunchuk && !pads.classic) || (!pads.remote && !pads.gamecube))
 		cards.push_back({tr("Wii Remote, held sideways"),
 			{{"2", "A"}, {"1", "B"}, {"A", "X"}, {"HOME", "Y"}, {"B", "R"}, {"-", "Z"}, {"+", "Start"},
-				{tr("D-pad"), tr("Stick")}}, tr("Hold HOME and - for two seconds to leave the game.")});
+				{"D-pad", tr("Stick")}}, tr("Hold HOME and - for two seconds to leave the game.")});
 	if (pads.gamecube)
 		cards.push_back({tr("GameCube controller"), {}, tr("Hold L, R, Z and Start for two seconds to leave the game.")});
 	return cards;

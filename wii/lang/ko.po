@@ -1473,20 +1473,11 @@ msgstr "게임큐브 조작: {1}"
 msgid "Its buttons are the game's own, as on a GameCube."
 msgstr "버튼은 게임큐브와 같습니다."
 
-msgid "Left stick"
-msgstr "왼쪽 스틱"
-
-msgid "Right stick"
-msgstr "오른쪽 스틱"
-
 msgid "Stick"
 msgstr "스틱"
 
 msgid "C-stick"
 msgstr "C스틱"
-
-msgid "D-pad"
-msgstr "십자 버튼"
 
 msgid "Saved {1}"
 msgstr "저장일 {1}"

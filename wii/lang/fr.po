@@ -1473,20 +1473,11 @@ msgstr "Commandes GameCube : {1}"
 msgid "Its buttons are the game's own, as on a GameCube."
 msgstr "Ses boutons sont ceux du jeu, comme sur une GameCube."
 
-msgid "Left stick"
-msgstr "Stick gauche"
-
-msgid "Right stick"
-msgstr "Stick droit"
-
 msgid "Stick"
 msgstr "Stick"
 
 msgid "C-stick"
 msgstr "Stick C"
-
-msgid "D-pad"
-msgstr "Croix directionnelle"
 
 msgid "Saved {1}"
 msgstr "Enregistrée le {1}"
