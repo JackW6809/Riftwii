@@ -4959,6 +4959,25 @@ static std::string GcCardPath(const FrontendState& state)
 	return riftwii::gc_card_path(state.game_id, GcCardShared(state));
 }
 
+// Whether the card the game will use has no block or no directory slot
+// left (riftwii::GcCardSpace::full), read from its first five blocks so
+// the game page opens as fast as before. False without a card yet, or
+// with one that cannot be read (its own page says why).
+static bool GcCardFull(const FrontendState& state)
+{
+	FILE* f = std::fopen(GcCardPath(state).c_str(), "rb");
+	if (!f) return false;
+	std::fseek(f, 0, SEEK_END);
+	const long size = std::ftell(f);
+	std::fseek(f, 0, SEEK_SET);
+	std::vector<std::uint8_t> head(riftwii::kGcCardSystemBlocks * riftwii::kGcCardBlockBytes);
+	const bool read = size >= static_cast<long>(head.size()) && std::fread(head.data(), 1, head.size(), f) == head.size();
+	std::fclose(f);
+	riftwii::GcCardSpace space;
+	std::string why;
+	return read && riftwii::gc_card_space(head, static_cast<std::uint64_t>(size), space, why) && space.full();
+}
+
 // The icons of a card's saves as textures (32x32 RGB5A3, 2 KB each) for
 // the rows of the Memory Card page; freed with the page.
 class GcIconTextures {
@@ -7172,6 +7191,9 @@ static void MenuMods(FrontendState& state, std::string& scanStatus)
 static std::string PlayTileNote(const FrontendState& state)
 {
 	const riftwii::wii::ImageGame* patch = SelectedGcPatch(state);
+	// Said first, as the page opens on Play: the game would start, but
+	// could not save. One sentence, which fits in French on a 16:9 TV.
+	if (SelectedGcGame(state) && GcCardFull(state)) return tr("The memory card is full: this game can't save.");
 	if (!patch) return tr("Starts the game with the mods and settings shown here.");
 	const riftwii::wii::ImageGame* original = GcOriginal(state, *patch);
 	const std::string originalName = original ? ImageGameName(*original) : FlatCapped(patch->gc_patch_source, 40);
@@ -7185,6 +7207,9 @@ static std::string GcSaveNote(const FrontendState& state)
 	const std::string where = GcCardShared(state)
 		? tr("Saves go to the shared memory card on the SD card: {1}.", {card})
 		: tr("Saves go to this game's own memory card on the SD card: {1}.", {card});
+	// Two lines at most: the full card's line takes the place of where it is.
+	if (GcCardFull(state))
+		return std::string(tr("The memory card is full: this game can't save.")) + " " + tr("Press A to see its saves.");
 	return where + " " + tr("Press A to see its saves.");
 }
 
@@ -7263,7 +7288,9 @@ static void BuildGameTiles(const FrontendState& state, std::vector<TileSpec>& ti
 	const riftwii::wii::ImageGame* toBuild = SelectedGcPatch(state);
 	// A GameCube game saves to its memory card on the SD card, whatever the
 	// save mode. Its cheats are picked as a Wii game's are.
-	const std::string saves = gamecube ? std::string(tr("Memory Card")) + " \xC2\xB7 SD"
+	const bool cardFull = gamecube && GcCardFull(state);
+	const std::string saves = cardFull ? std::string(tr("Memory card full"))
+		: gamecube ? std::string(tr("Memory Card")) + " \xC2\xB7 SD"
 		: !state.model.pack_save_owner().empty() ? std::string(tr("Kept by the pack"))
 		: std::string(tr(SaveLabel(state.model.save_mode).c_str()));
 	const std::string cheats = CheatsValue(game);
@@ -7288,7 +7315,7 @@ static void BuildGameTiles(const FrontendState& state, std::vector<TileSpec>& ti
 	add(GameTile::Cheats, kTilesX, 228, kHalfW, 70, tr("Cheats"), cheats, &skin::iconCheats,
 		game.cheats && !game.cheat_names.empty());
 	add(GameTile::Saves, kRightX, 228, kHalfW, 70, tr("Saves"), saves, &skin::iconSaves,
-		!gamecube && state.model.save_mode != "nand");
+		cardFull || (!gamecube && state.model.save_mode != "nand"));
 	add(GameTile::Favorite, kHeroX, 310, kHeroW, 70, tr("Favourite"), favorite ? tr("On") : tr("Off"),
 		favorite ? &skin::iconStarOn : &skin::iconStar, favorite);
 	add(GameTile::Options, kTilesX, 310, kHalfW, 70, tr("Options"),

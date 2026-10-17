@@ -1590,6 +1590,12 @@ msgstr "RiftWii n'a pas pu garder une copie de la sauvegarde actuelle, elle n'a 
 msgid "RiftWii could not write the memory card: {1}"
 msgstr "RiftWii n'a pas pu écrire la carte mémoire : {1}"
 
+msgid "The memory card is full: this game can't save."
+msgstr "La carte mémoire est pleine : ce jeu ne peut pas sauvegarder."
+
+msgid "Memory card full"
+msgstr "Carte pleine"
+
 msgid "Shared Memory Card"
 msgstr "Carte mémoire partagée"
 

@@ -136,12 +136,16 @@ const std::uint8_t* bat_block(const std::vector<std::uint8_t>& card, unsigned co
     return card.data() + (3 + copy) * kGcCardBlockBytes;
 }
 
-bool open_card(const std::vector<std::uint8_t>& card, Layout& layout, std::string& error) {
-    if (card.size() < kGcCardSystemBlocks * kGcCardBlockBytes) {
+// The card's header and which copies of the directory and the BAT hold,
+// from its first `have` bytes (at least the five system blocks) of a card
+// `card_size` bytes long.
+bool open_system(const std::uint8_t* data, std::size_t have, std::uint64_t card_size, Layout& layout,
+                 std::string& error) {
+    if (have < kGcCardSystemBlocks * kGcCardBlockBytes) {
         error = "The memory card image is too small to hold a card's header, directory and block table.";
         return false;
     }
-    const std::uint8_t* header = card.data();
+    const std::uint8_t* header = data;
     if (!checksum_holds(header, kHeaderChecksum, header + kHeaderChecksum)) {
         error = "The memory card's header is damaged (its checksum does not match), or the card is not formatted.";
         return false;
@@ -151,27 +155,27 @@ bool open_card(const std::vector<std::uint8_t>& card, Layout& layout, std::strin
         error = "The memory card's header gives a size no GameCube card has.";
         return false;
     }
-    if (card_bytes(mbits) != card.size()) {
+    if (card_bytes(mbits) != card_size) {
         error = "The memory card image's length does not match the size its header gives.";
         return false;
     }
-    layout.blocks = static_cast<std::uint32_t>(card.size() / kGcCardBlockBytes);
+    layout.blocks = static_cast<std::uint32_t>(card_size / kGcCardBlockBytes);
     if (layout.blocks - kGcCardSystemBlocks > kBatMapWords) {
         error = "The memory card is larger than its block table can describe.";
         return false;
     }
     layout.shift_jis = be16(header + 0x24) == 1;
 
-    const std::uint8_t* dir0 = dir_block(card, 0);
-    const std::uint8_t* dir1 = dir_block(card, 1);
+    const std::uint8_t* dir0 = data + 1 * kGcCardBlockBytes;
+    const std::uint8_t* dir1 = data + 2 * kGcCardBlockBytes;
     const bool dir0_valid = checksum_holds(dir0, kDirChecksum, dir0 + kDirChecksum);
     const bool dir1_valid = checksum_holds(dir1, kDirChecksum, dir1 + kDirChecksum);
     if (!pick_copy(dir0_valid, dir1_valid, be16(dir0 + kDirCounter), be16(dir1 + kDirCounter), layout.dir)) {
         error = "Both copies of the memory card's directory are damaged.";
         return false;
     }
-    const std::uint8_t* bat0 = bat_block(card, 0);
-    const std::uint8_t* bat1 = bat_block(card, 1);
+    const std::uint8_t* bat0 = data + 3 * kGcCardBlockBytes;
+    const std::uint8_t* bat1 = data + 4 * kGcCardBlockBytes;
     const bool bat0_valid = checksum_holds(bat0 + kBatCounter, kGcCardBlockBytes - kBatCounter, bat0 + kBatChecksum);
     const bool bat1_valid = checksum_holds(bat1 + kBatCounter, kGcCardBlockBytes - kBatCounter, bat1 + kBatChecksum);
     if (!pick_copy(bat0_valid, bat1_valid, be16(bat0 + kBatCounter), be16(bat1 + kBatCounter), layout.bat)) {
@@ -179,6 +183,10 @@ bool open_card(const std::vector<std::uint8_t>& card, Layout& layout, std::strin
         return false;
     }
     return true;
+}
+
+bool open_card(const std::vector<std::uint8_t>& card, Layout& layout, std::string& error) {
+    return open_system(card.data(), card.size(), card.size(), layout, error);
 }
 
 bool block_in_range(const Layout& layout, std::uint32_t block) {
@@ -433,6 +441,22 @@ bool gc_card_read(const std::vector<std::uint8_t>& card, GcCardInfo& out, std::s
     Scan scan;
     if (!scan_card(card, scan, error)) return false;
     out = scan.info;
+    return true;
+}
+
+bool gc_card_space(const std::vector<std::uint8_t>& system_blocks, std::uint64_t card_bytes, GcCardSpace& out,
+                   std::string& error) {
+    Layout layout;
+    if (!open_system(system_blocks.data(), system_blocks.size(), card_bytes, layout, error)) return false;
+    const std::uint8_t* dir = system_blocks.data() + (1 + layout.dir) * kGcCardBlockBytes;
+    const std::uint8_t* bat = system_blocks.data() + (3 + layout.bat) * kGcCardBlockBytes;
+    out = GcCardSpace{};
+    out.blocks = layout.blocks;
+    // Counted as gc_card_read counts them, from the same copies.
+    for (std::uint32_t block = kGcCardSystemBlocks; block < layout.blocks; ++block)
+        if (next_block(bat, block) == 0) ++out.free_blocks;
+    for (unsigned slot = 0; slot < kGcCardMaxEntries; ++slot)
+        if (!entry_used(dir + slot * kGcCardEntryBytes)) ++out.free_entries;
     return true;
 }
 

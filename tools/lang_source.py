@@ -1410,6 +1410,8 @@ T = {
     "That copy is damaged, so your save was not changed.": ("Esa copia está dañada, así que tu partida no ha cambiado.", "そのコピーは壊れているため、セーブは変わっていません。", "Essa cópia está danificada, então o seu save não foi alterado.", "Quella copia è danneggiata, quindi il salvataggio non è cambiato."),
     "RiftWii could not keep a copy of the save as it is now, so it was not changed: {1}": ("RiftWii no ha podido guardar una copia de la partida tal como está ahora, así que no ha cambiado: {1}", "RiftWiiは今のセーブのコピーを残せなかったため、セーブは変わっていません: {1}", "O RiftWii não conseguiu guardar uma cópia do save como está agora, então ele não foi alterado: {1}", "RiftWii non è riuscito a conservare una copia del salvataggio attuale, quindi non è cambiato: {1}"),
     "RiftWii could not write the memory card: {1}": ("RiftWii no ha podido escribir la tarjeta de memoria: {1}", "RiftWiiはメモリーカードに書き込めませんでした: {1}", "O RiftWii não conseguiu gravar o cartão de memória: {1}", "RiftWii non è riuscito a scrivere la Memory Card: {1}"),
+    "The memory card is full: this game can't save.": ("La tarjeta de memoria está llena: este juego no puede guardar.", "メモリーカードがいっぱいです。このゲームはセーブできません。", "O cartão de memória está cheio: este jogo não pode salvar.", "La Memory Card è piena: questo gioco non può salvare."),
+    "Memory card full": ("Tarjeta llena", "カードがいっぱい", "Cartão cheio", "Scheda piena"),
     "Shared Memory Card": ("Tarjeta de memoria compartida", "共有メモリーカード", "Cartão de memória compartilhado", "Memory Card condivisa"),
     "The shared memory card is made the first time a game that uses it starts: {1}.": ("La tarjeta de memoria compartida se crea la primera vez que arranca un juego que la usa: {1}.", "共有メモリーカードは、それを使うゲームを初めて起動したときに作られます: {1}", "O cartão de memória compartilhado é criado na primeira vez que um jogo que o usa é iniciado: {1}.", "La Memory Card condivisa viene creata la prima volta che si avvia un gioco che la usa: {1}."),
     "Saves go to the shared memory card on the SD card: {1}.": ("Las partidas van a la tarjeta de memoria compartida de la tarjeta SD: {1}.", "セーブはSDカード上の共有メモリーカードに保存されます: {1}", "Os saves vão para o cartão de memória compartilhado no cartão SD: {1}.", "I salvataggi vanno nella Memory Card condivisa sulla scheda SD: {1}."),
@@ -2986,6 +2988,10 @@ KO = {
         "RiftWii가 지금의 저장 데이터 복사본을 남기지 못해 저장 데이터는 바뀌지 않았습니다: {1}",
     "RiftWii could not write the memory card: {1}":
         "RiftWii가 메모리 카드에 쓰지 못했습니다: {1}",
+    "The memory card is full: this game can't save.":
+        "메모리 카드가 가득 찼습니다. 이 게임은 저장할 수 없습니다.",
+    "Memory card full":
+        "카드 가득 참",
     "Shared Memory Card":
         "공유 메모리 카드",
     "The shared memory card is made the first time a game that uses it starts: {1}.":
@@ -4749,6 +4755,10 @@ FR = {
         "RiftWii n'a pas pu garder une copie de la sauvegarde actuelle, elle n'a donc pas changé : {1}",
     "RiftWii could not write the memory card: {1}":
         "RiftWii n'a pas pu écrire la carte mémoire : {1}",
+    "The memory card is full: this game can't save.":
+        "La carte mémoire est pleine : ce jeu ne peut pas sauvegarder.",
+    "Memory card full":
+        "Carte pleine",
     "Shared Memory Card":
         "Carte mémoire partagée",
     "The shared memory card is made the first time a game that uses it starts: {1}.":

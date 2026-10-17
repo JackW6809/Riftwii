@@ -86,6 +86,20 @@ struct GcCardInfo {
 // the copy whose checksum holds, the newer by update counter when both do.
 bool gc_card_read(const std::vector<std::uint8_t>& card, GcCardInfo& out, std::string& error);
 
+// How full a card is, read from its first five blocks alone (the header,
+// the directories and the block tables), `card_bytes` being the whole
+// card's length: what the game page shows without reading a whole card.
+struct GcCardSpace {
+    std::uint32_t blocks = 0;        // the whole card, system blocks included
+    std::uint32_t free_blocks = 0;
+    std::uint32_t free_entries = 0;
+    // No block or no directory slot left: no game can make a new save on
+    // it (one that only rewrites its own save may still manage).
+    bool full() const { return free_blocks == 0 || free_entries == 0; }
+};
+bool gc_card_space(const std::vector<std::uint8_t>& system_blocks, std::uint64_t card_bytes, GcCardSpace& out,
+                   std::string& error);
+
 // Frees the save in directory `slot`, clears its entry and writes the
 // changed directory and BAT into the copies not in use, with update
 // counters one past the current ones, so an update cut off halfway leaves

@@ -324,6 +324,57 @@ static void test_directory_full() {
     EXPECT_TRUE(error.find("directory") != std::string::npos);
 }
 
+// How full a card is from its first five blocks alone, as gc_card_read
+// counts it: an empty card, one with no directory slot left, one with no
+// block left, and refusals.
+static void test_card_space() {
+    const std::size_t head_bytes = kGcCardSystemBlocks * kBlock;
+    const auto space_of = [&](const Bytes& card, GcCardSpace& space) {
+        std::string error;
+        const Bytes head(card.begin(), card.begin() + static_cast<std::ptrdiff_t>(head_bytes));
+        return gc_card_space(head, card.size(), space, error);
+    };
+    std::string error;
+    Bytes card = blank_card();
+    GcCardSpace space;
+    EXPECT_TRUE(space_of(card, space));
+    EXPECT_EQ(space.free_blocks, 251u);
+    EXPECT_EQ(space.free_entries, 127u);
+    EXPECT_FALSE(space.full());
+
+    // Every directory slot taken by a one-block save: full, blocks to spare.
+    Bytes slots = card;
+    for (unsigned i = 0; i < kGcCardMaxEntries; ++i) {
+        SaveSpec spec;
+        spec.name = "save " + std::to_string(i);
+        spec.blocks = 1;
+        spec.comment_offset = 0;
+        gc_card_import(slots, make_gci(spec), error);
+    }
+    EXPECT_TRUE(space_of(slots, space));
+    const GcCardInfo info = read_ok(slots);
+    EXPECT_EQ(space.free_entries, info.free_entries);
+    EXPECT_EQ(space.free_blocks, info.free_blocks);
+    EXPECT_EQ(space.free_entries, 0u);
+    EXPECT_TRUE(space.full());
+
+    // Every block taken by one large save: full, slots to spare.
+    Bytes blocks = card;
+    SaveSpec big;
+    big.name = "everything";
+    big.blocks = 251;
+    EXPECT_TRUE(gc_card_import(blocks, make_gci(big), error));
+    EXPECT_TRUE(space_of(blocks, space));
+    EXPECT_EQ(space.free_blocks, 0u);
+    EXPECT_EQ(space.free_entries, 126u);
+    EXPECT_TRUE(space.full());
+
+    // A card whose length is not its header's, or too little read of it.
+    EXPECT_FALSE(gc_card_space(Bytes(card.begin(), card.begin() + static_cast<std::ptrdiff_t>(head_bytes)),
+                               card.size() / 2, space, error));
+    EXPECT_FALSE(gc_card_space(Bytes(card.begin(), card.begin() + kBlock), card.size(), space, error));
+}
+
 static void test_copies() {
     Bytes card = blank_card();
     std::string error;
@@ -883,6 +934,7 @@ int main() {
     test_format();
     test_import_export_delete();
     test_directory_full();
+    test_card_space();
     test_copies();
     test_damaged_cards();
     test_bad_gci();
