@@ -1449,14 +1449,11 @@ msgstr "Mantén HOME y - dos segundos para salir del juego."
 msgid "Hold L, R, Z and Start for two seconds to leave the game."
 msgstr "Mantén L, R, Z y Start dos segundos para salir del juego."
 
-msgid "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller)."
-msgstr "Para salir del juego, mantén HOME dos segundos (HOME y - con un mando de Wii solo; L, R, Z y Start en un mando de GameCube)."
-
 msgid "{1}/{2}/{3}"
 msgstr "{2}/{1}/{3}"
 
-msgid "Not for PAL games"
-msgstr "No para juegos PAL"
+msgid "Not for European games"
+msgstr "No para juegos europeos"
 
 msgid "Only with a component or HDMI cable: without one the picture stays black."
 msgstr "Solo con un cable de componentes o HDMI: sin él, la imagen se queda en negro."
@@ -1545,8 +1542,8 @@ msgstr "Tarjeta de memoria"
 msgid "About this"
 msgstr "Acerca de esto"
 
-msgid "Own: a card for this game alone. Shared: one card for all games."
-msgstr "Propia: una tarjeta solo para este juego. Compartida: una tarjeta para todos los juegos."
+msgid "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card."
+msgstr "«La de este juego» guarda sus partidas en una tarjeta propia, y «Compartida» junta las de todos los juegos en una sola."
 
 msgid "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own."
 msgstr "Al cambiar no se copian partidas: se quedan en la otra tarjeta. Muévelas con Copiar a la tarjeta SD y Añadir una partida desde la tarjeta SD en la página de partidas. Los juegos japoneses tienen su propia tarjeta compartida."
@@ -1563,8 +1560,8 @@ msgstr "La de este juego"
 msgid "Adds a .gci save file from {1}."
 msgstr "Añade un archivo de partida .gci de {1}."
 
-msgid "As a .gci file, for Dolphin"
-msgstr "Como archivo .gci, para Dolphin"
+msgid "As a save file for Dolphin"
+msgstr "Como archivo de partida, para Dolphin"
 
 msgid "Copy to the SD card"
 msgstr "Copiar a la tarjeta SD"
@@ -1647,41 +1644,44 @@ msgstr "Inicio muestra solo los juegos de GameCube, de sd:/games."
 msgid "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso."
 msgstr "Un juego de GameCube va en la tarjeta SD, como sd:/games/<su ID>/game.iso."
 
-msgid "Disc reads"
-msgstr "Lectura del disco"
+msgid "Loading speed"
+msgstr "Carga"
 
 msgid "Fast"
 msgstr "Rápida"
 
-msgid "Like a GameCube"
-msgstr "Como una GameCube"
+msgid "As on a GameCube (slower)"
+msgstr "Como en una GameCube (más lenta)"
 
-msgid "Progressive scan"
-msgstr "Barrido progresivo"
+msgid "Sharper picture"
+msgstr "Imagen más nítida"
+
+msgid "On (480p)"
+msgstr "Sí (480p)"
 
 msgid "Widescreen"
 msgstr "Panorámico"
 
-msgid "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."
-msgstr "480p es para juegos de EE. UU. y Japón. Este es de una región PAL y mantiene su propia imagen."
+msgid "480p is for US and Japanese games; this European game keeps its own picture."
+msgstr "480p es para juegos de EE. UU. y Japón; este juego europeo mantiene su propia imagen."
 
-msgid "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."
-msgstr "480p: al juego se le dice que hay un cable por componentes y que el ajuste 480p está activado; puede preguntar antes. Los juegos sin 480p se cambian a él. Necesita un cable por componentes."
+msgid "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first."
+msgstr "Da una imagen más nítida y estable con un cable por componentes o HDMI, incluso en juegos sin modo 480p, y algunos preguntan antes."
 
-msgid "Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own."
-msgstr "Experimental: 16:9 dibuja el 3D del juego más ancho para una TV panorámica, y los menús y el texto siguen estirados. En una Wii la imagen de algunos juegos falla con esto (colores invertidos, imagen doble), así que «Predeterminado» deja la del juego."
+msgid "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."
+msgstr "Experimental: llena una TV panorámica con el mundo del juego mientras los menús y el texto siguen estirados, y en una Wii algunos juegos muestran colores erróneos o una imagen doble."
 
-msgid "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."
-msgstr "El idioma que se le dice a este juego que usa la consola; el ajuste de la consola no cambia. Los juegos europeos lo usan; la mayoría de los demás, no."
+msgid "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one)."
+msgstr "El idioma en que se juega este juego, sin cambiar el ajuste de la Wii (la mayoría de los juegos de EE. UU. y Japón tienen solo uno)."
 
 msgid "Controls"
 msgstr "Controles"
 
-msgid "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."
-msgstr "Rápida: las lecturas van a la velocidad de la tarjeta SD. Como una GameCube (experimental): cada lectura tarda lo mismo que en la unidad de una GameCube, con lo que cuentan unos pocos juegos; en una Wii puede congelar algunos juegos por ahora."
+msgid "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii)."
+msgstr "«Rápida» carga tan deprisa como permite la tarjeta SD, mientras que «Como en una GameCube» es más lenta pero es lo que necesitan unos pocos juegos (experimental: en una Wii puede congelar algunos juegos)."
 
-msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
-msgstr "Qué botones del mando de Wii, el Nunchuk y el mando clásico hacen de los del mando de GameCube."
+msgid "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game."
+msgstr "Muestra qué botones del mando de Wii, el Nunchuk o el mando clásico hacen de los del mando de GameCube, y cómo salir del juego."
 
 msgid "SD image made"
 msgstr "Imagen SD creada"

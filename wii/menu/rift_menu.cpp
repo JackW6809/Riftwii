@@ -4324,8 +4324,8 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		// reach it; its own instead.
 		FlowRow discReads;
 		discReads.kind = FlowRow::Kind::Option;
-		discReads.label = tr("Disc reads");
-		discReads.value = game.gc_disc_reads == "fast" ? tr("Fast") : tr("Like a GameCube");
+		discReads.label = tr("Loading speed");
+		discReads.value = game.gc_disc_reads == "fast" ? tr("Fast") : tr("As on a GameCube (slower)");
 		discReads.on = game.gc_disc_reads == "drive";
 		rows.push_back(discReads);
 		refs.push_back({W::GcDiscReads});
@@ -4338,18 +4338,18 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		refs.push_back({W::GcCard});
 		FlowRow progressive;
 		progressive.kind = FlowRow::Kind::Option;
-		progressive.label = tr("Progressive scan");
+		progressive.label = tr("Sharper picture");
 		// "global" is shown as what it comes to now, as a Wii game's rows
 		// show Settings' choice.
 		const riftwii::GcConsoleSettings console = riftwii::wii::GcConsoleNow();
 		// 480p is NTSC's: a PAL game keeps its own picture whatever is picked.
 		progressive.dim = riftwii::gc_pal_game(state.game_id);
 		progressive.on = game.gc_progressive != "global" && !progressive.dim;
-		const std::string progressiveNow = riftwii::gc_progressive_on(game, state.game_id, console)
-			? std::string("480p") : std::string(tr("Game's own"));
-		if (progressive.dim) progressive.value = tr("Not for PAL games");
-		else if (game.gc_progressive == "global") progressive.value = tr("Default ({1})", {progressiveNow});
-		else progressive.value = progressiveNow;
+		const bool progressiveNow = riftwii::gc_progressive_on(game, state.game_id, console);
+		if (progressive.dim) progressive.value = tr("Not for European games");
+		else if (game.gc_progressive == "global")
+			progressive.value = tr("Default ({1})", {progressiveNow ? std::string(tr("On")) : std::string(tr("Off"))});
+		else progressive.value = progressiveNow ? tr("On (480p)") : tr("Off");
 		rows.push_back(progressive);
 		refs.push_back({W::GcProgressive});
 		FlowRow widescreen;
@@ -4357,7 +4357,7 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		widescreen.label = tr("Widescreen");
 		widescreen.on = game.gc_widescreen != "global";
 		const std::string widescreenNow = riftwii::gc_widescreen_on(game, console)
-			? std::string("16:9") : std::string(tr("Game's own"));
+			? std::string("16:9") : std::string("4:3");
 		widescreen.value = game.gc_widescreen == "global" ? tr("Default ({1})", {widescreenNow}) : widescreenNow;
 		rows.push_back(widescreen);
 		refs.push_back({W::GcWidescreen});
@@ -4913,7 +4913,7 @@ static bool AskGc480p()
 {
 	const std::string body = std::string(tr("Only with a component or HDMI cable: without one the picture stays black.")) +
 		" " + GcLeaveLine();
-	return ShowPopup(tr("Progressive scan"), body, tr("Turn on"), tr("Cancel")) == 0;
+	return ShowPopup(tr("Sharper picture"), body, tr("Turn on"), tr("Cancel")) == 0;
 }
 
 // The controls before the first GameCube game starts from this card
@@ -5411,7 +5411,7 @@ static void MenuGcCard(FrontendState& state)
 		const riftwii::GcSave save = info.saves[at];
 		const std::string name = GcSaveName(save, info.shift_jis);
 		const int choice = save.intact
-			? ChooseTwo(name, note(row), tr("Copy to the SD card"), tr("As a .gci file, for Dolphin"), tr("Delete"), tr("From this memory card"))
+			? ChooseTwo(name, note(row), tr("Copy to the SD card"), tr("As a save file for Dolphin"), tr("Delete"), tr("From this memory card"))
 			: (ShowPopup(name, note(row), tr("Delete"), tr("Back")) == 0 ? 1 : -1);
 		if (choice == 0) {
 			std::vector<std::uint8_t> gci;
@@ -7150,20 +7150,19 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::Cover)
 				say(tr("Downloads this game's box art from GameTDB now."));
 			else if (ref.what == RowRef::What::GcDiscReads)
-				say(tr("Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."));
+				say(tr("Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii)."));
 			else if (ref.what == RowRef::What::GcCard)
-				say(tr("Own: a card for this game alone. Shared: one card for all games."));
+				say(tr("This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card."));
 			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id))
-				say(tr("480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."));
+				say(tr("480p is for US and Japanese games; this European game keeps its own picture."));
 			else if (ref.what == RowRef::What::GcProgressive)
-				say(tr("480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."));
+				say(tr("Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first."));
 			else if (ref.what == RowRef::What::GcWidescreen)
-				say(tr("Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own."));
+				say(tr("Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."));
 			else if (ref.what == RowRef::What::GcLanguage)
-				say(tr("The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."));
+				say(tr("The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one)."));
 			else if (ref.what == RowRef::What::GcControls)
-				say(std::string(tr("Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.")) + " " +
-					tr("To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller)."));
+				say(tr("Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game."));
 			else if (ref.what == RowRef::What::Memory) {
 				const riftwii::ExtrasBudget budget = riftwii::wii::EstimateExtras(state);
 				std::string text = tr("Taken from the game's own memory by what RiftWii adds to this launch: {1}.", {budget.list()});
@@ -7211,7 +7210,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			}
 			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id)) {
 				// The row is dimmed: nothing to change, only why.
-				say(tr("480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."));
+				say(tr("480p is for US and Japanese games; this European game keeps its own picture."));
 				changed = false;
 			}
 			else if (ref.what == RowRef::What::GcProgressive) {

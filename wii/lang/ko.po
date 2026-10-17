@@ -1449,14 +1449,11 @@ msgstr "HOME과 -를 2초 동안 누르면 게임을 나갑니다."
 msgid "Hold L, R, Z and Start for two seconds to leave the game."
 msgstr "L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다."
 
-msgid "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller)."
-msgstr "게임을 나가려면 HOME을 2초 동안 누르세요(Wii 리모컨만 쓸 때는 HOME과 -, 게임큐브 컨트롤러에서는 L, R, Z, 스타트)."
-
 msgid "{1}/{2}/{3}"
 msgstr "{3}/{1}/{2}"
 
-msgid "Not for PAL games"
-msgstr "PAL 게임에는 없음"
+msgid "Not for European games"
+msgstr "유럽 게임용 아님"
 
 msgid "Only with a component or HDMI cable: without one the picture stays black."
 msgstr "컴포넌트 또는 HDMI 케이블이 있을 때만 쓰세요. 없으면 화면이 검은 채로 남습니다."
@@ -1545,8 +1542,8 @@ msgstr "메모리 카드"
 msgid "About this"
 msgstr "설명"
 
-msgid "Own: a card for this game alone. Shared: one card for all games."
-msgstr "전용: 이 게임만을 위한 카드입니다. 공유: 모든 게임이 카드 하나를 씁니다."
+msgid "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card."
+msgstr "\"이 게임 전용\"은 이 게임의 저장 데이터를 전용 카드에 두고, \"공유\"는 모든 게임의 저장 데이터를 카드 한 장에 모읍니다."
 
 msgid "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own."
 msgstr "바꿔도 저장 데이터는 복사되지 않고 다른 카드에 남습니다. 저장 페이지의 SD 카드에 복사와 SD 카드에서 저장 데이터 추가로 옮길 수 있습니다. 일본 게임은 별도의 공유 카드를 씁니다."
@@ -1563,8 +1560,8 @@ msgstr "이 게임 전용"
 msgid "Adds a .gci save file from {1}."
 msgstr "{1}에서 .gci 저장 파일을 추가합니다."
 
-msgid "As a .gci file, for Dolphin"
-msgstr ".gci 파일로 (Dolphin용)"
+msgid "As a save file for Dolphin"
+msgstr "저장 파일로 (Dolphin용)"
 
 msgid "Copy to the SD card"
 msgstr "SD 카드에 복사"
@@ -1647,41 +1644,44 @@ msgstr "홈에 sd:/games의 게임큐브 게임만 표시합니다."
 msgid "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso."
 msgstr "게임큐브 게임은 SD 카드에 sd:/games/<ID>/game.iso로 넣습니다."
 
-msgid "Disc reads"
-msgstr "디스크 읽기"
+msgid "Loading speed"
+msgstr "로딩 속도"
 
 msgid "Fast"
 msgstr "빠르게"
 
-msgid "Like a GameCube"
-msgstr "게임큐브처럼"
+msgid "As on a GameCube (slower)"
+msgstr "게임큐브처럼 (느림)"
 
-msgid "Progressive scan"
-msgstr "프로그레시브 스캔"
+msgid "Sharper picture"
+msgstr "더 선명한 화면"
+
+msgid "On (480p)"
+msgstr "켬 (480p)"
 
 msgid "Widescreen"
 msgstr "와이드 화면"
 
-msgid "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."
-msgstr "480p는 미국과 일본 게임용입니다. 이 게임은 PAL 지역 게임이라 원래 화면을 그대로 씁니다."
+msgid "480p is for US and Japanese games; this European game keeps its own picture."
+msgstr "480p는 미국과 일본 게임용이며, 이 유럽 게임은 원래 화면을 그대로 씁니다."
 
-msgid "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."
-msgstr "480p: 컴포넌트 케이블과 480p 설정이 있다고 게임에 알려 줍니다. 게임이 먼저 물어볼 수 있습니다. 480p가 없는 게임도 480p로 바꿉니다. 컴포넌트 케이블이 필요합니다."
+msgid "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first."
+msgstr "컴포넌트 또는 HDMI 케이블에서 더 선명하고 안정적인 화면을 보여 주며, 480p가 없는 게임도 해당되고 일부 게임은 먼저 물어봅니다."
 
-msgid "Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own."
-msgstr "실험적: 16:9는 와이드 TV에 맞게 게임의 3D를 더 넓게 그리며, 메뉴와 글자는 늘어난 채로 남습니다. Wii에서는 일부 게임의 화면이 잘못될 수 있어(색 반전, 화면 겹침) \"기본\"은 게임 자체 화면을 유지합니다."
+msgid "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."
+msgstr "실험적: 메뉴와 글자는 늘어난 채로 게임 세계를 와이드 TV에 가득 채우며, Wii에서는 일부 게임에서 색이 잘못되거나 화면이 겹쳐 보일 수 있습니다."
 
-msgid "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."
-msgstr "이 게임에 알려 줄 본체 언어입니다. 본체 설정은 그대로입니다. 유럽 게임은 이 언어를 쓰고, 다른 게임은 대부분 무시합니다."
+msgid "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one)."
+msgstr "이 게임을 플레이할 언어이며 Wii 본체 설정은 바뀌지 않습니다 (미국·일본 게임은 대부분 언어가 하나뿐입니다)."
 
 msgid "Controls"
 msgstr "조작"
 
-msgid "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."
-msgstr "빠르게: SD 카드 속도로 읽습니다. 게임큐브처럼(실험적): 읽을 때마다 게임큐브 드라이브와 같은 시간이 걸리며, 이를 전제로 하는 게임은 일부뿐입니다. 지금은 Wii에서 일부 게임이 멈출 수 있습니다."
+msgid "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii)."
+msgstr "\"빠르게\"는 SD 카드가 허용하는 한 빨리 읽고, \"게임큐브처럼\"은 더 느리지만 일부 게임에 필요합니다 (실험적: Wii에서는 일부 게임이 멈출 수 있습니다)."
 
-msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
-msgstr "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지 보여 줍니다."
+msgid "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game."
+msgstr "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지와 게임에서 나가는 방법을 보여 줍니다."
 
 msgid "SD image made"
 msgstr "SD 이미지 생성됨"

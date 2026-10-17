@@ -1449,14 +1449,11 @@ msgstr "HOMEと-を2秒押し続けるとゲームをやめます。"
 msgid "Hold L, R, Z and Start for two seconds to leave the game."
 msgstr "L、R、Z、スタートを2秒押し続けるとゲームをやめます。"
 
-msgid "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller)."
-msgstr "ゲームをやめるには、HOMEを2秒押し続けます（Wiiリモコンだけのときは HOMEと-、ゲームキューブコントローラでは L、R、Z、スタート）。"
-
 msgid "{1}/{2}/{3}"
 msgstr "{3}/{1}/{2}"
 
-msgid "Not for PAL games"
-msgstr "PALのゲームには使えません"
+msgid "Not for European games"
+msgstr "ヨーロッパのゲームには使えません"
 
 msgid "Only with a component or HDMI cable: without one the picture stays black."
 msgstr "コンポーネントかHDMIのケーブルが必要です。ないと画面が黒いままになります。"
@@ -1545,8 +1542,8 @@ msgstr "メモリーカード"
 msgid "About this"
 msgstr "説明"
 
-msgid "Own: a card for this game alone. Shared: one card for all games."
-msgstr "専用: このゲームだけのカードです。共有: すべてのゲームで1枚のカードを使います。"
+msgid "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card."
+msgstr "「このゲーム専用」はこのゲームだけのカードにセーブを置き、「共有」はすべてのゲームのセーブを1枚のカードにまとめます。"
 
 msgid "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own."
 msgstr "切り替えてもセーブはコピーされず、もう一方のカードに残ります。セーブのページの「SDカードにコピー」と「SDカードからセーブを追加」で移せます。日本のゲームは専用の共有カードを使います。"
@@ -1563,8 +1560,8 @@ msgstr "このゲーム専用"
 msgid "Adds a .gci save file from {1}."
 msgstr "{1}から.gciのセーブファイルを追加します。"
 
-msgid "As a .gci file, for Dolphin"
-msgstr ".gciファイルとして(Dolphin用)"
+msgid "As a save file for Dolphin"
+msgstr "セーブファイルとして (Dolphin用)"
 
 msgid "Copy to the SD card"
 msgstr "SDカードにコピー"
@@ -1647,41 +1644,44 @@ msgstr "ホームにはsd:/gamesのゲームキューブのゲームだけを表
 msgid "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso."
 msgstr "ゲームキューブのゲームはSDカードにsd:/games/<ID>/game.isoとして入れます。"
 
-msgid "Disc reads"
-msgstr "ディスクの読み込み"
+msgid "Loading speed"
+msgstr "読み込み速度"
 
 msgid "Fast"
 msgstr "高速"
 
-msgid "Like a GameCube"
-msgstr "ゲームキューブと同じ"
+msgid "As on a GameCube (slower)"
+msgstr "ゲームキューブと同じ (遅い)"
 
-msgid "Progressive scan"
-msgstr "プログレッシブ"
+msgid "Sharper picture"
+msgstr "くっきりした画面"
+
+msgid "On (480p)"
+msgstr "オン (480p)"
 
 msgid "Widescreen"
 msgstr "ワイド画面"
 
-msgid "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture."
-msgstr "480pはアメリカと日本のゲーム用です。このゲームはPAL地域のものなので、ゲームのままの映像になります。"
+msgid "480p is for US and Japanese games; this European game keeps its own picture."
+msgstr "480pはアメリカと日本のゲーム用で、このヨーロッパのゲームはゲームのままの映像になります。"
 
-msgid "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable."
-msgstr "480p:コンポーネントケーブルと480pの設定があるとゲームに伝えます。先に確認を求めることがあります。480pのないゲームも480pに切り替えます。コンポーネントケーブルが必要です。"
+msgid "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first."
+msgstr "コンポーネントケーブルかHDMIケーブルで、くっきり安定した映像にします (480pのないゲームも対象で、先に確認を求めるゲームもあります)。"
 
-msgid "Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own."
-msgstr "試験的: 16:9はゲームの3Dをワイドテレビ用に広く描き、メニューと文字は横に伸びたままです。Wiiでは一部のゲームの画面がおかしくなる(色が反転する、画面が二重になる)ため、「標準」はゲームのままにします。"
+msgid "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."
+msgstr "試験的: メニューと文字は横に伸びたまま、ゲームの世界をワイドテレビいっぱいに広げます (Wiiでは一部のゲームで色がおかしくなったり、画面が二重になったりします)。"
 
-msgid "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it."
-msgstr "このゲームに伝える本体の言語です。本体の設定は変わりません。ヨーロッパのゲームは使いますが、ほかの多くのゲームは使いません。"
+msgid "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one)."
+msgstr "このゲームを遊ぶ言語で、Wii本体の設定は変わりません (アメリカと日本のゲームの多くは1言語だけです)。"
 
 msgid "Controls"
 msgstr "操作"
 
-msgid "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now."
-msgstr "高速: SDカードの速さで読み込みます。ゲームキューブと同じ(試験的): 読み込みごとにゲームキューブのドライブと同じ時間がかかります。これを前提にするゲームもわずかにあります。今のところWiiでは一部のゲームが止まることがあります。"
+msgid "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii)."
+msgstr "「高速」はSDカードの限界の速さで読み込み、「ゲームキューブと同じ」は遅くなりますが、必要とするゲームも少しあります (試験的: Wiiでは一部のゲームが止まることがあります)。"
 
-msgid "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's."
-msgstr "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかを表示します。"
+msgid "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game."
+msgstr "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかと、ゲームのやめ方を表示します。"
 
 msgid "SD image made"
 msgstr "SDイメージを作成しました"

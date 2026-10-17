@@ -1363,9 +1363,8 @@ T = {
     "{1} not built": ("{1} no se creó", "{1}は作られませんでした", "{1} não foi criado", "{1} non creato"),
     "Hold HOME and - for two seconds to leave the game.": ("Mantén HOME y - dos segundos para salir del juego.", "HOMEと-を2秒押し続けるとゲームをやめます。", "Mantenha HOME e - premidos dois segundos para sair do jogo.", "Tieni premuti HOME e - per due secondi per uscire dal gioco."),
     "Hold L, R, Z and Start for two seconds to leave the game.": ("Mantén L, R, Z y Start dos segundos para salir del juego.", "L、R、Z、スタートを2秒押し続けるとゲームをやめます。", "Mantenha L, R, Z e Start premidos dois segundos para sair do jogo.", "Tieni premuti L, R, Z e Start per due secondi per uscire dal gioco."),
-    "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller).": ("Para salir del juego, mantén HOME dos segundos (HOME y - con un mando de Wii solo; L, R, Z y Start en un mando de GameCube).", "ゲームをやめるには、HOMEを2秒押し続けます（Wiiリモコンだけのときは HOMEと-、ゲームキューブコントローラでは L、R、Z、スタート）。", "Para sair do jogo, mantenha HOME premido dois segundos (HOME e - num Comando Wii sozinho; L, R, Z e Start num comando GameCube).", "Per uscire dal gioco, tieni premuto HOME per due secondi (HOME e - con il solo telecomando Wii; L, R, Z e Start su un controller GameCube)."),
     "{1}/{2}/{3}": ("{2}/{1}/{3}", "{3}/{1}/{2}", "{2}/{1}/{3}", "{2}/{1}/{3}"),
-    "Not for PAL games": ("No para juegos PAL", "PALのゲームには使えません", "Não para jogos PAL", "Non per giochi PAL"),
+    "Not for European games": ("No para juegos europeos", "ヨーロッパのゲームには使えません", "Não para jogos europeus", "Non per giochi europei"),
     "Only with a component or HDMI cable: without one the picture stays black.": ("Solo con un cable de componentes o HDMI: sin él, la imagen se queda en negro.", "コンポーネントかHDMIのケーブルが必要です。ないと画面が黒いままになります。", "Só com um cabo de componentes ou HDMI: sem ele, a imagem fica preta.", "Solo con un cavo component o HDMI: senza, lo schermo resta nero."),
     "Turn on": ("Activar", "オンにする", "Ativar", "Attiva"),
     "Wii Remote and Nunchuk": ("Mando de Wii y Nunchuk", "Wiiリモコンとヌンチャク", "Comando Wii e Nunchuk", "Telecomando Wii e Nunchuk"),
@@ -1395,13 +1394,13 @@ T = {
     "Saves go to the shared memory card on the SD card: {1}.": ("Las partidas van a la tarjeta de memoria compartida de la tarjeta SD: {1}.", "セーブはSDカード上の共有メモリーカードに保存されます: {1}", "Os saves vão para o cartão de memória compartilhado no cartão SD: {1}.", "I salvataggi vanno nella Memory Card condivisa sulla scheda SD: {1}."),
     "Memory card": ("Tarjeta de memoria", "メモリーカード", "Cartão de memória", "Memory Card"),
     "About this": ("Acerca de esto", "説明", "Sobre isto", "Informazioni"),
-    "Own: a card for this game alone. Shared: one card for all games.": ("Propia: una tarjeta solo para este juego. Compartida: una tarjeta para todos los juegos.", "専用: このゲームだけのカードです。共有: すべてのゲームで1枚のカードを使います。", "Própria: um cartão só para este jogo. Compartilhado: um cartão para todos os jogos.", "Propria: una scheda solo per questo gioco. Condivisa: una scheda per tutti i giochi."),
+    "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card.": ("«La de este juego» guarda sus partidas en una tarjeta propia, y «Compartida» junta las de todos los juegos en una sola.", "「このゲーム専用」はこのゲームだけのカードにセーブを置き、「共有」はすべてのゲームのセーブを1枚のカードにまとめます。", "\"Só deste jogo\" guarda os saves num cartão próprio, e \"Compartilhado\" junta os saves de todos os jogos num só cartão.", "\"Solo di questo gioco\" tiene i salvataggi su una scheda propria, mentre \"Condivisa\" mette quelli di tutti i giochi su una sola scheda."),
     "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own.": ("Al cambiar no se copian partidas: se quedan en la otra tarjeta. Muévelas con Copiar a la tarjeta SD y Añadir una partida desde la tarjeta SD en la página de partidas. Los juegos japoneses tienen su propia tarjeta compartida.", "切り替えてもセーブはコピーされず、もう一方のカードに残ります。セーブのページの「SDカードにコピー」と「SDカードからセーブを追加」で移せます。日本のゲームは専用の共有カードを使います。", "Trocar não copia saves: eles ficam no outro cartão. Mova-os com Copiar para o cartão SD e Adicionar um save do cartão SD na página de saves. Os jogos japoneses têm o seu próprio cartão compartilhado.", "Cambiando non si copia nulla: i salvataggi restano sull'altra scheda. Spostali con Copia sulla scheda SD e Aggiungi un salvataggio dalla scheda SD nella pagina dei salvataggi. I giochi giapponesi hanno la loro scheda condivisa."),
     "Switch": ("Cambiar", "切り替える", "Trocar", "Cambia"),
     "Shared": ("Compartida", "共有", "Compartilhado", "Condivisa"),
     "This game's own": ("La de este juego", "このゲーム専用", "Só deste jogo", "Solo di questo gioco"),
     "Adds a .gci save file from {1}.": ("Añade un archivo de partida .gci de {1}.", "{1}から.gciのセーブファイルを追加します。", "Adiciona um ficheiro de save .gci de {1}.", "Aggiunge un file di salvataggio .gci da {1}."),
-    "As a .gci file, for Dolphin": ("Como archivo .gci, para Dolphin", ".gciファイルとして(Dolphin用)", "Como ficheiro .gci, para o Dolphin", "Come file .gci, per Dolphin"),
+    "As a save file for Dolphin": ("Como archivo de partida, para Dolphin", "セーブファイルとして (Dolphin用)", "Como ficheiro de save, para o Dolphin", "Come file di salvataggio, per Dolphin"),
     "Copy to the SD card": ("Copiar a la tarjeta SD", "SDカードにコピー", "Copiar para o cartão SD", "Copia sulla scheda SD"),
     "Delete": ("Borrar", "削除", "Apagar", "Elimina"),
     "Delete {1}?": ("¿Borrar {1}?", "{1}を削除しますか?", "Apagar {1}?", "Eliminare {1}?"),
@@ -1429,18 +1428,19 @@ T = {
     "Not made yet": ("Aún no creado", "まだ作られていません", "Ainda não criado", "Non ancora creato"),
     "Home lists the GameCube games only, from sd:/games.": ("Inicio muestra solo los juegos de GameCube, de sd:/games.", "ホームにはsd:/gamesのゲームキューブのゲームだけを表示します。", "O Início mostra só os jogos de GameCube, de sd:/games.", "La Home mostra solo i giochi GameCube, da sd:/games."),
     "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso.": ("Un juego de GameCube va en la tarjeta SD, como sd:/games/<su ID>/game.iso.", "ゲームキューブのゲームはSDカードにsd:/games/<ID>/game.isoとして入れます。", "Um jogo de GameCube vai no cartão SD, como sd:/games/<o seu ID>/game.iso.", "Un gioco GameCube va sulla scheda SD, come sd:/games/<il suo ID>/game.iso."),
-    "Disc reads": ("Lectura del disco", "ディスクの読み込み", "Leitura do disco", "Lettura del disco"),
+    "Loading speed": ("Carga", "読み込み速度", "Carregamento", "Caricamento"),
     "Fast": ("Rápida", "高速", "Rápida", "Veloce"),
-    "Like a GameCube": ("Como una GameCube", "ゲームキューブと同じ", "Como uma GameCube", "Come un GameCube"),
-    "Progressive scan": ("Barrido progresivo", "プログレッシブ", "Varredura progressiva", "Scansione progressiva"),
+    "As on a GameCube (slower)": ("Como en una GameCube (más lenta)", "ゲームキューブと同じ (遅い)", "Como numa GameCube (mais lenta)", "Come su un GameCube (più lenta)"),
+    "Sharper picture": ("Imagen más nítida", "くっきりした画面", "Imagem mais nítida", "Immagine più nitida"),
+    "On (480p)": ("Sí (480p)", "オン (480p)", "Sim (480p)", "Sì (480p)"),
     "Widescreen": ("Panorámico", "ワイド画面", "Widescreen", "Panoramico"),
-    "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture.": ("480p es para juegos de EE. UU. y Japón. Este es de una región PAL y mantiene su propia imagen.", "480pはアメリカと日本のゲーム用です。このゲームはPAL地域のものなので、ゲームのままの映像になります。", "480p é para jogos dos EUA e do Japão. Este é de uma região PAL e mantém a sua própria imagem.", "Il 480p è per i giochi americani e giapponesi. Questo è di una regione PAL e mantiene la sua immagine."),
-    "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable.": ("480p: al juego se le dice que hay un cable por componentes y que el ajuste 480p está activado; puede preguntar antes. Los juegos sin 480p se cambian a él. Necesita un cable por componentes.", "480p:コンポーネントケーブルと480pの設定があるとゲームに伝えます。先に確認を求めることがあります。480pのないゲームも480pに切り替えます。コンポーネントケーブルが必要です。", "480p: o jogo é informado de que há um cabo componente e de que a opção 480p está ligada; ele pode perguntar antes. Jogos sem 480p passam para ele. Precisa de um cabo componente.", "480p: al gioco viene detto che ci sono un cavo component e l'impostazione 480p; può chiedere prima. I giochi senza 480p vengono portati a 480p. Serve un cavo component."),
-    "Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own.": ("Experimental: 16:9 dibuja el 3D del juego más ancho para una TV panorámica, y los menús y el texto siguen estirados. En una Wii la imagen de algunos juegos falla con esto (colores invertidos, imagen doble), así que «Predeterminado» deja la del juego.", "試験的: 16:9はゲームの3Dをワイドテレビ用に広く描き、メニューと文字は横に伸びたままです。Wiiでは一部のゲームの画面がおかしくなる(色が反転する、画面が二重になる)ため、「標準」はゲームのままにします。", "Experimental: 16:9 desenha o 3D do jogo mais largo para uma TV widescreen, e menus e texto continuam esticados. Numa Wii a imagem de alguns jogos falha com isto (cores invertidas, imagem dupla), por isso \"Padrão\" mantém a do jogo.", "Sperimentale: 16:9 disegna il 3D del gioco più largo per una TV panoramica, e menu e testi restano allungati. Su una Wii l'immagine di alcuni giochi si guasta (colori invertiti, immagine doppia), quindi \"Predefinito\" lascia quella del gioco."),
-    "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it.": ("El idioma que se le dice a este juego que usa la consola; el ajuste de la consola no cambia. Los juegos europeos lo usan; la mayoría de los demás, no.", "このゲームに伝える本体の言語です。本体の設定は変わりません。ヨーロッパのゲームは使いますが、ほかの多くのゲームは使いません。", "O idioma que este jogo é informado que o console usa; a configuração do console fica como está. Jogos europeus o usam, a maioria dos outros o ignora.", "La lingua che a questo gioco viene detto che usa la console; l'impostazione della console resta com'è. I giochi europei la usano, la maggior parte degli altri no."),
+    "480p is for US and Japanese games; this European game keeps its own picture.": ("480p es para juegos de EE. UU. y Japón; este juego europeo mantiene su propia imagen.", "480pはアメリカと日本のゲーム用で、このヨーロッパのゲームはゲームのままの映像になります。", "480p é para jogos dos EUA e do Japão; este jogo europeu mantém a sua própria imagem.", "Il 480p è per i giochi americani e giapponesi; questo gioco europeo mantiene la sua immagine."),
+    "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first.": ("Da una imagen más nítida y estable con un cable por componentes o HDMI, incluso en juegos sin modo 480p, y algunos preguntan antes.", "コンポーネントケーブルかHDMIケーブルで、くっきり安定した映像にします (480pのないゲームも対象で、先に確認を求めるゲームもあります)。", "Dá uma imagem mais nítida e estável com cabo componente ou HDMI, mesmo em jogos sem modo 480p, e alguns perguntam antes.", "Dà un'immagine più nitida e stabile con un cavo component o HDMI, anche nei giochi senza modo 480p, e alcuni chiedono prima."),
+    "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.": ("Experimental: llena una TV panorámica con el mundo del juego mientras los menús y el texto siguen estirados, y en una Wii algunos juegos muestran colores erróneos o una imagen doble.", "試験的: メニューと文字は横に伸びたまま、ゲームの世界をワイドテレビいっぱいに広げます (Wiiでは一部のゲームで色がおかしくなったり、画面が二重になったりします)。", "Experimental: preenche uma TV widescreen com o mundo do jogo, enquanto menus e texto continuam esticados, e numa Wii alguns jogos mostram cores erradas ou imagem dupla.", "Sperimentale: riempie una TV panoramica con il mondo di gioco, mentre menu e testi restano allungati, e su una Wii alcuni giochi mostrano colori sbagliati o un'immagine doppia."),
+    "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).": ("El idioma en que se juega este juego, sin cambiar el ajuste de la Wii (la mayoría de los juegos de EE. UU. y Japón tienen solo uno).", "このゲームを遊ぶ言語で、Wii本体の設定は変わりません (アメリカと日本のゲームの多くは1言語だけです)。", "O idioma em que este jogo é jogado, sem mudar a configuração da Wii (a maioria dos jogos dos EUA e do Japão tem só um).", "La lingua in cui si gioca questo gioco, senza cambiare l'impostazione della Wii (la maggior parte dei giochi americani e giapponesi ne ha una sola)."),
     "Controls": ("Controles", "操作", "Controlos", "Comandi"),
-    "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now.": ("Rápida: las lecturas van a la velocidad de la tarjeta SD. Como una GameCube (experimental): cada lectura tarda lo mismo que en la unidad de una GameCube, con lo que cuentan unos pocos juegos; en una Wii puede congelar algunos juegos por ahora.", "高速: SDカードの速さで読み込みます。ゲームキューブと同じ(試験的): 読み込みごとにゲームキューブのドライブと同じ時間がかかります。これを前提にするゲームもわずかにあります。今のところWiiでは一部のゲームが止まることがあります。", "Rápida: as leituras vêm à velocidade do cartão SD. Como uma GameCube (experimental): cada leitura demora o mesmo que na unidade de uma GameCube, com o que alguns poucos jogos contam; numa Wii pode, por agora, bloquear alguns jogos.", "Veloce: le letture vanno alla velocità della scheda SD. Come un GameCube (sperimentale): ogni lettura dura quanto sull'unità di un GameCube, su cui pochi giochi contano; su una Wii per ora può bloccare alcuni giochi."),
-    "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.": ("Qué botones del mando de Wii, el Nunchuk y el mando clásico hacen de los del mando de GameCube.", "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかを表示します。", "Que botões do Comando Wii, do Nunchuk e do Comando Clássico fazem de botões do comando GameCube.", "Quali pulsanti del telecomando Wii, del Nunchuk e del controller classico fanno da pulsanti del controller GameCube."),
+    "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii).": ("«Rápida» carga tan deprisa como permite la tarjeta SD, mientras que «Como en una GameCube» es más lenta pero es lo que necesitan unos pocos juegos (experimental: en una Wii puede congelar algunos juegos).", "「高速」はSDカードの限界の速さで読み込み、「ゲームキューブと同じ」は遅くなりますが、必要とするゲームも少しあります (試験的: Wiiでは一部のゲームが止まることがあります)。", "\"Rápida\" carrega o mais depressa que o cartão SD permite, enquanto \"Como numa GameCube\" é mais lenta, mas é o que alguns poucos jogos precisam (experimental: numa Wii pode bloquear alguns jogos).", "\"Veloce\" carica il più rapidamente possibile per la scheda SD, mentre \"Come su un GameCube\" è più lenta ma serve a pochi giochi (sperimentale: su una Wii può bloccare alcuni giochi)."),
+    "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game.": ("Muestra qué botones del mando de Wii, el Nunchuk o el mando clásico hacen de los del mando de GameCube, y cómo salir del juego.", "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかと、ゲームのやめ方を表示します。", "Mostra que botões do Comando Wii, do Nunchuk ou do Comando Clássico fazem de botões do comando GameCube, e como sair do jogo.", "Mostra quali pulsanti del telecomando Wii, del Nunchuk o del controller classico fanno da pulsanti del controller GameCube, e come uscire dal gioco."),
     "SD image made": ("Imagen SD creada", "SDイメージを作成しました", "Imagem SD criada", "Immagine SD creata"),
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.": ("{1} está en sd:/riftwii y la build que contiene está activada: el juego usa la imagen como su tarjeta SD.", "{1}はsd:/riftwiiにあり、中のビルドはオンになっています: ゲームはこのイメージをSDカードとして使います。", "{1} está em sd:/riftwii e a build dentro dela está ativada: o jogo usa a imagem como seu cartão SD.", "{1} è in sd:/riftwii e la build al suo interno è attivata: il gioco usa l'immagine come sua scheda SD."),
     "Remove from the list": ("Quitar de la lista", "一覧から削除", "Remover da lista", "Rimuovi dall'elenco"),
@@ -2871,12 +2871,10 @@ KO = {
         "HOME과 -를 2초 동안 누르면 게임을 나갑니다.",
     "Hold L, R, Z and Start for two seconds to leave the game.":
         "L, R, Z, 스타트를 2초 동안 누르면 게임을 나갑니다.",
-    "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller).":
-        "게임을 나가려면 HOME을 2초 동안 누르세요(Wii 리모컨만 쓸 때는 HOME과 -, 게임큐브 컨트롤러에서는 L, R, Z, 스타트).",
     "{1}/{2}/{3}":
         "{3}/{1}/{2}",
-    "Not for PAL games":
-        "PAL 게임에는 없음",
+    "Not for European games":
+        "유럽 게임용 아님",
     "Only with a component or HDMI cable: without one the picture stays black.":
         "컴포넌트 또는 HDMI 케이블이 있을 때만 쓰세요. 없으면 화면이 검은 채로 남습니다.",
     "Turn on":
@@ -2935,8 +2933,8 @@ KO = {
         "메모리 카드",
     "About this":
         "설명",
-    "Own: a card for this game alone. Shared: one card for all games.":
-        "전용: 이 게임만을 위한 카드입니다. 공유: 모든 게임이 카드 하나를 씁니다.",
+    "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card.":
+        "\"이 게임 전용\"은 이 게임의 저장 데이터를 전용 카드에 두고, \"공유\"는 모든 게임의 저장 데이터를 카드 한 장에 모읍니다.",
     "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own.":
         "바꿔도 저장 데이터는 복사되지 않고 다른 카드에 남습니다. 저장 페이지의 SD 카드에 복사와 SD 카드에서 저장 데이터 추가로 옮길 수 있습니다. 일본 게임은 별도의 공유 카드를 씁니다.",
     "Switch":
@@ -2947,8 +2945,8 @@ KO = {
         "이 게임 전용",
     "Adds a .gci save file from {1}.":
         "{1}에서 .gci 저장 파일을 추가합니다.",
-    "As a .gci file, for Dolphin":
-        ".gci 파일로 (Dolphin용)",
+    "As a save file for Dolphin":
+        "저장 파일로 (Dolphin용)",
     "Copy to the SD card":
         "SD 카드에 복사",
     "Delete":
@@ -3003,30 +3001,32 @@ KO = {
         "홈에 sd:/games의 게임큐브 게임만 표시합니다.",
     "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso.":
         "게임큐브 게임은 SD 카드에 sd:/games/<ID>/game.iso로 넣습니다.",
-    "Disc reads":
-        "디스크 읽기",
+    "Loading speed":
+        "로딩 속도",
     "Fast":
         "빠르게",
-    "Like a GameCube":
-        "게임큐브처럼",
-    "Progressive scan":
-        "프로그레시브 스캔",
+    "As on a GameCube (slower)":
+        "게임큐브처럼 (느림)",
+    "Sharper picture":
+        "더 선명한 화면",
+    "On (480p)":
+        "켬 (480p)",
     "Widescreen":
         "와이드 화면",
-    "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture.":
-        "480p는 미국과 일본 게임용입니다. 이 게임은 PAL 지역 게임이라 원래 화면을 그대로 씁니다.",
-    "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable.":
-        "480p: 컴포넌트 케이블과 480p 설정이 있다고 게임에 알려 줍니다. 게임이 먼저 물어볼 수 있습니다. 480p가 없는 게임도 480p로 바꿉니다. 컴포넌트 케이블이 필요합니다.",
-    "Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own.":
-        "실험적: 16:9는 와이드 TV에 맞게 게임의 3D를 더 넓게 그리며, 메뉴와 글자는 늘어난 채로 남습니다. Wii에서는 일부 게임의 화면이 잘못될 수 있어(색 반전, 화면 겹침) \"기본\"은 게임 자체 화면을 유지합니다.",
-    "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it.":
-        "이 게임에 알려 줄 본체 언어입니다. 본체 설정은 그대로입니다. 유럽 게임은 이 언어를 쓰고, 다른 게임은 대부분 무시합니다.",
+    "480p is for US and Japanese games; this European game keeps its own picture.":
+        "480p는 미국과 일본 게임용이며, 이 유럽 게임은 원래 화면을 그대로 씁니다.",
+    "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first.":
+        "컴포넌트 또는 HDMI 케이블에서 더 선명하고 안정적인 화면을 보여 주며, 480p가 없는 게임도 해당되고 일부 게임은 먼저 물어봅니다.",
+    "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.":
+        "실험적: 메뉴와 글자는 늘어난 채로 게임 세계를 와이드 TV에 가득 채우며, Wii에서는 일부 게임에서 색이 잘못되거나 화면이 겹쳐 보일 수 있습니다.",
+    "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).":
+        "이 게임을 플레이할 언어이며 Wii 본체 설정은 바뀌지 않습니다 (미국·일본 게임은 대부분 언어가 하나뿐입니다).",
     "Controls":
         "조작",
-    "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now.":
-        "빠르게: SD 카드 속도로 읽습니다. 게임큐브처럼(실험적): 읽을 때마다 게임큐브 드라이브와 같은 시간이 걸리며, 이를 전제로 하는 게임은 일부뿐입니다. 지금은 Wii에서 일부 게임이 멈출 수 있습니다.",
-    "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.":
-        "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지 보여 줍니다.",
+    "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii).":
+        "\"빠르게\"는 SD 카드가 허용하는 한 빨리 읽고, \"게임큐브처럼\"은 더 느리지만 일부 게임에 필요합니다 (실험적: Wii에서는 일부 게임이 멈출 수 있습니다).",
+    "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game.":
+        "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지와 게임에서 나가는 방법을 보여 줍니다.",
     "SD image made":
         "SD 이미지 생성됨",
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.":
@@ -4592,12 +4592,10 @@ FR = {
         "Maintenez HOME et - deux secondes pour quitter le jeu.",
     "Hold L, R, Z and Start for two seconds to leave the game.":
         "Maintenez L, R, Z et Start deux secondes pour quitter le jeu.",
-    "To leave the game, hold HOME for two seconds (HOME and - on a Wii Remote alone; L, R, Z and Start on a GameCube controller).":
-        "Pour quitter le jeu, maintenez HOME deux secondes (HOME et - avec une Wiimote seule ; L, R, Z et Start sur une manette GameCube).",
     "{1}/{2}/{3}":
         "{2}/{1}/{3}",
-    "Not for PAL games":
-        "Pas pour les jeux PAL",
+    "Not for European games":
+        "Pas pour les jeux européens",
     "Only with a component or HDMI cable: without one the picture stays black.":
         "Seulement avec un câble composante ou HDMI : sans, l'image reste noire.",
     "Turn on":
@@ -4656,8 +4654,8 @@ FR = {
         "Carte mémoire",
     "About this":
         "À propos",
-    "Own: a card for this game alone. Shared: one card for all games.":
-        "Propre : une carte pour ce jeu seul. Partagée : une carte pour tous les jeux.",
+    "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card.":
+        "« Propre à ce jeu » garde ses sauvegardes sur une carte à lui, tandis que « Partagée » met celles de tous les jeux sur une seule carte.",
     "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own.":
         "Changer ne copie aucune sauvegarde : elles restent sur l'autre carte. Déplacez-les avec Copier sur la carte SD et Ajouter une sauvegarde depuis la carte SD dans la page des sauvegardes. Les jeux japonais ont leur propre carte partagée.",
     "Switch":
@@ -4668,8 +4666,8 @@ FR = {
         "Propre à ce jeu",
     "Adds a .gci save file from {1}.":
         "Ajoute un fichier de sauvegarde .gci depuis {1}.",
-    "As a .gci file, for Dolphin":
-        "En fichier .gci, pour Dolphin",
+    "As a save file for Dolphin":
+        "En fichier de sauvegarde, pour Dolphin",
     "Copy to the SD card":
         "Copier sur la carte SD",
     "Delete":
@@ -4724,30 +4722,32 @@ FR = {
         "L'accueil n'affiche que les jeux GameCube, depuis sd:/games.",
     "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso.":
         "Un jeu GameCube se met sur la carte SD, en sd:/games/<son ID>/game.iso.",
-    "Disc reads":
-        "Lecture du disque",
+    "Loading speed":
+        "Chargement",
     "Fast":
         "Rapide",
-    "Like a GameCube":
-        "Comme une GameCube",
-    "Progressive scan":
-        "Balayage progressif",
+    "As on a GameCube (slower)":
+        "Comme sur une GameCube (plus lente)",
+    "Sharper picture":
+        "Image plus nette",
+    "On (480p)":
+        "Activé (480p)",
     "Widescreen":
         "Écran large",
-    "480p is for US and Japanese games. This one is from a PAL region and keeps its own picture.":
-        "Le 480p est pour les jeux américains et japonais. Celui-ci vient d'une région PAL et garde sa propre image.",
-    "480p: the game is told a component cable and the 480p setting are there; it may ask first. Games without 480p are switched to it. Needs a component cable.":
-        "480p : le jeu apprend qu'un câble composante et le réglage 480p sont là ; il peut d'abord poser la question. Les jeux sans 480p y passent aussi. Il faut un câble composante.",
-    "Experimental: 16:9 draws the game's 3D wider for a widescreen TV, and menus and text stay stretched. On a Wii some games' picture goes wrong with it (inverted colours, a doubled picture), so Default keeps the game's own.":
-        "Expérimental : 16:9 dessine la 3D du jeu plus large pour une TV grand écran, et les menus et le texte restent étirés. Sur une Wii, l'image de certains jeux se dérègle avec (couleurs inversées, image doublée), donc « Par défaut » garde celle du jeu.",
-    "The language this game is told the console uses; the console's own setting stays as it is. European games use it, most others ignore it.":
-        "La langue que ce jeu croit réglée sur la console ; le réglage de la console reste tel quel. Les jeux européens l'utilisent, la plupart des autres l'ignorent.",
+    "480p is for US and Japanese games; this European game keeps its own picture.":
+        "Le 480p est pour les jeux américains et japonais ; ce jeu européen garde sa propre image.",
+    "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first.":
+        "Donne une image plus nette et plus stable avec un câble composante ou HDMI, même dans les jeux sans mode 480p, et certains posent d'abord la question.",
+    "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.":
+        "Expérimental : remplit une TV grand écran avec le monde du jeu pendant que les menus et le texte restent étirés, et sur une Wii certains jeux montrent des couleurs fausses ou une image doublée.",
+    "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).":
+        "La langue dans laquelle ce jeu se joue, sans changer le réglage de la Wii (la plupart des jeux américains et japonais n'en ont qu'une).",
     "Controls":
         "Commandes",
-    "Fast: reads come at the SD card's speed. Like a GameCube (experimental): each read takes as long as on a GameCube's drive, which a few games count on; on a Wii it can freeze some games for now.":
-        "Rapide : les lectures vont à la vitesse de la carte SD. Comme une GameCube (expérimental) : chaque lecture dure autant que sur le lecteur d'une GameCube, ce dont quelques jeux ont besoin ; sur une Wii, cela peut pour l'instant figer certains jeux.",
-    "Which Wii Remote, Nunchuk and Classic Controller buttons are the GameCube controller's.":
-        "Quels boutons de la Wiimote, du Nunchuk et de la manette classique font office de ceux de la manette GameCube.",
+    "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii).":
+        "« Rapide » charge aussi vite que la carte SD le permet, alors que « Comme sur une GameCube » est plus lente mais nécessaire à quelques jeux (expérimental : sur une Wii, cela peut figer certains jeux).",
+    "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game.":
+        "Montre quels boutons de la Wiimote, du Nunchuk ou de la manette classique font office de ceux de la manette GameCube, et comment quitter le jeu.",
     "SD image made":
         "Image SD créée",
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.":

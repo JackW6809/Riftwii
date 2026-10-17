@@ -160,7 +160,7 @@ entry, fetches the group's stored bytes in requests of at most 64 KiB,
 decodes them, and copies or unpacks them into the game's buffer. The
 alarm's 64 KB pieces of a read (`gc_read_step`) end where a group does, so
 one turn of the alarm decodes at most one group, and the decoding counts
-in the read's time: with Disc reads at a drive's speed the callback waits
+in the read's time: with Loading speed set to As on a GameCube the callback waits
 for the drive's time only when that is longer, and with Fast it comes as
 soon as the bytes are there. Two groups are kept decoded, one for the
 game's reads and one for disc audio streaming (`gc_stream_fetch`), so the
