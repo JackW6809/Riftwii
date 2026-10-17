@@ -1100,6 +1100,13 @@ void TestCoverArt() {
     EXPECT_TRUE(s.serialize().find("gc_rumble = off\n") != std::string::npos);
     s.parse("gc_rumble = loud\n");
     EXPECT_EQ(s.gc_rumble, "off");
+    // Save backups: on by default, off kept, anything else ignored.
+    EXPECT_EQ(s.gc_backups, "on");
+    s.parse("gc_backups = off\n");
+    EXPECT_EQ(s.gc_backups, "off");
+    EXPECT_TRUE(s.serialize().find("gc_backups = off\n") != std::string::npos);
+    s.parse("gc_backups = maybe\n");
+    EXPECT_EQ(s.gc_backups, "off");
     s.gc_rumble = "on";
     EXPECT_EQ(s.wiimote_rumble, "on");
     s.parse("wiimote_rumble = off\n");

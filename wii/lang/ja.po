@@ -1530,6 +1530,12 @@ msgstr "セーブを追加"
 msgid "Add a save from the SD card"
 msgstr "SDカードからセーブを追加"
 
+msgid "Back up saves"
+msgstr "セーブのバックアップ"
+
+msgid "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page."
+msgstr "ゲームキューブのゲームを起動する前に、そのメモリーカードをSDカードにコピーします。最新の5つのコピーが残り、ゲームのセーブのページの「前のセーブに戻す」で使えます。"
+
 msgid "Shared Memory Card"
 msgstr "共有メモリーカード"
 

@@ -5,9 +5,14 @@
 // stay the same), made-up saves imported, listed, exported back, deleted,
 // their icons decoded, and damaged cards and save files refused.
 #include "riftwii/gccard.hpp"
+#include "riftwii/gcbackup.hpp"
 #include "riftwii/sha1.hpp"
 
+#include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -679,7 +684,199 @@ static void test_card_text() {
     EXPECT_EQ(gc_card_text_utf8("", true), std::string());
 }
 
+// Backup names: made from the date and time, read back, sorted newest
+// first, numbered within a minute, and anything else in the folder left alone.
+static void test_backup_names() {
+    EXPECT_EQ(gc_backup_folder("GMSE01", false), std::string("sd:/riftwii/gc/backups/GMSE01"));
+    EXPECT_EQ(gc_backup_folder("GMSE01", true), std::string("sd:/riftwii/gc/backups/shared"));
+    EXPECT_EQ(gc_backup_folder("GMSJ01", true), std::string("sd:/riftwii/gc/backups/shared-jp"));
+    EXPECT_EQ(gc_backup_folder("GM/../J", false), std::string("sd:/riftwii/gc/backups/GMJ"));
+
+    GcBackupStamp stamp;
+    stamp.year = 2026;
+    stamp.month = 10;
+    stamp.day = 7;
+    stamp.hour = 9;
+    stamp.minute = 5;
+    EXPECT_EQ(gc_backup_name(stamp), std::string("2026-10-07_0905.raw"));
+    stamp.serial = 3;
+    EXPECT_EQ(gc_backup_name(stamp), std::string("2026-10-07_0905-3.raw"));
+
+    std::tm local{};
+    local.tm_year = 126;
+    local.tm_mon = 9;
+    local.tm_mday = 17;
+    local.tm_hour = 14;
+    local.tm_min = 32;
+    EXPECT_EQ(gc_backup_name(gc_backup_stamp(local)), std::string("2026-10-17_1432.raw"));
+
+    GcBackupStamp back;
+    EXPECT_TRUE(gc_backup_parse("2026-10-17_1432.raw", back));
+    EXPECT_EQ(back.year, 2026u);
+    EXPECT_EQ(back.month, 10u);
+    EXPECT_EQ(back.day, 17u);
+    EXPECT_EQ(back.hour, 14u);
+    EXPECT_EQ(back.minute, 32u);
+    EXPECT_EQ(back.serial, 0u);
+    EXPECT_TRUE(gc_backup_parse("2026-10-17_1432-12.raw", back));
+    EXPECT_EQ(back.serial, 12u);
+    EXPECT_FALSE(gc_backup_parse("._2026-10-17_1432.raw", back));
+    EXPECT_FALSE(gc_backup_parse("2026-10-17_1432.gci", back));
+    EXPECT_FALSE(gc_backup_parse("2026-13-17_1432.raw", back));
+    EXPECT_FALSE(gc_backup_parse("2026-10-17_2460.raw", back));
+    EXPECT_FALSE(gc_backup_parse("2026-10-17_1432-1.raw", back));
+    EXPECT_FALSE(gc_backup_parse("2026-10-17_1432-02.raw", back));
+    EXPECT_FALSE(gc_backup_parse("2026-10-17_1432 copy.raw", back));
+    EXPECT_FALSE(gc_backup_parse("GMSE01.raw", back));
+
+    // Newest first by date, time and number, never by the names' spelling
+    // ("-2" sorts before ".raw" as text).
+    const std::vector<std::string> names = {"2026-10-17_1432.raw", "notes.txt", "2026-10-17_1432-2.raw",
+                                            "2025-12-31_2359.raw", "2026-10-18_0001.raw", "."};
+    const std::vector<std::string> sorted = gc_backups_newest_first(names);
+    EXPECT_EQ(sorted.size(), 4u);
+    if (sorted.size() == 4) {
+        EXPECT_EQ(sorted[0], std::string("2026-10-18_0001.raw"));
+        EXPECT_EQ(sorted[1], std::string("2026-10-17_1432-2.raw"));
+        EXPECT_EQ(sorted[2], std::string("2026-10-17_1432.raw"));
+        EXPECT_EQ(sorted[3], std::string("2025-12-31_2359.raw"));
+    }
+
+    // A minute already taken gets the next free number.
+    GcBackupStamp now;
+    now.year = 2026;
+    now.month = 10;
+    now.day = 17;
+    now.hour = 14;
+    now.minute = 32;
+    EXPECT_EQ(gc_backup_new_name({}, now), std::string("2026-10-17_1432.raw"));
+    EXPECT_EQ(gc_backup_new_name(names, now), std::string("2026-10-17_1432-3.raw"));
+
+    // Six backups and a stray file: the oldest one goes, the stray stays.
+    const std::vector<std::string> six = {"2026-10-12_1000.raw", "2026-10-13_1000.raw", "2026-10-11_1000.raw",
+                                          "2026-10-14_1000.raw", "2026-10-15_1000.raw", "2026-10-16_1000.raw",
+                                          "readme.txt"};
+    const std::vector<std::string> pruned = gc_backups_to_prune(six);
+    EXPECT_EQ(pruned.size(), 1u);
+    if (!pruned.empty()) EXPECT_EQ(pruned[0], std::string("2026-10-11_1000.raw"));
+    EXPECT_TRUE(gc_backups_to_prune({"2026-10-12_1000.raw"}).empty());
+}
+
+static void write_file(const std::filesystem::path& path, const Bytes& bytes) {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+}
+
+static Bytes read_file(const std::filesystem::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    return Bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+}
+
+// Backups on disk: made from a card, skipped while nothing changed, the
+// oldest deleted past five, the new one kept even when the clock went
+// back, and a card written over in place.
+static void test_backup_files() {
+    namespace fs = std::filesystem;
+    const fs::path root = fs::temp_directory_path() / "riftwii_gcbackup_test";
+    fs::remove_all(root);
+    fs::create_directories(root);
+    const std::string card = (root / "GMSE01.raw").string();
+    const std::string folder = (root / "backups" / "GMSE01").string();
+
+    GcBackupStamp now;
+    now.year = 2026;
+    now.month = 10;
+    now.day = 17;
+    now.hour = 14;
+    now.minute = 32;
+
+    // No card yet: nothing to back up, and no folder made.
+    EXPECT_TRUE(gc_backup_card(card, folder, now).what == GcBackupResult::What::NoCard);
+    EXPECT_FALSE(fs::exists(folder));
+
+    // A card larger than one piece of a copy, its last byte changed per run.
+    Bytes bytes(200000, 0x5A);
+    write_file(card, bytes);
+    GcBackupResult made = gc_backup_card(card, folder, now);
+    EXPECT_TRUE(made.what == GcBackupResult::What::Made);
+    EXPECT_EQ(made.name, std::string("2026-10-17_1432.raw"));
+    EXPECT_EQ(made.bytes, 200000u);
+    EXPECT_TRUE(read_file(fs::path(folder) / made.name) == bytes);
+    EXPECT_TRUE(gc_files_same(card, (fs::path(folder) / made.name).string()));
+
+    // Started again with the card unchanged: no second copy.
+    now.minute = 40;
+    GcBackupResult same = gc_backup_card(card, folder, now);
+    EXPECT_TRUE(same.what == GcBackupResult::What::Same);
+    EXPECT_EQ(same.name, std::string("2026-10-17_1432.raw"));
+    EXPECT_EQ(gc_backup_list(folder).size(), 1u);
+
+    // Five more changed starts: six would be kept, so the first goes.
+    for (unsigned day = 18; day <= 22; ++day) {
+        bytes.back() = static_cast<std::uint8_t>(day);
+        write_file(card, bytes);
+        now.day = day;
+        made = gc_backup_card(card, folder, now);
+        EXPECT_TRUE(made.what == GcBackupResult::What::Made);
+    }
+    EXPECT_EQ(made.pruned.size(), 1u);
+    if (!made.pruned.empty()) EXPECT_EQ(made.pruned[0], std::string("2026-10-17_1432.raw"));
+    std::vector<std::string> kept = gc_backup_list(folder);
+    EXPECT_EQ(kept.size(), kGcBackupsKept);
+    if (!kept.empty()) EXPECT_EQ(kept.front(), std::string("2026-10-22_1440.raw"));
+    EXPECT_FALSE(fs::exists(fs::path(folder) / "2026-10-17_1432.raw"));
+
+    // The same card at a minute that already has a backup but differs:
+    // numbered, not written over.
+    bytes.back() = 0x01;
+    write_file(card, bytes);
+    made = gc_backup_card(card, folder, now);
+    EXPECT_EQ(made.name, std::string("2026-10-22_1440-2.raw"));
+
+    // A clock set back to 2000: the new backup sorts oldest but stays,
+    // and the oldest of the others makes room for it.
+    bytes.back() = 0x02;
+    write_file(card, bytes);
+    GcBackupStamp old_clock;
+    old_clock.year = 2000;
+    old_clock.month = 1;
+    old_clock.day = 1;
+    made = gc_backup_card(card, folder, old_clock);
+    EXPECT_TRUE(made.what == GcBackupResult::What::Made);
+    EXPECT_TRUE(fs::exists(fs::path(folder) / made.name));
+    EXPECT_EQ(gc_backup_list(folder).size(), kGcBackupsKept);
+
+    // A stray file in the folder is neither listed nor deleted.
+    write_file(fs::path(folder) / "notes.txt", Bytes(3, 1));
+    bytes.back() = 0x03;
+    write_file(card, bytes);
+    now.day = 23;
+    gc_backup_card(card, folder, now);
+    EXPECT_TRUE(fs::exists(fs::path(folder) / "notes.txt"));
+    EXPECT_EQ(gc_backup_list(folder).size(), kGcBackupsKept);
+
+    // Files that differ only in length, or are missing, are not the same.
+    write_file(root / "short.raw", Bytes(199999, 0x5A));
+    EXPECT_FALSE(gc_files_same(card, (root / "short.raw").string()));
+    EXPECT_FALSE(gc_files_same(card, (root / "missing.raw").string()));
+
+    // Written over in place, and made anew at another length.
+    std::string error;
+    const Bytes restored(200000, 0x11);
+    EXPECT_TRUE(gc_overwrite_file(card, restored, error));
+    EXPECT_TRUE(read_file(card) == restored);
+    EXPECT_TRUE(gc_overwrite_file(card, Bytes(10, 0x22), error));
+    EXPECT_EQ(read_file(card).size(), 10u);
+
+    // A copy whose source cannot be read leaves nothing behind.
+    EXPECT_FALSE(gc_copy_file((root / "missing.raw").string(), (root / "out.raw").string(), error));
+    EXPECT_FALSE(fs::exists(root / "out.raw"));
+    fs::remove_all(root);
+}
+
 int main() {
+    test_backup_names();
+    test_backup_files();
     test_card_text();
     test_card_paths();
     test_icon_texture();

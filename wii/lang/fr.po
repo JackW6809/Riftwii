@@ -1530,6 +1530,12 @@ msgstr "Ajouter une sauvegarde"
 msgid "Add a save from the SD card"
 msgstr "Ajouter une sauvegarde depuis la carte SD"
 
+msgid "Back up saves"
+msgstr "Sauvegarder les parties"
+
+msgid "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page."
+msgstr "Avant le lancement d'un jeu GameCube, sa carte mémoire est copiée sur la carte SD. Les cinq dernières copies sont gardées, pour Restaurer une ancienne sauvegarde dans la page Sauvegardes du jeu."
+
 msgid "Shared Memory Card"
 msgstr "Carte mémoire partagée"
 

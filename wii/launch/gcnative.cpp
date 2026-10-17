@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <map>
 #include <vector>
 
@@ -29,6 +30,7 @@
 #include "log.hpp"
 #include "riftwii/codehook.hpp"
 #include "riftwii/fat32.hpp"
+#include "riftwii/gcbackup.hpp"
 #include "riftwii/gccard.hpp"
 #include "riftwii/gclayout.hpp"
 #include "riftwii/gcoverlay.hpp"
@@ -784,6 +786,45 @@ void format_card(std::vector<std::uint8_t>& card, bool shift_jis) {
     format.size_mbits = GC_CARD_ID & 0xFC;
     format.shift_jis = shift_jis;
     gc_card_format(card, format);
+}
+
+// Before the game starts: a copy of the memory card it will use in
+// sd:/riftwii/gc/backups/<card>/ (riftwii/gcbackup.hpp), the newest five
+// kept, none when the card has not changed since the last one. A shared
+// card's copies go in backups/shared, as they hold every game's saves.
+// Nothing here stops the start: a copy that fails is only logged.
+void back_up_card(const GcImage& image) {
+    const std::string path = gc_card_path(image.id, image.shared_card);
+    const std::string folder = gc_backup_folder(image.id, image.shared_card);
+    // The Wii's clock, as the menu's own clock shows it.
+    const time_t now = time(nullptr);
+    struct tm local;
+    localtime_r(&now, &local);
+    const GcBackupStamp stamp = gc_backup_stamp(local);
+    const u64 started = gettime();
+    const GcBackupResult result = gc_backup_card(path, folder, stamp);
+    const unsigned ms = static_cast<unsigned>(ticks_to_millisecs(gettime() - started));
+    switch (result.what) {
+        case GcBackupResult::What::NoCard:
+            logf("GameCube: no memory card to back up yet (%s)\n", path.c_str());
+            break;
+        case GcBackupResult::What::Same:
+            logf("GameCube: memory card %s unchanged since its backup %s/%s, so no new copy (%u ms)\n",
+                 path.c_str(), folder.c_str(), result.name.c_str(), ms);
+            break;
+        case GcBackupResult::What::Made:
+            logf("GameCube: memory card backed up to %s/%s (%u KB in %u ms)\n", folder.c_str(), result.name.c_str(),
+                 static_cast<unsigned>(result.bytes / 1024), ms);
+            for (const std::string& old : result.pruned)
+                logf("GameCube: oldest backup %s/%s deleted, to keep the newest %u\n", folder.c_str(), old.c_str(),
+                     static_cast<unsigned>(kGcBackupsKept));
+            break;
+        case GcBackupResult::What::Failed:
+            logf("GameCube: memory card %s not backed up: %s (%u ms)\n", path.c_str(), result.error.c_str(), ms);
+            break;
+    }
+    // New files change the SD card's folders, which the raw lookups cache.
+    if (result.what == GcBackupResult::What::Made) forget_sd_layout();
 }
 
 // The SDK's EXI functions (gc_card.h's order), found through the EXI
@@ -1866,6 +1907,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // jump, and the blob writes what the game saves back to its sectors.
     std::vector<std::uint8_t> card_image;
     std::vector<gc_card_run> card_runs;
+    if (Settings().gc_backups != "off") back_up_card(image);
     {
         const std::string path = gc_card_path(image.id, image.shared_card);
         card_image.assign(GC_CARD_BYTES, 0xFF);

@@ -140,6 +140,8 @@ void LoaderSettings::parse(const std::string& text) {
             if (value == "on" || value == "off") wiimote_rumble = value;
         } else if (key == "gc_adapter") {
             if (value == "auto" || value == "off" || value == "on" || value == "demo") gc_adapter = value;
+        } else if (key == "gc_backups") {
+            if (value == "on" || value == "off") gc_backups = value;
         } else {
             other[key] = value;
         }
@@ -177,6 +179,7 @@ std::string LoaderSettings::serialize() const {
     s += "gc_rumble = " + gc_rumble + "\n";
     s += "wiimote_rumble = " + wiimote_rumble + "\n";
     s += "gc_adapter = " + gc_adapter + "\n";
+    s += "gc_backups = " + gc_backups + "\n";
     if (!favorites.empty()) {
         std::string list;
         for (const std::string& id : favorites) list += (list.empty() ? "" : ",") + id;

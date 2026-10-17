@@ -251,7 +251,11 @@ is recorded with the jumper's LR and CTR instead of running its fields. At its n
 `sd:/riftwii/gc/cards/<ID>.raw`, or a shared `shared.raw` (`shared-jp.raw`
 for Japanese games), formatted the first time. The game page's Saves tile
 opens it: saves with their icons, copied out as `.gci`, deleted, or added
-from `sd:/riftwii/gc/saves`.
+from `sd:/riftwii/gc/saves`. Before each start (Settings' Back up saves,
+on by default) the loader copies the card the game will use to
+`sd:/riftwii/gc/backups/<card>/<date>_<time>.raw` (`src/fs/gcbackup.cpp`),
+`<card>` being the card file's name (the game's ID, or `shared`), keeping
+the newest five and skipping the copy while the card matches the newest.
 
 ## Memory
 

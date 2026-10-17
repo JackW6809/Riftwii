@@ -1390,6 +1390,8 @@ T = {
     "{1} blocks": ("{1} bloques", "{1}ブロック", "{1} blocos", "{1} blocchi"),
     "Add a save": ("Añadir una partida", "セーブを追加", "Adicionar um save", "Aggiungi un salvataggio"),
     "Add a save from the SD card": ("Añadir una partida desde la tarjeta SD", "SDカードからセーブを追加", "Adicionar um save do cartão SD", "Aggiungi un salvataggio dalla scheda SD"),
+    "Back up saves": ("Copia de seguridad de partidas", "セーブのバックアップ", "Backup dos saves", "Backup dei salvataggi"),
+    "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page.": ("Antes de que arranque un juego de GameCube, su tarjeta de memoria se copia en la tarjeta SD. Se guardan las cinco últimas copias, para Restaurar una partida anterior en la página de partidas del juego.", "ゲームキューブのゲームを起動する前に、そのメモリーカードをSDカードにコピーします。最新の5つのコピーが残り、ゲームのセーブのページの「前のセーブに戻す」で使えます。", "Antes de um jogo de GameCube iniciar, o cartão de memória dele é copiado para o cartão SD. As últimas cinco cópias são mantidas, para Restaurar um save anterior na página de saves do jogo.", "Prima che parta un gioco GameCube, la sua Memory Card viene copiata sulla scheda SD. Restano le ultime cinque copie, per Ripristina un salvataggio precedente nella pagina dei salvataggi del gioco."),
     "Shared Memory Card": ("Tarjeta de memoria compartida", "共有メモリーカード", "Cartão de memória compartilhado", "Memory Card condivisa"),
     "The shared memory card is made the first time a game that uses it starts: {1}.": ("La tarjeta de memoria compartida se crea la primera vez que arranca un juego que la usa: {1}.", "共有メモリーカードは、それを使うゲームを初めて起動したときに作られます: {1}", "O cartão de memória compartilhado é criado na primeira vez que um jogo que o usa é iniciado: {1}.", "La Memory Card condivisa viene creata la prima volta che si avvia un gioco che la usa: {1}."),
     "Saves go to the shared memory card on the SD card: {1}.": ("Las partidas van a la tarjeta de memoria compartida de la tarjeta SD: {1}.", "セーブはSDカード上の共有メモリーカードに保存されます: {1}", "Os saves vão para o cartão de memória compartilhado no cartão SD: {1}.", "I salvataggi vanno nella Memory Card condivisa sulla scheda SD: {1}."),
@@ -2926,6 +2928,10 @@ KO = {
         "저장 데이터 추가",
     "Add a save from the SD card":
         "SD 카드에서 저장 데이터 추가",
+    "Back up saves":
+        "저장 데이터 백업",
+    "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page.":
+        "게임큐브 게임을 시작하기 전에 메모리 카드를 SD 카드에 복사합니다. 최근 복사본 다섯 개가 남으며, 게임의 저장 페이지에 있는 이전 저장 데이터로 되돌리기에 쓰입니다.",
     "Shared Memory Card":
         "공유 메모리 카드",
     "The shared memory card is made the first time a game that uses it starts: {1}.":
@@ -4649,6 +4655,10 @@ FR = {
         "Ajouter une sauvegarde",
     "Add a save from the SD card":
         "Ajouter une sauvegarde depuis la carte SD",
+    "Back up saves":
+        "Sauvegarder les parties",
+    "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page.":
+        "Avant le lancement d'un jeu GameCube, sa carte mémoire est copiée sur la carte SD. Les cinq dernières copies sont gardées, pour Restaurer une ancienne sauvegarde dans la page Sauvegardes du jeu.",
     "Shared Memory Card":
         "Carte mémoire partagée",
     "The shared memory card is made the first time a game that uses it starts: {1}.":
