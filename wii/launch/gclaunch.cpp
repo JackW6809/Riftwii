@@ -546,19 +546,20 @@ bool LaunchGcGame(const GcImage& wanted,const std::vector<PackageChoices>& packa
         text << in.rdbuf();
         LaunchModel choices;
         choices.restore(text.str());
-        image.drive_timing = choices.game.gc_disc_reads != "fast";
+        image.drive_timing = kGcDriveTimingReady && choices.game.gc_disc_reads != "fast";
         image.shared_card = choices.game.gc_card == "shared";
         // "global" follows Settings and the Wii's own settings, as a Wii
         // game's rows do.
         const GcConsoleSettings console = GcConsoleNow();
         const GameSettings& game = choices.game;
         image.progressive = gc_progressive_on(game, image.id, console);
-        image.widescreen = gc_widescreen_on(game, console);
+        image.widescreen = kGcWidescreenReady && gc_widescreen_on(game, console);
         image.language = gc_language_number(game, console);
         logf("GameCube: Progressive scan %s (the Wii's 480p setting %s%s), Widescreen %s (Settings' aspect %s, "
              "the Wii's TV %s), Game language %s (Settings' %s, the Wii's language %d)\n",
              game.gc_progressive.c_str(), console.wii_progressive ? "on" : "off",
-             gc_pal_game(image.id) ? ", a PAL game never gets 480p" : "", game.gc_widescreen.c_str(),
+             gc_pal_game(image.id) ? ", a PAL game never gets 480p" : "",
+             kGcWidescreenReady ? game.gc_widescreen.c_str() : "held back from this release",
              console.aspect.c_str(), console.wii_widescreen ? "16:9" : "4:3", game.gc_language.c_str(),
              console.game_language.c_str(), console.wii_language);
     }

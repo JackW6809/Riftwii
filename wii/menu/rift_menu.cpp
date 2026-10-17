@@ -4596,13 +4596,15 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 	if (state.use_sd && state.sd_index < state.sd_catalog.games.size() && state.sd_catalog.games[state.sd_index].gamecube) {
 		// A GameCube game: none of the Wii's picture or online settings
 		// reach it; its own instead.
-		FlowRow discReads;
-		discReads.kind = FlowRow::Kind::Option;
-		discReads.label = tr("Loading speed");
-		discReads.value = game.gc_disc_reads == "fast" ? tr("Fast") : tr("As on a GameCube (slower)");
-		discReads.on = game.gc_disc_reads == "drive";
-		rows.push_back(discReads);
-		refs.push_back({W::GcDiscReads});
+		if (riftwii::kGcDriveTimingReady) {
+			FlowRow discReads;
+			discReads.kind = FlowRow::Kind::Option;
+			discReads.label = tr("Loading speed");
+			discReads.value = game.gc_disc_reads == "fast" ? tr("Fast") : tr("As on a GameCube (slower)");
+			discReads.on = game.gc_disc_reads == "drive";
+			rows.push_back(discReads);
+			refs.push_back({W::GcDiscReads});
+		}
 		FlowRow card;
 		card.kind = FlowRow::Kind::Option;
 		card.label = tr("Memory card");
@@ -4626,15 +4628,17 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		else progressive.value = progressiveNow ? tr("On (480p)") : tr("Off");
 		rows.push_back(progressive);
 		refs.push_back({W::GcProgressive});
-		FlowRow widescreen;
-		widescreen.kind = FlowRow::Kind::Option;
-		widescreen.label = tr("Widescreen");
-		widescreen.on = game.gc_widescreen != "global";
-		const std::string widescreenNow = riftwii::gc_widescreen_on(game, console)
-			? std::string("16:9") : std::string(tr("Game's own"));
-		widescreen.value = game.gc_widescreen == "global" ? tr("Default ({1})", {widescreenNow}) : widescreenNow;
-		rows.push_back(widescreen);
-		refs.push_back({W::GcWidescreen});
+		if (riftwii::kGcWidescreenReady) {
+			FlowRow widescreen;
+			widescreen.kind = FlowRow::Kind::Option;
+			widescreen.label = tr("Widescreen");
+			widescreen.on = game.gc_widescreen != "global";
+			const std::string widescreenNow = riftwii::gc_widescreen_on(game, console)
+				? std::string("16:9") : std::string(tr("Game's own"));
+			widescreen.value = game.gc_widescreen == "global" ? tr("Default ({1})", {widescreenNow}) : widescreenNow;
+			rows.push_back(widescreen);
+			refs.push_back({W::GcWidescreen});
+		}
 		FlowRow language;
 		language.kind = FlowRow::Kind::Option;
 		language.label = tr("Game language");
@@ -7689,10 +7693,10 @@ static int ChangedGameSettings(const riftwii::GameSettings& g)
 		if (*v != "global") ++changed;
 	if (g.region_video == "on") ++changed;
 	if (g.region_strings == "on") ++changed;
-	if (g.gc_disc_reads == "drive") ++changed;
+	if (riftwii::kGcDriveTimingReady && g.gc_disc_reads == "drive") ++changed;
 	if (g.gc_card == "shared") ++changed;
 	if (g.gc_progressive != "global") ++changed;
-	if (g.gc_widescreen != "global") ++changed;
+	if (riftwii::kGcWidescreenReady && g.gc_widescreen != "global") ++changed;
 	if (g.gc_language != "global") ++changed;
 	if (g.rumble == "off") ++changed;
 	if (g.speaker == "off") ++changed;

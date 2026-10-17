@@ -165,6 +165,14 @@ struct GcConsoleSettings {
 // widening is experimental.
 bool gc_widescreen_on(const GameSettings& game, const GcConsoleSettings& console);
 
+// Held back from this release, to come back in a PR of their own: on a Wii,
+// "As on a GameCube" loading still freezes Super Mario Eclipse at its
+// welcome scene, and 16:9 inverts the colours in some games. While a switch
+// is off, its row is hidden from the game page and the launch ignores the
+// choice; a choice already saved in a game's settings is kept for then.
+constexpr bool kGcDriveTimingReady = false;
+constexpr bool kGcWidescreenReady = false;
+
 // Whether the game gets 480p: "480p" yes, "game" no, "global" when the
 // Wii's own 480p setting is on. Never for a PAL game (gc_pal_game).
 bool gc_progressive_on(const GameSettings& game, const std::string& id, const GcConsoleSettings& console);
