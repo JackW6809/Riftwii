@@ -8,10 +8,10 @@
 
 // Home's own order (Settings > Home order: Your order), which the player
 // sets by moving the tiles: sd:/riftwii/order.txt, one game a line, the
-// first tile first. A game is named by its drive and its ID ("usb:RMCE01",
-// "sd:SMNE01"; a second disc "usb:R8PE01/2"), so the same game on the SD
-// card and on a USB drive has a place of its own, as it has a tile of its
-// own. Games the file does not list come after the listed ones, A to Z.
+// first tile first. A game is named by where it is and its ID ("usb:RMCE01",
+// "sd:SMNE01", a WiiWare or Virtual Console channel "wii:WBME01"; a second
+// disc "usb:R8PE01/2"), so the same game on the SD card and on a USB drive
+// has a place of its own, as it has a tile of its own. Games the file does not list come after the listed ones, A to Z.
 // The names of games that are gone stay in the file, so a drive taken out
 // for a while does not lose its games' places.
 namespace riftwii {
@@ -22,9 +22,9 @@ namespace riftwii {
 constexpr std::size_t kHomeOrderMaxBytes = 64u << 10;
 constexpr std::size_t kHomeOrderMaxGames = 2048;
 
-// `usb`: the game is on a USB drive, else on the SD card. `disc_number`
-// as the disc header has it (0 the first disc).
-std::string home_order_key(bool usb, const std::string& game_id, unsigned disc_number);
+// `place`: "usb", "sd" or "wii" (a channel on the Wii, its own NAND or an
+// emulated one). `disc_number` as the disc header has it (0 the first disc).
+std::string home_order_key(const std::string& place, const std::string& game_id, unsigned disc_number);
 
 // The games named, in the file's order. Lenient: blank lines, comments
 // ('#'), lines that are no game's name and a game named twice (its first

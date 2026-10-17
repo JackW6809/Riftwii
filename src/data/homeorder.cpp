@@ -17,10 +17,10 @@ bool plausible_id(const std::string& id) {
     return true;
 }
 
-// "usb:" or "sd:", a game ID, and "/2" to "/9" for a later disc.
+// "usb:", "sd:" or "wii:", a game ID, and "/2" to "/9" for a later disc.
 bool plausible_key(const std::string& key) {
     std::size_t at = 0;
-    if (key.compare(0, 4, "usb:") == 0) at = 4;
+    if (key.compare(0, 4, "usb:") == 0 || key.compare(0, 4, "wii:") == 0) at = 4;
     else if (key.compare(0, 3, "sd:") == 0) at = 3;
     else return false;
     const std::size_t slash = key.find('/', at);
@@ -33,8 +33,8 @@ bool plausible_key(const std::string& key) {
 
 }  // namespace
 
-std::string home_order_key(bool usb, const std::string& game_id, unsigned disc_number) {
-    std::string key = std::string(usb ? "usb:" : "sd:") + game_id;
+std::string home_order_key(const std::string& place, const std::string& game_id, unsigned disc_number) {
+    std::string key = place + ":" + game_id;
     // The header counts discs from 0; the file names the second disc "/2".
     if (disc_number > 0 && disc_number < 9) key += "/" + std::to_string(disc_number + 1);
     return key;

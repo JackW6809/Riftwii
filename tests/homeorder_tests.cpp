@@ -23,10 +23,12 @@ static Keys Arranged(const Keys& order, const Keys& keys) {
 }
 
 static void TestKeys() {
-    EXPECT_EQ(riftwii::home_order_key(true, "RMCE01", 0), "usb:RMCE01");
-    EXPECT_EQ(riftwii::home_order_key(false, "SMNE01", 0), "sd:SMNE01");
+    EXPECT_EQ(riftwii::home_order_key("usb", "RMCE01", 0), "usb:RMCE01");
+    EXPECT_EQ(riftwii::home_order_key("sd", "SMNE01", 0), "sd:SMNE01");
     // The second disc of a two-disc game is a game of its own.
-    EXPECT_EQ(riftwii::home_order_key(true, "R8PE01", 1), "usb:R8PE01/2");
+    EXPECT_EQ(riftwii::home_order_key("usb", "R8PE01", 1), "usb:R8PE01/2");
+    // A WiiWare or Virtual Console channel on the Wii.
+    EXPECT_EQ(riftwii::home_order_key("wii", "WBME01", 0), "wii:WBME01");
 }
 
 static void TestParse() {
@@ -42,8 +44,9 @@ static void TestParse() {
         "usb:RMCE0123\n"        // too long for an ID
         "usb:../../x\n"         // not a game at all
         "sd:SMNE01/1\n"         // the first disc has no number
+        "wii:WBME01\n"          // a channel on the Wii
         "usb:RSBE01");          // the last line without its newline
-    EXPECT_EQ(order, (Keys{"usb:RMCE01", "sd:SMNE01", "usb:R8PE01/2", "usb:RSBE01"}));
+    EXPECT_EQ(order, (Keys{"usb:RMCE01", "sd:SMNE01", "usb:R8PE01/2", "wii:WBME01", "usb:RSBE01"}));
     // What is written reads back the same.
     EXPECT_EQ(riftwii::parse_home_order(riftwii::serialize_home_order(order)), order);
     EXPECT_TRUE(riftwii::parse_home_order("").empty());
