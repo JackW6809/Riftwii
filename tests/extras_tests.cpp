@@ -900,6 +900,13 @@ void TestCoverArt() {
     EXPECT_EQ(s.grid_spacing, "roomy");
     EXPECT_TRUE(s.serialize().find("grid_spacing = roomy\n") != std::string::npos);
     s.grid_spacing = "normal";
+    EXPECT_EQ(s.page_peek, "on");
+    s.parse("page_peek = off\n");
+    EXPECT_EQ(s.page_peek, "off");
+    EXPECT_TRUE(s.serialize().find("page_peek = off\n") != std::string::npos);
+    s.parse("page_peek = wide\n");
+    EXPECT_EQ(s.page_peek, "off");
+    s.page_peek = "on";
     EXPECT_EQ(s.menu_widescreen, "off");
     EXPECT_EQ(s.play_history, "on");
     s.parse("play_history = off\n");
@@ -912,6 +919,8 @@ void TestCoverArt() {
     s.parse("home_source = disc\n");
     EXPECT_EQ(s.home_source, "usb");
     EXPECT_TRUE(s.serialize().find("home_source = usb\n") != std::string::npos);
+    s.parse("home_source = wii\n");
+    EXPECT_EQ(s.home_source, "wii");
     s.home_source = "all";
     EXPECT_EQ(s.gc_rumble, "on");
     s.parse("gc_rumble = off\n");

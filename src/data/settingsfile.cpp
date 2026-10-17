@@ -71,6 +71,8 @@ void LoaderSettings::parse(const std::string& text) {
                 home_tiles = value;
         } else if (key == "grid_spacing") {
             if (value == "normal" || value == "roomy") grid_spacing = value;
+        } else if (key == "page_peek") {
+            if (value == "on" || value == "off") page_peek = value;
         } else if (key == "menu_widescreen") {
             if (value == "auto" || value == "on" || value == "off") menu_widescreen = value;
         } else if (key == "screen_size") {
@@ -88,7 +90,7 @@ void LoaderSettings::parse(const std::string& text) {
         } else if (key == "play_history") {
             if (value == "on" || value == "off") play_history = value;
         } else if (key == "home_source") {
-            if (value == "all" || value == "sd" || value == "usb") home_source = value;
+            if (value == "all" || value == "sd" || value == "usb" || value == "wii") home_source = value;
         } else if (key == "home_sort") {
             if (value == "az" || value == "recent" || value == "most") home_sort = value;
         } else if (key == "home_disc") {
@@ -162,6 +164,7 @@ std::string LoaderSettings::serialize() const {
     s += "wfc_domain = " + wfc_domain + "\n";
     s += "home_tiles = " + home_tiles + "\n";
     s += "grid_spacing = " + grid_spacing + "\n";
+    s += "page_peek = " + page_peek + "\n";
     s += "menu_widescreen = " + menu_widescreen + "\n";
     s += "screen_size = " + std::to_string(screen_size) + "\n";
     s += "menu_sounds = " + menu_sounds + "\n";
