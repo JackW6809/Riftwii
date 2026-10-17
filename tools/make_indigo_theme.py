@@ -12,7 +12,7 @@ screenshot or picture from anywhere else):
 - bar.png / bar_wide.png: Home's bottom bar as a purple glass strip with a
   light top edge, dipping under the clock (the curve RiftWii paints);
 - tile / tile_over: the names view's tiles as bevelled glass blocks, the
-  lit one ringed in gold;
+  lit one gold glass ringed in gold;
 - tile_empty: an empty place, a small blue glass cube in a sunken slot;
 - cover_tile / cover_tile_over: a glass card behind each cover;
 - tile9 (and _over, _primary, _primary_over): the game page's and
@@ -26,6 +26,8 @@ screenshot or picture from anywhere else):
   rim and soft rainbow edges;
 - popup: the same, with a deeper band for the title and a purple info strip
   with a light top edge along the bottom;
+- banner_stripes: over the game page's band and the launch screen's, the
+  info strip's look (a purple gradient, a light line near its foot);
 - theme.ini and LICENSE.
 
     python3 tools/make_indigo_theme.py [out_dir [picture ...]]     (needs Pillow only)
@@ -47,6 +49,12 @@ HERE = pathlib.Path(__file__).resolve().parent
 GOLD = (245, 196, 49)
 GOLD_DEEP = (190, 132, 20)
 RIM = (214, 206, 255)        # the thin light rim
+
+# What every lit tile is filled with: gold-tinted glass, bronze enough that
+# the engine's white names (and the gold of Play's, accent_ink) stay readable
+# on it, since the engine draws no other text colour on a lit tile.
+GOLD_GLASS = dict(body_tl=(180, 128, 28), body_br=(110, 68, 12), sheen=0.20, reflection=0.10, rainbow_edge=0.0)
+GOLD_GLASS_PRIMARY = dict(body_tl=(136, 90, 16), body_br=(78, 46, 8), sheen=0.20, reflection=0.10, rainbow_edge=0.0)
 
 INI = """[theme]
 name = Indigo
@@ -195,7 +203,7 @@ def rainbow(angle):
 
 
 def glass(w, h, margin, radius, *, body_tl, body_br, over=False, alpha=0.94, bevel=5.0, glow=GOLD,
-          ring=None, ring_width=0.0, rainbow_edge=0.75, sheen=0.13, shadow=0.55, bands=None, canvas=None,
+          ring=None, ring_width=0.0, lit_width=2.6, rainbow_edge=0.75, sheen=0.13, shadow=0.55, bands=None, canvas=None,
           reflection=0.07):
     """A bevelled glass shape `w` x `h` at (`margin`, `margin`), in a canvas
     with that margin all round (rounded up to 4 for the Wii's textures, or
@@ -206,7 +214,8 @@ def glass(w, h, margin, radius, *, body_tl, body_br, over=False, alpha=0.94, bev
     - a chamfer `bevel` wide around it, lit from the top left;
     - a broad sheen across its top left, a thin light rim inside the edge
       and a pastel rainbow along the edge itself;
-    - lit (`over`): the `glow` colour's halo around it and a gold ring;
+    - lit (`over`): the `glow` colour's halo around it and a gold ring
+      `lit_width` wide;
     - `ring`: a ring of that colour (`ring_width`) whether lit or not;
     - `bands`: a function (u, v, y) -> (rgb, k) mixing a band's colour in.
     """
@@ -268,7 +277,7 @@ def glass(w, h, margin, radius, *, body_tl, body_br, over=False, alpha=0.94, bev
                 rgb = mix(rgb, rainbow(ang), rainbow_edge * clamp((1.7 - d) / 1.2))
                 a = max(a, 0.9)
             # Rings: gold when lit, else the shape's own if it has one.
-            width = 2.6 if over else ring_width
+            width = lit_width if over else ring_width
             colour = GOLD if over else ring
             if colour is not None and width > 0 and d < width + 0.5:
                 k = clamp(width + 0.5 - d)
@@ -467,6 +476,29 @@ def popup_bands(header, footer, h):
     return bands
 
 
+def banner_stripes():
+    """640x192: laid over the game banner (the game page's, and the launch
+    screen's behind "Starting" and the game's name) while it shows the game's
+    colour: the popup's info-strip look, a purple glass gradient deepening
+    downwards with a light line near the band's foot. Plain across, so the
+    copies the engine lays side by side join. The band is rows 8 to 128 of it
+    (it starts 8 above the screen); the rest is clear."""
+    img = Image.new("RGBA", (640, 192), (0, 0, 0, 0))
+    foot = 122  # the light line, just above the band's gold edge
+    px = img.load()
+    for y in range(0, 128):
+        k = smooth(y / foot)
+        rgb = mix((52, 34, 128), (92, 62, 178), k)
+        a = 0.22 + 0.40 * k
+        if foot - 1.0 <= y < foot + 1.0:
+            rgb, a = RIM, 0.70
+        elif y > foot:
+            a = 0.0
+        for x in range(640):
+            px[x, y] = (int(rgb[0]), int(rgb[1]), int(rgb[2]), int(round(a * 255)))
+    return img
+
+
 def main():
     out = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else HERE.parent / "themes" / "Indigo"
     out.mkdir(parents=True, exist_ok=True)
@@ -485,14 +517,16 @@ def main():
         "bar": lambda: bar(640),
         "bar_wide": lambda: bar(856),
         "tile": lambda: glass(124, 84, 7, 9, **tile),
-        "tile_over": lambda: glass(124, 84, 7, 9, over=True, **tile),
+        "tile_over": lambda: glass(124, 84, 7, 9, over=True, **dict(tile, **GOLD_GLASS)),
         "tile_empty": tile_empty,
         "cover_tile": lambda: glass(80, 112, 7, 6, **tile),
-        "cover_tile_over": lambda: glass(84, 116, 5, 8, over=True, canvas=(96, 128), **tile),
+        # Only a rim of it shows round the cover, so its ring is wide.
+        "cover_tile_over": lambda: glass(84, 116, 5, 8, over=True, canvas=(96, 128), lit_width=4.4,
+                                         **dict(tile, bevel=6.0, **GOLD_GLASS)),
         "tile9": lambda: glass(48, 48, 8, 10, **tile),
-        "tile9_over": lambda: glass(48, 48, 8, 10, over=True, **tile),
+        "tile9_over": lambda: glass(48, 48, 8, 10, over=True, **dict(tile, **GOLD_GLASS)),
         "tile9_primary": lambda: glass(48, 48, 8, 10, ring=GOLD_DEEP, ring_width=1.8, **primary),
-        "tile9_primary_over": lambda: glass(48, 48, 8, 10, over=True, **primary),
+        "tile9_primary_over": lambda: glass(48, 48, 8, 10, over=True, **dict(primary, **GOLD_GLASS_PRIMARY)),
         "pill": lambda: glass(244, 52, 4, 26, shadow=0.45, **silver),
         "pill_over": lambda: glass(244, 52, 4, 26, over=True, shadow=0.45, **amber),
         "pill_primary": lambda: glass(244, 52, 4, 26, shadow=0.45, ring=GOLD, ring_width=2.0,
@@ -508,6 +542,7 @@ def main():
         "round_button_over": lambda: glass(74, 74, 3, 37, canvas=(80, 80), over=True, shadow=0.4, **tile),
         "panel_game": lambda: glass(572, 232, 4, 12, **panel),
         "panel_settings": lambda: glass(572, 276, 4, 12, **panel),
+        "banner_stripes": banner_stripes,
         "popup": lambda: glass(572, 276, 4, 12, bands=popup_bands(44, 18, 276), **dict(panel, reflection=0.0)),
     }
     only = set(sys.argv[2:])
