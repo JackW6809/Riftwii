@@ -1446,6 +1446,23 @@ T = {
     "RiftWii keeps a copy each time you start the game.": ("RiftWii guarda una copia cada vez que inicias el juego.", "ゲームを起動するたびに、RiftWiiがコピーを残します。", "O RiftWii guarda uma cópia toda vez que você inicia o jogo.", "RiftWii conserva una copia ogni volta che avvii il gioco."),
     "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room.": ("Tarjeta llena: este juego no puede guardar. Haz sitio en la página Tarjeta de memoria.", "カードがいっぱいで、セーブできません。メモリーカードのページで空きを作ってください。", "Cartão cheio: este jogo não consegue salvar. Libere espaço na página Cartão de memória.", "La Memory Card è piena: questo gioco non può salvare. Fai spazio nella pagina Memory Card."),
     "The card is full: this game can't save. Make room on the Memory Card page or use its own card.": ("Tarjeta llena: este juego no puede guardar. Haz sitio o dale su propia tarjeta.", "カードがいっぱいで、セーブできません。空きを作るか、専用のカードにしてください。", "Cartão cheio: este jogo não consegue salvar. Libere espaço ou dê a ele um cartão próprio.", "Scheda piena: questo gioco non può salvare. Fai spazio o dagli una scheda propria."),
+    "Bring your Dolphin saves": ("Traer tus partidas de Dolphin", "Dolphinのセーブを持ってくる", "Trazer seus saves do Dolphin", "Porta i salvataggi di Dolphin"),
+    "Copy every save from Dolphin's GC folder in one go.": ("Copia todas las partidas de la carpeta GC de Dolphin de una vez.", "DolphinのGCフォルダにあるセーブをすべて一度にコピーします。", "Copia de uma vez todos os saves da pasta GC do Dolphin.", "Copia in un colpo solo tutti i salvataggi dalla cartella GC di Dolphin."),
+    "To bring all of Dolphin's saves at once, copy its GC folder to {1}.": ("Para traer todas las partidas de Dolphin a la vez, copia su carpeta GC en {1}.", "Dolphinのセーブをまとめて持ってくるには、そのGCフォルダを{1}にコピーしてください。", "Para trazer todos os saves do Dolphin de uma vez, copie a pasta GC dele para {1}.", "Per portare tutti i salvataggi di Dolphin in una volta, copia la sua cartella GC in {1}."),
+    "Added: {1}. Already on the card, so skipped: {2}.": ("Añadidas: {1}. Ya estaban en la tarjeta y se omitieron: {2}.", "追加: {1}。カードにすでにあるためスキップ: {2}。", "Adicionados: {1}. Já estavam no cartão, então foram pulados: {2}.", "Aggiunti: {1}. Già sulla scheda, quindi saltati: {2}."),
+    "Could not be used: {1}.": ("No se pudieron usar: {1}.", "使えなかったもの: {1}。", "Não puderam ser usados: {1}.", "Non utilizzabili: {1}."),
+    "The memory card is full, so the rest did not fit.": ("La tarjeta de memoria está llena, así que el resto no cabió.", "メモリーカードがいっぱいで、残りは入りませんでした。", "O cartão de memória está cheio, então o restante não coube.", "La Memory Card è piena, quindi il resto non c'è stato."),
+    "No saves from Dolphin": ("Sin partidas de Dolphin", "Dolphinのセーブがありません", "Nenhum save do Dolphin", "Nessun salvataggio di Dolphin"),
+    "RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there: it holds the USA, EUR and JAP folders.": ("RiftWii no ha encontrado partidas para esta tarjeta de memoria en {1}. Copia allí la carpeta GC de Dolphin: contiene las carpetas USA, EUR y JAP.", "{1}にこのメモリーカード用のセーブが見つかりません。DolphinのGCフォルダ(USA、EUR、JAPのフォルダが入っています)をそこにコピーしてください。", "O RiftWii não encontrou saves para este cartão de memória em {1}. Copie a pasta GC do Dolphin para lá: ela contém as pastas USA, EUR e JAP.", "RiftWii non ha trovato salvataggi per questa Memory Card in {1}. Copiaci la cartella GC di Dolphin: contiene le cartelle USA, EUR e JAP."),
+    "Bring your Dolphin saves?": ("¿Traer tus partidas de Dolphin?", "Dolphinのセーブを持ってきますか?", "Trazer seus saves do Dolphin?", "Portare i salvataggi di Dolphin?"),
+    "RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it.": ("RiftWii ha encontrado {1} archivos en la carpeta de Dolphin. Sus partidas se copian a esta tarjeta de memoria y las que ya tiene no se tocan. Antes se guarda una copia de la tarjeta, así que Restaurar una partida anterior puede deshacerlo.", "Dolphinのフォルダに{1}個のファイルが見つかりました。そのセーブをこのメモリーカードにコピーします。すでにあるセーブはそのままです。先にカードのコピーを残すので、「前のセーブに戻す」で元に戻せます。", "O RiftWii encontrou {1} arquivos na pasta do Dolphin. Os saves deles são copiados para este cartão de memória, e os que ele já tem ficam como estão. Uma cópia do cartão é guardada antes, então Restaurar um save anterior pode desfazer isso.", "RiftWii ha trovato {1} file nella cartella di Dolphin. I loro salvataggi vengono copiati su questa Memory Card e quelli già presenti restano come sono. Prima viene fatta una copia della scheda, quindi Ripristina un salvataggio precedente può annullare tutto."),
+    "Bring them": ("Traerlas", "持ってくる", "Trazer", "Portale"),
+    "Saves not brought": ("Partidas no traídas", "セーブを持ってこられませんでした", "Saves não trazidos", "Salvataggi non portati"),
+    "RiftWii could not keep a copy of the memory card, so it was not changed: {1}": ("RiftWii no ha podido guardar una copia de la tarjeta de memoria, así que no se cambió: {1}", "メモリーカードのコピーを残せなかったため、変更していません: {1}", "O RiftWii não conseguiu guardar uma cópia do cartão de memória, então ele não foi alterado: {1}", "RiftWii non è riuscito a conservare una copia della Memory Card, quindi non è stata modificata: {1}"),
+    "Nothing new to add": ("Nada nuevo que añadir", "追加するものはありません", "Nada novo para adicionar", "Niente di nuovo da aggiungere"),
+    "Dolphin saves brought": ("Partidas de Dolphin traídas", "Dolphinのセーブを持ってきました", "Saves do Dolphin trazidos", "Salvataggi di Dolphin portati"),
+    "Some files were left out because there were too many.": ("Se omitieron algunos archivos porque eran demasiados.", "多すぎたため、一部のファイルは除きました。", "Alguns arquivos ficaram de fora porque eram demais.", "Alcuni file sono stati esclusi perché erano troppi."),
+    "Some files will be left out because there are too many.": ("Se omitirán algunos archivos porque son demasiados.", "多すぎるため、一部のファイルは除きます。", "Alguns arquivos ficarão de fora porque são demais.", "Alcuni file saranno esclusi perché sono troppi."),
     "Shared Memory Card": ("Tarjeta de memoria compartida", "共有メモリーカード", "Cartão de memória compartilhado", "Memory Card condivisa"),
     "The shared memory card is made the first time a game that uses it starts: {1}.": ("La tarjeta de memoria compartida se crea la primera vez que arranca un juego que la usa: {1}.", "共有メモリーカードは、それを使うゲームを初めて起動したときに作られます: {1}", "O cartão de memória compartilhado é criado na primeira vez que um jogo que o usa é iniciado: {1}.", "La Memory Card condivisa viene creata la prima volta che si avvia un gioco che la usa: {1}."),
     "Saves go to the shared memory card on the SD card: {1}.": ("Las partidas van a la tarjeta de memoria compartida de la tarjeta SD: {1}.", "セーブはSDカード上の共有メモリーカードに保存されます: {1}", "Os saves vão para o cartão de memória compartilhado no cartão SD: {1}.", "I salvataggi vanno nella Memory Card condivisa sulla scheda SD: {1}."),
@@ -3077,6 +3094,40 @@ KO = {
         "메모리 카드가 가득 차서 저장할 수 없습니다. 메모리 카드 페이지에서 공간을 만드세요.",
     "The card is full: this game can't save. Make room on the Memory Card page or use its own card.":
         "카드가 가득 차서 저장할 수 없습니다. 공간을 만들거나 전용 카드로 바꾸세요.",
+    "Bring your Dolphin saves":
+        "Dolphin 저장 데이터 가져오기",
+    "Copy every save from Dolphin's GC folder in one go.":
+        "Dolphin의 GC 폴더에 있는 저장 데이터를 한 번에 모두 복사합니다.",
+    "To bring all of Dolphin's saves at once, copy its GC folder to {1}.":
+        "Dolphin의 저장 데이터를 한꺼번에 가져오려면 GC 폴더를 {1}에 복사하세요.",
+    "Added: {1}. Already on the card, so skipped: {2}.":
+        "추가됨: {1}. 이미 카드에 있어 건너뜀: {2}.",
+    "Could not be used: {1}.":
+        "사용할 수 없음: {1}.",
+    "The memory card is full, so the rest did not fit.":
+        "메모리 카드가 가득 차서 나머지는 들어가지 않았습니다.",
+    "No saves from Dolphin":
+        "Dolphin 저장 데이터 없음",
+    "RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there: it holds the USA, EUR and JAP folders.":
+        "RiftWii가 {1}에서 이 메모리 카드용 저장 데이터를 찾지 못했습니다. Dolphin의 GC 폴더(USA, EUR, JAP 폴더가 들어 있습니다)를 그곳에 복사하세요.",
+    "Bring your Dolphin saves?":
+        "Dolphin 저장 데이터를 가져올까요?",
+    "RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it.":
+        "RiftWii가 Dolphin 폴더에서 파일 {1}개를 찾았습니다. 그 저장 데이터를 이 메모리 카드에 복사하며, 이미 있는 것은 그대로 둡니다. 먼저 카드의 복사본을 남기므로 '이전 저장 데이터로 되돌리기'로 취소할 수 있습니다.",
+    "Bring them":
+        "가져오기",
+    "Saves not brought":
+        "저장 데이터를 가져오지 못함",
+    "RiftWii could not keep a copy of the memory card, so it was not changed: {1}":
+        "RiftWii가 메모리 카드의 복사본을 남기지 못해 카드는 바뀌지 않았습니다: {1}",
+    "Nothing new to add":
+        "새로 추가할 것이 없음",
+    "Dolphin saves brought":
+        "Dolphin 저장 데이터를 가져왔습니다",
+    "Some files were left out because there were too many.":
+        "파일이 너무 많아 일부는 제외했습니다.",
+    "Some files will be left out because there are too many.":
+        "파일이 너무 많아 일부는 제외됩니다.",
     "Shared Memory Card":
         "공유 메모리 카드",
     "The shared memory card is made the first time a game that uses it starts: {1}.":
@@ -4906,6 +4957,40 @@ FR = {
         "Carte mémoire pleine : ce jeu ne peut pas sauvegarder. Faites de la place dans la page Carte mémoire.",
     "The card is full: this game can't save. Make room on the Memory Card page or use its own card.":
         "Carte pleine : impossible de sauvegarder. Faites de la place ou donnez-lui sa propre carte.",
+    "Bring your Dolphin saves":
+        "Récupérer vos sauvegardes Dolphin",
+    "Copy every save from Dolphin's GC folder in one go.":
+        "Copie d'un coup toutes les sauvegardes du dossier GC de Dolphin.",
+    "To bring all of Dolphin's saves at once, copy its GC folder to {1}.":
+        "Pour récupérer d'un coup toutes les sauvegardes de Dolphin, copiez son dossier GC dans {1}.",
+    "Added: {1}. Already on the card, so skipped: {2}.":
+        "Ajoutées : {1}. Déjà sur la carte, donc ignorées : {2}.",
+    "Could not be used: {1}.":
+        "Inutilisables : {1}.",
+    "The memory card is full, so the rest did not fit.":
+        "La carte mémoire est pleine, le reste n'a donc pas tenu.",
+    "No saves from Dolphin":
+        "Aucune sauvegarde Dolphin",
+    "RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there: it holds the USA, EUR and JAP folders.":
+        "RiftWii n'a trouvé aucune sauvegarde pour cette carte mémoire dans {1}. Copiez-y le dossier GC de Dolphin : il contient les dossiers USA, EUR et JAP.",
+    "Bring your Dolphin saves?":
+        "Récupérer vos sauvegardes Dolphin ?",
+    "RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it.":
+        "RiftWii a trouvé {1} fichiers dans le dossier de Dolphin. Leurs sauvegardes sont copiées sur cette carte mémoire, et celles qu'elle a déjà restent telles quelles. La carte est d'abord copiée, donc Restaurer une ancienne sauvegarde peut tout annuler.",
+    "Bring them":
+        "Les récupérer",
+    "Saves not brought":
+        "Sauvegardes non récupérées",
+    "RiftWii could not keep a copy of the memory card, so it was not changed: {1}":
+        "RiftWii n'a pas pu garder une copie de la carte mémoire, elle n'a donc pas été modifiée : {1}",
+    "Nothing new to add":
+        "Rien de nouveau à ajouter",
+    "Dolphin saves brought":
+        "Sauvegardes Dolphin récupérées",
+    "Some files were left out because there were too many.":
+        "Certains fichiers ont été laissés de côté, car il y en avait trop.",
+    "Some files will be left out because there are too many.":
+        "Certains fichiers seront laissés de côté, car il y en a trop.",
     "Shared Memory Card":
         "Carte mémoire partagée",
     "The shared memory card is made the first time a game that uses it starts: {1}.":

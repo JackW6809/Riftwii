@@ -1647,6 +1647,57 @@ msgstr "메모리 카드가 가득 차서 저장할 수 없습니다. 메모리 
 msgid "The card is full: this game can't save. Make room on the Memory Card page or use its own card."
 msgstr "카드가 가득 차서 저장할 수 없습니다. 공간을 만들거나 전용 카드로 바꾸세요."
 
+msgid "Bring your Dolphin saves"
+msgstr "Dolphin 저장 데이터 가져오기"
+
+msgid "Copy every save from Dolphin's GC folder in one go."
+msgstr "Dolphin의 GC 폴더에 있는 저장 데이터를 한 번에 모두 복사합니다."
+
+msgid "To bring all of Dolphin's saves at once, copy its GC folder to {1}."
+msgstr "Dolphin의 저장 데이터를 한꺼번에 가져오려면 GC 폴더를 {1}에 복사하세요."
+
+msgid "Added: {1}. Already on the card, so skipped: {2}."
+msgstr "추가됨: {1}. 이미 카드에 있어 건너뜀: {2}."
+
+msgid "Could not be used: {1}."
+msgstr "사용할 수 없음: {1}."
+
+msgid "The memory card is full, so the rest did not fit."
+msgstr "메모리 카드가 가득 차서 나머지는 들어가지 않았습니다."
+
+msgid "No saves from Dolphin"
+msgstr "Dolphin 저장 데이터 없음"
+
+msgid "RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there: it holds the USA, EUR and JAP folders."
+msgstr "RiftWii가 {1}에서 이 메모리 카드용 저장 데이터를 찾지 못했습니다. Dolphin의 GC 폴더(USA, EUR, JAP 폴더가 들어 있습니다)를 그곳에 복사하세요."
+
+msgid "Bring your Dolphin saves?"
+msgstr "Dolphin 저장 데이터를 가져올까요?"
+
+msgid "RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it."
+msgstr "RiftWii가 Dolphin 폴더에서 파일 {1}개를 찾았습니다. 그 저장 데이터를 이 메모리 카드에 복사하며, 이미 있는 것은 그대로 둡니다. 먼저 카드의 복사본을 남기므로 '이전 저장 데이터로 되돌리기'로 취소할 수 있습니다."
+
+msgid "Bring them"
+msgstr "가져오기"
+
+msgid "Saves not brought"
+msgstr "저장 데이터를 가져오지 못함"
+
+msgid "RiftWii could not keep a copy of the memory card, so it was not changed: {1}"
+msgstr "RiftWii가 메모리 카드의 복사본을 남기지 못해 카드는 바뀌지 않았습니다: {1}"
+
+msgid "Nothing new to add"
+msgstr "새로 추가할 것이 없음"
+
+msgid "Dolphin saves brought"
+msgstr "Dolphin 저장 데이터를 가져왔습니다"
+
+msgid "Some files were left out because there were too many."
+msgstr "파일이 너무 많아 일부는 제외했습니다."
+
+msgid "Some files will be left out because there are too many."
+msgstr "파일이 너무 많아 일부는 제외됩니다."
+
 msgid "Shared Memory Card"
 msgstr "공유 메모리 카드"
 

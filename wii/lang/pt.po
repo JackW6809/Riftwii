@@ -1647,6 +1647,57 @@ msgstr "Cartão cheio: este jogo não consegue salvar. Libere espaço na página
 msgid "The card is full: this game can't save. Make room on the Memory Card page or use its own card."
 msgstr "Cartão cheio: este jogo não consegue salvar. Libere espaço ou dê a ele um cartão próprio."
 
+msgid "Bring your Dolphin saves"
+msgstr "Trazer seus saves do Dolphin"
+
+msgid "Copy every save from Dolphin's GC folder in one go."
+msgstr "Copia de uma vez todos os saves da pasta GC do Dolphin."
+
+msgid "To bring all of Dolphin's saves at once, copy its GC folder to {1}."
+msgstr "Para trazer todos os saves do Dolphin de uma vez, copie a pasta GC dele para {1}."
+
+msgid "Added: {1}. Already on the card, so skipped: {2}."
+msgstr "Adicionados: {1}. Já estavam no cartão, então foram pulados: {2}."
+
+msgid "Could not be used: {1}."
+msgstr "Não puderam ser usados: {1}."
+
+msgid "The memory card is full, so the rest did not fit."
+msgstr "O cartão de memória está cheio, então o restante não coube."
+
+msgid "No saves from Dolphin"
+msgstr "Nenhum save do Dolphin"
+
+msgid "RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there: it holds the USA, EUR and JAP folders."
+msgstr "O RiftWii não encontrou saves para este cartão de memória em {1}. Copie a pasta GC do Dolphin para lá: ela contém as pastas USA, EUR e JAP."
+
+msgid "Bring your Dolphin saves?"
+msgstr "Trazer seus saves do Dolphin?"
+
+msgid "RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it."
+msgstr "O RiftWii encontrou {1} arquivos na pasta do Dolphin. Os saves deles são copiados para este cartão de memória, e os que ele já tem ficam como estão. Uma cópia do cartão é guardada antes, então Restaurar um save anterior pode desfazer isso."
+
+msgid "Bring them"
+msgstr "Trazer"
+
+msgid "Saves not brought"
+msgstr "Saves não trazidos"
+
+msgid "RiftWii could not keep a copy of the memory card, so it was not changed: {1}"
+msgstr "O RiftWii não conseguiu guardar uma cópia do cartão de memória, então ele não foi alterado: {1}"
+
+msgid "Nothing new to add"
+msgstr "Nada novo para adicionar"
+
+msgid "Dolphin saves brought"
+msgstr "Saves do Dolphin trazidos"
+
+msgid "Some files were left out because there were too many."
+msgstr "Alguns arquivos ficaram de fora porque eram demais."
+
+msgid "Some files will be left out because there are too many."
+msgstr "Alguns arquivos ficarão de fora porque são demais."
+
 msgid "Shared Memory Card"
 msgstr "Cartão de memória compartilhado"
 

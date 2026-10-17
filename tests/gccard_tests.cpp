@@ -6,8 +6,10 @@
 // their icons decoded, and damaged cards and save files refused.
 #include "riftwii/gccard.hpp"
 #include "riftwii/gcbackup.hpp"
+#include "riftwii/gcimport.hpp"
 #include "riftwii/sha1.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -998,8 +1000,221 @@ static void test_backup_undo() {
     fs::remove_all(root);
 }
 
+// Bringing Dolphin's saves in: which regions a card takes, which names may
+// be joined onto a folder, the scan of a made-up GC folder (both layouts,
+// the region filter, junk files, the limits), and the counting of saves
+// added, skipped and not fitted.
+static void test_dolphin_import() {
+    namespace fs = std::filesystem;
+    const auto regions_of = [](const char* id, bool shared) {
+        std::string names;
+        for (GcDolphinRegion region : gc_dolphin_regions(id, shared)) names += std::string(gc_dolphin_region_name(region)) + " ";
+        return names;
+    };
+    EXPECT_EQ(regions_of("GALE01", false), std::string("USA "));
+    EXPECT_EQ(regions_of("GALP01", false), std::string("EUR "));
+    EXPECT_EQ(regions_of("GALJ01", false), std::string("JAP "));
+    EXPECT_EQ(regions_of("GALK01", false), std::string("JAP "));
+    EXPECT_EQ(regions_of("GALE01", true), std::string("USA EUR "));
+    EXPECT_EQ(regions_of("GALJ01", true), std::string("JAP "));
+    EXPECT_EQ(regions_of("", false), std::string("EUR "));
+
+    EXPECT_TRUE(gc_import_name_ok("01-GALE-Super Smash Bros.gci"));
+    EXPECT_FALSE(gc_import_name_ok(""));
+    EXPECT_FALSE(gc_import_name_ok("."));
+    EXPECT_FALSE(gc_import_name_ok(".."));
+    EXPECT_FALSE(gc_import_name_ok("._01-GALE.gci"));
+    EXPECT_FALSE(gc_import_name_ok("../escape.gci"));
+    EXPECT_FALSE(gc_import_name_ok("a/b.gci"));
+    EXPECT_FALSE(gc_import_name_ok("a\\b.gci"));
+    EXPECT_FALSE(gc_import_name_ok("sd:evil.gci"));
+    EXPECT_FALSE(gc_import_name_ok(std::string("bad\x01name.gci")));
+    EXPECT_FALSE(gc_import_name_ok(std::string(256, 'a')));
+
+    const fs::path root = fs::temp_directory_path() / "riftwii_dolphin_import_test";
+    fs::remove_all(root);
+    EXPECT_FALSE(gc_dolphin_folder_exists((root / "none").string()));
+    EXPECT_FALSE(gc_dolphin_scan((root / "none").string(), {GcDolphinRegion::Usa}).folder_exists);
+
+    // Dolphin's own layout, as copied: dolphin/GC/USA/Card A and so on.
+    const fs::path gc = root / "dolphin" / "GC";
+    fs::create_directories(gc / "USA" / "Card A");
+    fs::create_directories(gc / "USA" / "Card B");
+    fs::create_directories(gc / "EUR" / "Card A");
+    fs::create_directories(gc / "JAP" / "Card A");
+    SaveSpec a, b;
+    a.name = "alpha";
+    a.blocks = 2;
+    b.name = "beta";
+    b.blocks = 1;
+    write_file(gc / "USA" / "Card A" / "01-GZLE-alpha.gci", make_gci(a));
+    write_file(gc / "USA" / "Card A" / "01-GZLE-beta.GCI", make_gci(b));
+    write_file(gc / "USA" / "Card A" / "notes.txt", Bytes(4, 0));
+    write_file(gc / "USA" / "Card A" / "._01-GZLE-alpha.gci", Bytes(4, 0));
+    write_file(gc / "USA" / "Card B" / "01-GZLE-other.gci", make_gci(a));
+    write_file(gc / "EUR" / "Card A" / "01-GZLP-eur.gci", make_gci(a));
+    write_file(gc / "JAP" / "Card A" / "01-GZLJ-jap.gci", make_gci(a));
+    write_file(gc / "MemoryCardA.USA.raw", blank_card());
+    write_file(gc / "MemoryCardA.EUR.raw", blank_card());
+    write_file(gc / "MemoryCardA.JAP.raw", blank_card());
+    write_file(gc / "mine.raw", blank_card());
+    write_file(gc / "readme.md", Bytes(4, 0));
+
+    const auto leaf = [&](const std::vector<std::string>& paths) {
+        std::string out;
+        for (const std::string& path : paths) out += fs::path(path).filename().string() + "|";
+        return out;
+    };
+    GcDolphinFiles usa = gc_dolphin_scan((root / "dolphin").string(), {GcDolphinRegion::Usa});
+    EXPECT_TRUE(usa.folder_exists);
+    EXPECT_EQ(leaf(usa.gci), std::string("01-GZLE-alpha.gci|01-GZLE-beta.GCI|01-GZLE-other.gci|"));
+    EXPECT_EQ(leaf(usa.raw), std::string("MemoryCardA.USA.raw|mine.raw|"));
+    EXPECT_FALSE(usa.truncated);
+    // A shared Western card takes USA and Europe; a Japanese one only Japan's.
+    GcDolphinFiles west = gc_dolphin_scan((root / "dolphin").string(), {GcDolphinRegion::Usa, GcDolphinRegion::Eur});
+    EXPECT_EQ(west.gci.size(), 4u);
+    EXPECT_EQ(west.raw.size(), 3u);
+    GcDolphinFiles jap = gc_dolphin_scan((root / "dolphin").string(), {GcDolphinRegion::Jap});
+    EXPECT_EQ(leaf(jap.gci), std::string("01-GZLJ-jap.gci|"));
+    EXPECT_EQ(leaf(jap.raw), std::string("MemoryCardA.JAP.raw|mine.raw|"));
+    // The GC folder itself put in the place, and a folder with no saves for the region.
+    GcDolphinFiles direct = gc_dolphin_scan(gc.string(), {GcDolphinRegion::Eur});
+    EXPECT_EQ(leaf(direct.gci), std::string("01-GZLP-eur.gci|"));
+    fs::create_directories(root / "empty");
+    GcDolphinFiles none = gc_dolphin_scan((root / "empty").string(), {GcDolphinRegion::Usa});
+    EXPECT_TRUE(none.folder_exists);
+    EXPECT_TRUE(none.gci.empty() && none.raw.empty());
+
+    // More files than the limit: the first kGcDolphinMaxGci, and truncated.
+    fs::create_directories(root / "many" / "USA" / "Card A");
+    for (std::size_t i = 0; i < kGcDolphinMaxGci + 5; ++i)
+        write_file(root / "many" / "USA" / "Card A" / ("save" + std::to_string(1000 + i) + ".gci"), Bytes(1, 0));
+    GcDolphinFiles many = gc_dolphin_scan((root / "many").string(), {GcDolphinRegion::Usa});
+    EXPECT_EQ(many.gci.size(), kGcDolphinMaxGci);
+    EXPECT_TRUE(many.truncated);
+    fs::remove_all(root);
+
+    // Counting: two new saves, one again (skipped), a bad file, a short one.
+    Bytes card = blank_card();
+    GcImportCount count;
+    gc_import_one(card, make_gci(a), count);
+    gc_import_one(card, make_gci(b), count);
+    gc_import_one(card, make_gci(a), count);
+    EXPECT_EQ(count.added, 2u);
+    EXPECT_EQ(count.skipped, 1u);
+    EXPECT_EQ(count.unusable, 0u);
+    EXPECT_FALSE(count.full);
+    gc_import_one(card, Bytes(10, 0), count);
+    Bytes wrong_length = make_gci(b);
+    wrong_length.pop_back();
+    gc_import_one(card, wrong_length, count);
+    EXPECT_EQ(count.unusable, 2u);
+    EXPECT_EQ(read_ok(card).saves.size(), 2u);
+    // Same game and name from another maker is another save.
+    SaveSpec other_maker = a;
+    other_maker.maker = "08";
+    gc_import_one(card, make_gci(other_maker), count);
+    EXPECT_EQ(count.added, 3u);
+
+    // A Dolphin card file: its saves come in, the ones already there are skipped.
+    Bytes dolphin_card = blank_card();
+    std::string error;
+    SaveSpec c;
+    c.name = "gamma";
+    c.blocks = 4;
+    EXPECT_TRUE(gc_card_import(dolphin_card, make_gci(a), error));
+    EXPECT_TRUE(gc_card_import(dolphin_card, make_gci(c), error));
+    GcImportCount from_card;
+    gc_import_card(card, dolphin_card, from_card);
+    EXPECT_EQ(from_card.added, 1u);
+    EXPECT_EQ(from_card.skipped, 1u);
+    EXPECT_EQ(read_ok(card).saves.size(), 4u);
+    GcImportCount unreadable;
+    gc_import_card(card, Bytes(100, 0), unreadable);
+    EXPECT_EQ(unreadable.unusable, 1u);
+
+    // A card that fills: the saves that fit go in, then it stops, and the
+    // rest, even a small one, is not tried.
+    Bytes small = blank_card();
+    GcImportCount filling;
+    SaveSpec huge;
+    huge.blocks = 200;
+    huge.name = "huge";
+    gc_import_one(small, make_gci(huge), filling);
+    EXPECT_EQ(filling.added, 1u);
+    SaveSpec too_big;
+    too_big.blocks = 60;
+    too_big.name = "too big";
+    gc_import_one(small, make_gci(too_big), filling);
+    EXPECT_TRUE(filling.full);
+    EXPECT_EQ(filling.added, 1u);
+    SaveSpec tiny;
+    tiny.blocks = 1;
+    tiny.name = "tiny";
+    gc_import_one(small, make_gci(tiny), filling);
+    EXPECT_EQ(filling.added, 1u);
+    EXPECT_EQ(read_ok(small).saves.size(), 1u);
+    // A card with every directory slot taken is full too.
+    Bytes slots = blank_card();
+    GcImportCount many_saves;
+    for (unsigned i = 0; i < kGcCardMaxEntries + 3; ++i) {
+        SaveSpec s;
+        s.name = "s" + std::to_string(i);
+        s.blocks = 1;
+        gc_import_one(slots, make_gci(s), many_saves);
+    }
+    EXPECT_EQ(many_saves.added, kGcCardMaxEntries);
+    EXPECT_TRUE(many_saves.full);
+}
+
+// The limits on a folder that is not trusted: raw cards capped, a flood of
+// directory entries cut off (and reported), results sorted, and input over
+// the size caps refused by the library itself.
+static void test_dolphin_limits() {
+    namespace fs = std::filesystem;
+    const fs::path root = fs::temp_directory_path() / "riftwii_dolphin_limits_test";
+    fs::remove_all(root);
+    fs::create_directories(root / "raw");
+    for (std::size_t i = 0; i < kGcDolphinMaxRaw + 3; ++i)
+        write_file(root / "raw" / ("card" + std::to_string(i) + ".raw"), Bytes(1, 0));
+    GcDolphinFiles raws = gc_dolphin_scan((root / "raw").string(), {GcDolphinRegion::Usa});
+    EXPECT_EQ(raws.raw.size(), kGcDolphinMaxRaw);
+    EXPECT_TRUE(raws.truncated);
+    EXPECT_TRUE(std::is_sorted(raws.raw.begin(), raws.raw.end()));
+
+    // More entries than are looked at: the folder is cut off and says so.
+    fs::create_directories(root / "flood" / "USA" / "Card A");
+    for (std::size_t i = 0; i < kGcDolphinMaxEntries + 10; ++i)
+        write_file(root / "flood" / "USA" / "Card A" / ("n" + std::to_string(i) + ".txt"), Bytes());
+    GcDolphinFiles flood = gc_dolphin_scan((root / "flood").string(), {GcDolphinRegion::Usa});
+    EXPECT_TRUE(flood.truncated);
+    EXPECT_TRUE(flood.gci.empty());
+
+    // Sorted across Card A and Card B and the two layouts.
+    fs::create_directories(root / "order" / "GC" / "USA" / "Card B");
+    fs::create_directories(root / "order" / "USA" / "Card A");
+    write_file(root / "order" / "GC" / "USA" / "Card B" / "a.gci", Bytes(1, 0));
+    write_file(root / "order" / "USA" / "Card A" / "z.gci", Bytes(1, 0));
+    GcDolphinFiles order = gc_dolphin_scan((root / "order").string(), {GcDolphinRegion::Usa});
+    EXPECT_EQ(order.gci.size(), 2u);
+    EXPECT_TRUE(std::is_sorted(order.gci.begin(), order.gci.end()));
+    fs::remove_all(root);
+
+    // Oversize input is unusable, not read.
+    Bytes card = blank_card();
+    GcImportCount count;
+    gc_import_one(card, Bytes(kGcDolphinMaxGciBytes + 1, 0x41), count);
+    EXPECT_EQ(count.unusable, 1u);
+    EXPECT_EQ(count.added, 0u);
+    gc_import_card(card, Bytes(kGcDolphinMaxRawBytes + 1, 0), count);
+    EXPECT_EQ(count.unusable, 2u);
+    EXPECT_FALSE(count.full);
+}
+
 int main() {
     test_backup_undo();
+    test_dolphin_import();
+    test_dolphin_limits();
     test_backup_names();
     test_backup_files();
     test_card_text();

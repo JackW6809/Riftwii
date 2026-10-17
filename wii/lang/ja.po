@@ -1647,6 +1647,57 @@ msgstr "カードがいっぱいで、セーブできません。メモリーカ
 msgid "The card is full: this game can't save. Make room on the Memory Card page or use its own card."
 msgstr "カードがいっぱいで、セーブできません。空きを作るか、専用のカードにしてください。"
 
+msgid "Bring your Dolphin saves"
+msgstr "Dolphinのセーブを持ってくる"
+
+msgid "Copy every save from Dolphin's GC folder in one go."
+msgstr "DolphinのGCフォルダにあるセーブをすべて一度にコピーします。"
+
+msgid "To bring all of Dolphin's saves at once, copy its GC folder to {1}."
+msgstr "Dolphinのセーブをまとめて持ってくるには、そのGCフォルダを{1}にコピーしてください。"
+
+msgid "Added: {1}. Already on the card, so skipped: {2}."
+msgstr "追加: {1}。カードにすでにあるためスキップ: {2}。"
+
+msgid "Could not be used: {1}."
+msgstr "使えなかったもの: {1}。"
+
+msgid "The memory card is full, so the rest did not fit."
+msgstr "メモリーカードがいっぱいで、残りは入りませんでした。"
+
+msgid "No saves from Dolphin"
+msgstr "Dolphinのセーブがありません"
+
+msgid "RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there: it holds the USA, EUR and JAP folders."
+msgstr "{1}にこのメモリーカード用のセーブが見つかりません。DolphinのGCフォルダ(USA、EUR、JAPのフォルダが入っています)をそこにコピーしてください。"
+
+msgid "Bring your Dolphin saves?"
+msgstr "Dolphinのセーブを持ってきますか?"
+
+msgid "RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it."
+msgstr "Dolphinのフォルダに{1}個のファイルが見つかりました。そのセーブをこのメモリーカードにコピーします。すでにあるセーブはそのままです。先にカードのコピーを残すので、「前のセーブに戻す」で元に戻せます。"
+
+msgid "Bring them"
+msgstr "持ってくる"
+
+msgid "Saves not brought"
+msgstr "セーブを持ってこられませんでした"
+
+msgid "RiftWii could not keep a copy of the memory card, so it was not changed: {1}"
+msgstr "メモリーカードのコピーを残せなかったため、変更していません: {1}"
+
+msgid "Nothing new to add"
+msgstr "追加するものはありません"
+
+msgid "Dolphin saves brought"
+msgstr "Dolphinのセーブを持ってきました"
+
+msgid "Some files were left out because there were too many."
+msgstr "多すぎたため、一部のファイルは除きました。"
+
+msgid "Some files will be left out because there are too many."
+msgstr "多すぎるため、一部のファイルは除きます。"
+
 msgid "Shared Memory Card"
 msgstr "共有メモリーカード"
 

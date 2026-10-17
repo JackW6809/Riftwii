@@ -65,6 +65,7 @@
 #include "covers.hpp"
 #include "riftwii/coverart.hpp"
 #include "riftwii/gcbackup.hpp"
+#include "riftwii/gcimport.hpp"
 #include "riftwii/gccard.hpp"
 #include "riftwii/qrcode.hpp"
 #include "riftwii/update.hpp"
@@ -5097,6 +5098,8 @@ static bool ShowGcControlsOnce(const FrontendState& state)
 // added from the SD card.
 
 static const char* const kGcSavesDir = "sd:/riftwii/gc/saves";
+// Where the player copies Dolphin's GC folder (riftwii/gcimport.hpp).
+static const char* const kGcDolphinDir = "sd:/riftwii/gc/dolphin";
 
 static std::string GameTitle(const FrontendState& state);
 
@@ -5638,6 +5641,98 @@ static bool MenuGcRestore(FrontendState& state)
 	return restored;
 }
 
+// ---------------------------------------------------------------------------
+// Bring your Dolphin saves: every save in Dolphin's GC folder, copied to
+// sd:/riftwii/gc/dolphin, goes into the memory card the page shows.
+
+// What bringing the saves in came to, in a sentence or three.
+static std::string GcDolphinSummary(const riftwii::GcImportCount& count, bool leftOut)
+{
+	std::string text = tr("Added: {1}. Already on the card, so skipped: {2}.",
+		{std::to_string(count.added), std::to_string(count.skipped)});
+	if (count.unusable > 0) text += std::string(" ") + tr("Could not be used: {1}.", {std::to_string(count.unusable)});
+	if (count.full) text += std::string(" ") + tr("The memory card is full, so the rest did not fit.");
+	if (leftOut) text += std::string(" ") + tr("Some files were left out because there were too many.");
+	return text;
+}
+
+// Asks, backs the card up, then adds the saves found in the folder to
+// `changed` (a copy of the card). True: something was added and `changed`
+// is to be written. Says why when nothing is.
+static bool GcDolphinImport(const FrontendState& state, const std::string& cardPath, bool shared,
+	std::vector<std::uint8_t>& changed, riftwii::GcImportCount& count, bool& leftOut)
+{
+	const riftwii::GcDolphinFiles found = riftwii::gc_dolphin_scan(kGcDolphinDir, riftwii::gc_dolphin_regions(state.game_id, shared));
+	if (found.gci.empty() && found.raw.empty()) {
+		ShowPopup(tr("No saves from Dolphin"),
+			tr("RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there: it holds the USA, EUR and JAP folders.",
+				{kGcDolphinDir}), tr("OK"));
+		return false;
+	}
+	leftOut = found.truncated;
+	const std::size_t files = found.gci.size() + found.raw.size();
+	if (found.truncated)
+		logf("GameCube card %s: the Dolphin folder holds more than RiftWii reads at once, so some files were left out\n",
+			cardPath.c_str());
+	// Cancel is the second button, the one B and HOME press, so backing out
+	// never changes a save.
+	if (ShowPopup(tr("Bring your Dolphin saves?"),
+		    tr("RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it.",
+			{std::to_string(files)}) + (found.truncated ? std::string(" ") + tr("Some files will be left out because there are too many.") : std::string()),
+		    tr("Bring them"), tr("Cancel")) != 0)
+		return false;
+
+	// A file at a time: a save is at most a card's blocks, a card file 16 MB.
+	for (const std::string& path : found.gci) {
+		if (count.full) break;
+		std::vector<std::uint8_t> gci;
+		if (!ReadSmallFile(path, riftwii::kGcDolphinMaxGciBytes, gci)) {
+			logf("GameCube card %s: %s could not be read\n", cardPath.c_str(), path.c_str());
+			++count.unusable;
+			continue;
+		}
+		riftwii::gc_import_one(changed, gci, count);
+	}
+	for (const std::string& path : found.raw) {
+		if (count.full) break;
+		std::vector<std::uint8_t> raw;
+		if (!ReadSmallFile(path, riftwii::kGcDolphinMaxRawBytes, raw)) {
+			logf("GameCube card %s: %s could not be read\n", cardPath.c_str(), path.c_str());
+			++count.unusable;
+			continue;
+		}
+		riftwii::gc_import_card(changed, raw, count);
+	}
+	logf("GameCube card %s: Dolphin saves found in %u files: %u to add, %u already there, %u unusable%s%s\n", cardPath.c_str(),
+		static_cast<unsigned>(files), count.added, count.skipped, count.unusable, count.full ? ", the card filled up" : "",
+		leftOut ? ", some files were left out" : "");
+	if (count.added == 0) {
+		ShowPopup(count.full ? tr("Memory card full") : tr("Nothing new to add"), GcDolphinSummary(count, leftOut), tr("OK"));
+		return false;
+	}
+	// The copy is made only now that there is something to add (still before
+	// anything is written), so a second try that finds nothing new makes none.
+	const std::string folder = riftwii::gc_backup_folder(state.game_id, shared);
+	const time_t now = time(nullptr);
+	struct tm local;
+	localtime_r(&now, &local);
+	const riftwii::GcBackupResult before = riftwii::gc_backup_card(cardPath, folder, riftwii::gc_backup_stamp(local));
+	if (before.what == riftwii::GcBackupResult::What::Failed) {
+		logf("GameCube card %s: Dolphin saves not brought, as the card could not be backed up: %s\n", cardPath.c_str(),
+			before.error.c_str());
+		ShowPopup(tr("Saves not brought"),
+			tr("RiftWii could not keep a copy of the memory card, so it was not changed: {1}", {FlatCapped(before.error, 120)}), tr("OK"));
+		return false;
+	}
+	if (before.what == riftwii::GcBackupResult::What::Made)
+		logf("GameCube card %s: backed up to %s/%s before bringing the Dolphin saves\n", cardPath.c_str(), folder.c_str(),
+			before.name.c_str());
+	for (const std::string& old : before.pruned)
+		logf("GameCube card %s: oldest backup %s/%s deleted, to keep the newest %u\n", cardPath.c_str(), folder.c_str(),
+			old.c_str(), static_cast<unsigned>(riftwii::kGcBackupsKept));
+	return true;
+}
+
 // The game's memory card: its saves, how full it is, and adding a save.
 static void MenuGcCard(FrontendState& state)
 {
@@ -5662,6 +5757,7 @@ static void MenuGcCard(FrontendState& state)
 	GcIconTextures icons;
 	const std::string backupFolder = riftwii::gc_backup_folder(state.game_id, shared);
 	bool haveBackups = false;
+	bool dolphinRow = false;
 	const auto rebuild = [&] {
 		rows.clear();
 		icons.Clear();
@@ -5687,6 +5783,16 @@ static void MenuGcCard(FrontendState& state)
 		restore.label = tr("Restore an older save");
 		restore.icon_column = true;
 		rows.push_back(restore);
+		// Only when Dolphin's folder has been copied to the SD card; the
+		// Add a save note says where to put it otherwise.
+		dolphinRow = riftwii::gc_dolphin_folder_exists(kGcDolphinDir);
+		if (dolphinRow) {
+			FlowRow dolphin;
+			dolphin.kind = FlowRow::Kind::Action;
+			dolphin.label = tr("Bring your Dolphin saves");
+			dolphin.icon_column = true;
+			rows.push_back(dolphin);
+		}
 	};
 	rebuild();
 	// Set when the card file could not be read back after a failed write:
@@ -5725,7 +5831,12 @@ static void MenuGcCard(FrontendState& state)
 			return shared ? tr("Go back to how the shared memory card was on a day you pick, for every game on it.")
 				: tr("Go back to how your save was on a day you pick.");
 		}
-		if (at >= info.saves.size()) return tr("Adds a .gci save file from {1}.", {kGcSavesDir});
+		if (dolphinRow && at == info.saves.size() + 2) return tr("Copy every save from Dolphin's GC folder in one go.");
+		if (at >= info.saves.size()) {
+			const std::string add = tr("Adds a .gci save file from {1}.", {kGcSavesDir});
+			if (dolphinRow) return add;
+			return add + "\n" + std::string(tr("To bring all of Dolphin's saves at once, copy its GC folder to {1}.", {kGcDolphinDir}));
+		}
 		const riftwii::GcSave& save = info.saves[at];
 		if (!save.intact) return tr("This save is damaged: its blocks do not add up. It can only be deleted.");
 		// The save alone here: the card's space is in the header.
@@ -5754,6 +5865,17 @@ static void MenuGcCard(FrontendState& state)
 			}
 			logf("GameCube card %s: could not be read back after the restore, so the page closes\n", path.c_str());
 			return true;
+		}
+		if (dolphinRow && at == info.saves.size() + 2) {
+			std::vector<std::uint8_t> changed = card;
+			riftwii::GcImportCount count;
+			bool leftOut = false;
+			if (!GcDolphinImport(state, path, shared, changed, count, leftOut)) return false;
+			if (commit(changed, CardChange::Import)) {
+				ShowPopup(count.full ? tr("Memory card full") : tr("Dolphin saves brought"), GcDolphinSummary(count, leftOut), tr("OK"));
+				logf("GameCube card %s: the Dolphin saves are on the card\n", path.c_str());
+			}
+			return leavePage;
 		}
 		if (at >= info.saves.size()) {
 			const std::vector<std::string> names = ListGciFiles();

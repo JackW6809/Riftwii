@@ -1647,6 +1647,57 @@ msgstr "Carte mémoire pleine : ce jeu ne peut pas sauvegarder. Faites de la pla
 msgid "The card is full: this game can't save. Make room on the Memory Card page or use its own card."
 msgstr "Carte pleine : impossible de sauvegarder. Faites de la place ou donnez-lui sa propre carte."
 
+msgid "Bring your Dolphin saves"
+msgstr "Récupérer vos sauvegardes Dolphin"
+
+msgid "Copy every save from Dolphin's GC folder in one go."
+msgstr "Copie d'un coup toutes les sauvegardes du dossier GC de Dolphin."
+
+msgid "To bring all of Dolphin's saves at once, copy its GC folder to {1}."
+msgstr "Pour récupérer d'un coup toutes les sauvegardes de Dolphin, copiez son dossier GC dans {1}."
+
+msgid "Added: {1}. Already on the card, so skipped: {2}."
+msgstr "Ajoutées : {1}. Déjà sur la carte, donc ignorées : {2}."
+
+msgid "Could not be used: {1}."
+msgstr "Inutilisables : {1}."
+
+msgid "The memory card is full, so the rest did not fit."
+msgstr "La carte mémoire est pleine, le reste n'a donc pas tenu."
+
+msgid "No saves from Dolphin"
+msgstr "Aucune sauvegarde Dolphin"
+
+msgid "RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there: it holds the USA, EUR and JAP folders."
+msgstr "RiftWii n'a trouvé aucune sauvegarde pour cette carte mémoire dans {1}. Copiez-y le dossier GC de Dolphin : il contient les dossiers USA, EUR et JAP."
+
+msgid "Bring your Dolphin saves?"
+msgstr "Récupérer vos sauvegardes Dolphin ?"
+
+msgid "RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it."
+msgstr "RiftWii a trouvé {1} fichiers dans le dossier de Dolphin. Leurs sauvegardes sont copiées sur cette carte mémoire, et celles qu'elle a déjà restent telles quelles. La carte est d'abord copiée, donc Restaurer une ancienne sauvegarde peut tout annuler."
+
+msgid "Bring them"
+msgstr "Les récupérer"
+
+msgid "Saves not brought"
+msgstr "Sauvegardes non récupérées"
+
+msgid "RiftWii could not keep a copy of the memory card, so it was not changed: {1}"
+msgstr "RiftWii n'a pas pu garder une copie de la carte mémoire, elle n'a donc pas été modifiée : {1}"
+
+msgid "Nothing new to add"
+msgstr "Rien de nouveau à ajouter"
+
+msgid "Dolphin saves brought"
+msgstr "Sauvegardes Dolphin récupérées"
+
+msgid "Some files were left out because there were too many."
+msgstr "Certains fichiers ont été laissés de côté, car il y en avait trop."
+
+msgid "Some files will be left out because there are too many."
+msgstr "Certains fichiers seront laissés de côté, car il y en a trop."
+
 msgid "Shared Memory Card"
 msgstr "Carte mémoire partagée"
 

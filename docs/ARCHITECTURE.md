@@ -365,6 +365,7 @@ addresses into source lines (keep the `riftwii.elf` of each release).
 | `sd:/riftwii/patches/*.xdelta` | Patch-only GameCube mods, built into `sd:/games/<ID>/` once |
 | `sd:/riftwii/gc/cards/<ID>.raw`, `shared.raw`, `shared-jp.raw` | GameCube memory cards |
 | `sd:/riftwii/gc/saves/*.gci` | GameCube saves copied out, or to add to a card |
+| `sd:/riftwii/gc/dolphin/` | Dolphin's `GC` folder, copied whole (`USA/Card A/*.gci`, `MemoryCardA.USA.raw`...), for Bring your Dolphin saves (`gcimport.hpp`) |
 | `sd:/riftwii/gc/trace.bin`, `trace-crash.bin` | The last GameCube launch's trace (`tools/gc_trace.py`), and the last one with a crash, once offered |
 | `sd:/riftwii/gc/controls_seen.txt` | The controls card was shown |
 | `sd:/riftwii/gc/press`, `leave`, `crash`, `nowiden` | Test switches: presses on port 1, holding the way back, a crash on purpose, 16:9's hook without the widening |
