@@ -819,8 +819,8 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 	struct Row {
 		std::string name, gameName, key;
 		HomeEntry entry;
-		const riftwii::wii::ImageGame* game;  // nullptr for a profile of the disc's game
-		std::string GameId() const { return riftwii::tile_game_id(key); }
+		const riftwii::wii::ImageGame* game;
+		std::string GameId() const { return game->id; }
 	};
 	std::vector<Row> rows;
 	const auto addGame = [&](const riftwii::wii::ImageGame& g, HomeEntry::Kind kind, std::size_t i) {
@@ -836,7 +836,10 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 		for (std::size_t i = 0; i < state.sd_catalog.games.size(); ++i)
 			addGame(state.sd_catalog.games[i], HomeEntry::Kind::Sd, i);
 	// The games' profiles, each a tile of its own, with the first copy of
-	// its game found (a game on both drives gets them once).
+	// its game found (a game on both drives gets them once). Only a game
+	// Home lists has them: a profile of a game not found (not scanned yet,
+	// or deleted) stays on the card, with its choices, and its tile comes
+	// back with the game.
 	{
 		std::set<std::string> withProfiles;
 		const std::size_t games = rows.size();
@@ -849,16 +852,6 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 				row.entry.profile = row.key;
 				row.entry.searchName = p->name + " " + rows[r].gameName;
 				rows.push_back(std::move(row));
-			}
-		}
-		// A profile of a game on neither drive: the disc's (its tile reads
-		// the disc in the drive, and starts it when it is that game).
-		if (riftwii::wii::Settings().home_disc != "off") {
-			for (const riftwii::Profile& p : riftwii::wii::Profiles().all()) {
-				if (withProfiles.count(p.game_id)) continue;
-				const std::string gameName = riftwii::wii::GameDisplayName(p.game_id, p.game_id);
-				rows.push_back({p.name, gameName, p.key(), {HomeEntry::Kind::Disc, 0, p.key(), p.name + " " + gameName},
-					nullptr});
 			}
 		}
 	}
@@ -910,9 +903,7 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 		item.id = id;
 		item.key = r.key;
 		item.profile = profile;
-		// A profile of the disc's game has no drive to name ("DISC" is
-		// the drive's own tile).
-		item.badge = r.entry.kind == HomeEntry::Kind::Usb ? "USB" : r.entry.kind == HomeEntry::Kind::Sd ? "SD" : "";
+		item.badge = r.entry.kind == HomeEntry::Kind::Usb ? "USB" : "SD";
 		item.mods = mods || profile;
 		item.hue = skin::HueFor(id);
 		items.push_back(std::move(item));
@@ -3099,18 +3090,11 @@ static int MenuSource(FrontendState& state)
 			return true;
 		});
 	// A profile's tile: its picture in the corner (riftwii/profiles.hpp).
-	grid.SetPictureDrawer([&items](int index, float x, float y, float size, int alpha) {
-		if (index < 0 || static_cast<std::size_t>(index) >= items.size()) return false;
+	grid.SetPictureSource([&items](int index) -> const u8* {
+		if (index < 0 || static_cast<std::size_t>(index) >= items.size()) return nullptr;
 		const riftwii::Profile* profile = riftwii::wii::Profiles().find(items[static_cast<std::size_t>(index)].key);
-		const u8* picture = profile ? riftwii::wii::ProfilePicture(profile->key(), profile->art) : nullptr;
-		if (!picture) return false;
-		constexpr int kSide = riftwii::wii::kProfilePicture;
-		const float k = size / kSide;
-		// Menu_DrawImg scales about the picture's middle: put it on the square's.
-		Menu_DrawImg(x + size / 2 - kSide / 2.0f, y + size / 2 - kSide / 2.0f, kSide, kSide, const_cast<u8*>(picture), 0,
-			k, k, static_cast<u8>(alpha));
-		return true;
-	});
+		return profile ? riftwii::wii::ProfilePicture(profile->key(), profile->art) : nullptr;
+	}, riftwii::wii::kProfilePicture);
 	grid.SetItems(&items);
 	grid.Focus(g_homeFocus);
 	HomeBar bar;
@@ -3410,9 +3394,8 @@ static int MenuSource(FrontendState& state)
 			for (int r = 0; r < 3 && iconId.empty(); ++r) {
 				for (int k = std::max(0, from[r]); k < from[r] + count[r] && k < static_cast<int>(items.size()); ++k) {
 					const std::string& id = items[static_cast<std::size_t>(k)].id;
-					// The disc drive's own tile has no ID; a profile of the disc's
-					// game shows its icon when the card has its banner.
-					if (id.empty() || g_iconIndex.count(id) || g_bannerAbsent.count(id))
+					if (id.empty() || entries[static_cast<std::size_t>(k)].kind == HomeEntry::Kind::Disc ||
+					    g_iconIndex.count(id) || g_bannerAbsent.count(id))
 						continue;
 					iconId = id;
 					break;
@@ -3576,16 +3559,7 @@ static int MenuSource(FrontendState& state)
 			}
 			if (ok && !entry.profile.empty()) {
 				const riftwii::Profile* profile = riftwii::wii::Profiles().find(entry.profile);
-				if (profile && profile->game_id != state.game_id) {
-					// A profile of the disc's game, with another disc in the drive.
-					ok = false;
-					logf("Home: %s is for %s; the disc is %s\n", entry.profile.c_str(), profile->game_id.c_str(),
-						state.game_id.c_str());
-					error = tr("This tile is for {1}: put its disc in the drive.",
-						{riftwii::wii::GameDisplayName(profile->game_id, profile->game_id)});
-				} else if (profile) {
-					riftwii::wii::SelectProfile(state, *profile);
-				}
+				if (profile) riftwii::wii::SelectProfile(state, *profile);
 			}
 			HaltGui();
 			if (ok) {
@@ -4340,8 +4314,9 @@ static void BuildModRows(const FrontendState& state, const std::string& scanStat
 	pick.kind = FlowRow::Kind::Action;
 	pick.label = tr("Add a code build...");
 	add(pick, {RowRef::What::AddCodes});
-	// Home tiles of their own for these mods (riftwii/profiles.hpp).
-	if (!state.game_id.empty() && shown != 0) {
+	// Home tiles of their own for these mods (riftwii/profiles.hpp): for a
+	// game on a drive, which Home lists by itself (the disc's tile is the drive's).
+	if ((state.use_usb || state.use_sd) && !state.game_id.empty() && shown != 0) {
 		FlowRow tile;
 		tile.kind = FlowRow::Kind::Action;
 		tile.label = tr("Make a Home tile with these mods...");

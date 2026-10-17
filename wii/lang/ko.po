@@ -2022,9 +2022,6 @@ msgstr "MOD의 서버"
 msgid "Could not save the tiles to the SD card."
 msgstr "타일을 SD 카드에 저장할 수 없습니다."
 
-msgid "This tile is for {1}: put its disc in the drive."
-msgstr "이 타일은 {1}용입니다. 해당 디스크를 넣어 주세요."
-
 msgid "The tile needs a name."
 msgstr "타일 이름이 필요합니다."
 

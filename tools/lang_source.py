@@ -1799,11 +1799,6 @@ T = {
         "タイルをSDカードに保存できませんでした。",
         "Não foi possível salvar os blocos no cartão SD.",
         "Impossibile salvare i riquadri sulla scheda SD."),
-    "This tile is for {1}: put its disc in the drive.": (
-        "Esta casilla es para {1}: pon su disco en la unidad.",
-        "このタイルは{1}用です。そのディスクを入れてください。",
-        "Este bloco é para {1}: coloque o disco dele na unidade.",
-        "Questo riquadro è per {1}: inserisci il suo disco nell'unità."),
     "The tile needs a name.": (
         "La casilla necesita un nombre.",
         "タイルに名前を付けてください。",
@@ -3256,8 +3251,6 @@ KO = {
         "MOD의 서버",
     "Could not save the tiles to the SD card.":
         "타일을 SD 카드에 저장할 수 없습니다.",
-    "This tile is for {1}: put its disc in the drive.":
-        "이 타일은 {1}용입니다. 해당 디스크를 넣어 주세요.",
     "The tile needs a name.":
         "타일 이름이 필요합니다.",
     "This game has {1} tiles already, as many as it can have.":
@@ -4649,8 +4642,6 @@ FR = {
         "Celui du mod",
     "Could not save the tiles to the SD card.":
         "Impossible d'enregistrer les tuiles sur la carte SD.",
-    "This tile is for {1}: put its disc in the drive.":
-        "Cette tuile est pour {1} : insérez son disque dans le lecteur.",
     "The tile needs a name.":
         "La tuile a besoin d'un nom.",
     "This game has {1} tiles already, as many as it can have.":

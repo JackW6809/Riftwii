@@ -2022,9 +2022,6 @@ msgstr "El del mod"
 msgid "Could not save the tiles to the SD card."
 msgstr "No se pudieron guardar las casillas en la tarjeta SD."
 
-msgid "This tile is for {1}: put its disc in the drive."
-msgstr "Esta casilla es para {1}: pon su disco en la unidad."
-
 msgid "The tile needs a name."
 msgstr "La casilla necesita un nombre."
 

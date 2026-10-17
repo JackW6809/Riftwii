@@ -2022,9 +2022,6 @@ msgstr "O do mod"
 msgid "Could not save the tiles to the SD card."
 msgstr "Não foi possível salvar os blocos no cartão SD."
 
-msgid "This tile is for {1}: put its disc in the drive."
-msgstr "Este bloco é para {1}: coloque o disco dele na unidade."
-
 msgid "The tile needs a name."
 msgstr "O bloco precisa de um nome."
 

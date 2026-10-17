@@ -17,8 +17,8 @@ constexpr const char* kProfilesPath = "sd:/riftwii/profiles.txt";
 // The list, read from the card once.
 ProfileList& Profiles();
 
-// A new tile for the open game (on a drive, or the disc: Home shows a
-// disc game's tile on its own, and it starts when that disc is in), named `name`, starting with the choices on
+// A new tile for the open game (one on a drive: Home shows a profile's
+// tile only while it lists its game), named `name`, starting with the choices on
 // its page now (mods, cheats, saves and options); its picture is the first
 // mod turned on that has one. `key` is set to the new tile's key. False
 // with `error` (said to the player) when it can't be made.

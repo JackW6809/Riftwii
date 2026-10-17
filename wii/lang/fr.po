@@ -2022,9 +2022,6 @@ msgstr "Celui du mod"
 msgid "Could not save the tiles to the SD card."
 msgstr "Impossible d'enregistrer les tuiles sur la carte SD."
 
-msgid "This tile is for {1}: put its disc in the drive."
-msgstr "Cette tuile est pour {1} : insérez son disque dans le lecteur."
-
 msgid "The tile needs a name."
 msgstr "La tuile a besoin d'un nom."
 

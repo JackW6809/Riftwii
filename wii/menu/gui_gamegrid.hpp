@@ -84,11 +84,14 @@ public:
     using IconDrawer = std::function<bool(int index, const IconBox& box)>;
     void SetChannels(bool on, IconDrawer icon);
     bool Channels() const { return channels; }
-    // A profile's tile: its picture drawn into the square at x, y of
-    // `size` (item index, alpha); false when it has none, and the tile
-    // shows the Mods icon there instead. Not on the shelf.
-    using PictureDrawer = std::function<bool(int index, float x, float y, float size, int alpha)>;
-    void SetPictureDrawer(PictureDrawer drawer) { pictureDrawer = std::move(drawer); }
+    // A profile's tile: its picture (item index), an RGBA8 texture `side`
+    // texels square, drawn in the tile's corner; nullptr when it has none,
+    // and the tile has no corner picture. Not on the shelf.
+    using PictureSource = std::function<const u8*(int index)>;
+    void SetPictureSource(PictureSource source, int side) {
+        pictureSource = std::move(source);
+        pictureSide = side;
+    }
     // The items on the page shown: whose icons to have ready.
     int PageFirst() const { return page * kPerPage; }
     // A cover was stored for `id`: draw it from now on.
@@ -211,7 +214,9 @@ private:
     IconDrawer iconDrawer;
     bool iconShown[kPerPage] = {};  // channels: the tile drew its icon this frame
     void DrawChannelLabel(int slot, int alpha);
-    PictureDrawer pictureDrawer;
+    PictureSource pictureSource;
+    int pictureSide = 0;
+    const u8* ProfilePictureOf(int index) const;
     // A profile's picture in the corner of tile `slot` (drawn at `scale`).
     void DrawProfilePicture(int slot, float scale, int alpha);
     float ProfilePictureSize() const;

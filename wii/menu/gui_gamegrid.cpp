@@ -392,7 +392,7 @@ void GuiGameGrid::Layout() {
         // A name tile's disc (top right, from tileW - 46) keeps its name short of it.
         const bool disc = !covers && item.badge == "DISC";
         // A profile's name keeps short of its picture in the corner.
-        const int pictureRoom = !covers && item.profile ? static_cast<int>(ProfilePictureSize()) + 2 : 0;
+        const int pictureRoom = !covers && ProfilePictureOf(index) ? static_cast<int>(ProfilePictureSize()) + 2 : 0;
         const std::vector<std::string> lines =
             Wrap(item.title, disc ? Geo().tileW - 46 - kTextLeft - 4 : textWidth - pictureRoom, lineCount);
         for (int l = 0; l < 3; ++l) s.lines[l]->SetText(l < static_cast<int>(lines.size()) ? lines[l].c_str() : "");
@@ -494,12 +494,9 @@ void GuiGameGrid::DrawNameTile(int i, bool on, int alpha) {
         s.id->SetPosition(idX, baseY);
         s.id->Draw();
     }
-    // No source badge on a tile with none (a profile of the disc's game).
-    if (!item.badge.empty()) {
-        Menu_DrawRectangle(badgeX, baseY - 1, badgeW, 15, skin::WithAlpha(skin::kBadge, alpha), 1);
-        s.badge->SetPosition(badgeX + 5, baseY);
-        s.badge->Draw();
-    }
+    Menu_DrawRectangle(badgeX, baseY - 1, badgeW, 15, skin::WithAlpha(skin::kBadge, alpha), 1);
+    s.badge->SetPosition(badgeX + 5, baseY);
+    s.badge->Draw();
     if (item.mods) {
         const int modsW = s.mods->GetTextWidth() + 10;
         const int modsX = badgeX - modsW - 5;
@@ -549,11 +546,9 @@ void GuiGameGrid::DrawCoverTile(int i, bool on, int alpha) {
     const int baseY = at_y(tileH - 22);
     const int badgeW = s.badge->GetTextWidth() + 10;
     const int badgeX = at_x(tileW - 5) - badgeW;
-    if (!item.badge.empty()) {
-        Menu_DrawRectangle(badgeX, baseY - 1, badgeW, 15, skin::WithAlpha(skin::WithAlpha(skin::kBadge, 235), alpha), 1);
-        s.badge->SetPosition(badgeX + 5, baseY);
-        s.badge->Draw();
-    }
+    Menu_DrawRectangle(badgeX, baseY - 1, badgeW, 15, skin::WithAlpha(skin::WithAlpha(skin::kBadge, 235), alpha), 1);
+    s.badge->SetPosition(badgeX + 5, baseY);
+    s.badge->Draw();
     if (item.mods) {
         const int modsW = s.mods->GetTextWidth() + 10;
         const int modsX = at_x(5);
@@ -570,25 +565,30 @@ float GuiGameGrid::ProfilePictureSize() const {
     return Geo().tileH * (channels ? 0.46f : 0.40f);
 }
 
+const u8* GuiGameGrid::ProfilePictureOf(int index) const {
+    if (!pictureSource || pictureSide <= 0 || index < 0 || index >= Count() || !(*items)[index].profile) return nullptr;
+    return pictureSource(index);
+}
+
 void GuiGameGrid::DrawProfilePicture(int slot, float scale, int alpha) {
+    // No picture, no corner: the tile's name and MODS tag say what it is
+    // (the Mods icon there was taken for something else on a Wii).
+    const u8* picture = ProfilePictureOf(page * kPerPage + slot);
+    if (!picture) return;
     const float tileW = Geo().tileW * scale, tileH = Geo().tileH * scale;
     const float cx = TileX(slot) + Geo().tileW / 2.0f, cy = TileY(slot) + Geo().tileH / 2.0f;
     const float size = ProfilePictureSize() * scale;
     const float inset = (covers ? 3.0f : 6.0f) * scale;
     const float x = cx + tileW / 2 - inset - size, y = cy - tileH / 2 + inset;
     // On a card of its own, as a sticker on the tile: a soft shadow, a
-    // light rim, the picture (or the Mods icon) inside it.
+    // light rim, the picture inside it.
     const float rim = 2.0f * scale;
     Menu_DrawRectangle(x - rim + 1, y - rim + 2, size + 2 * rim, size + 2 * rim, (GXColor){0, 0, 0, static_cast<u8>(alpha * 70 / 255)}, 1);
     Menu_DrawRectangle(x - rim, y - rim, size + 2 * rim, size + 2 * rim, skin::WithAlpha(skin::kBadge, alpha), 1);
-    const int index = page * kPerPage + slot;
-    if (pictureDrawer && pictureDrawer(index, x, y, size, alpha)) return;
-    Menu_DrawRectangle(x, y, size, size, skin::WithAlpha(skin::kAccentInk, alpha), 1);
-    const skin::Tex& icon = skin::iconMods;
-    if (icon.data && icon.w > 0 && icon.h > 0) {
-        const float k = size * 0.72f / std::max(icon.w, icon.h);
-        skin::Draw(icon, x + size / 2 - icon.w / 2.0f, y + size / 2 - icon.h / 2.0f, alpha, k);
-    }
+    const float k = size / pictureSide;
+    // Menu_DrawImg scales about the picture's middle: put it on the square's.
+    Menu_DrawImg(x + size / 2 - pictureSide / 2.0f, y + size / 2 - pictureSide / 2.0f, static_cast<u16>(pictureSide),
+                 static_cast<u16>(pictureSide), const_cast<u8*>(picture), 0, k, k, static_cast<u8>(alpha));
 }
 
 void GuiGameGrid::DrawChannelLabel(int slot, int alpha) {

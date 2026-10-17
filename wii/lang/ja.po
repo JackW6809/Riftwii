@@ -2022,9 +2022,6 @@ msgstr "MODのもの"
 msgid "Could not save the tiles to the SD card."
 msgstr "タイルをSDカードに保存できませんでした。"
 
-msgid "This tile is for {1}: put its disc in the drive."
-msgstr "このタイルは{1}用です。そのディスクを入れてください。"
-
 msgid "The tile needs a name."
 msgstr "タイルに名前を付けてください。"
 
