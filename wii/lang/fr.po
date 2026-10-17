@@ -744,16 +744,16 @@ msgstr "Chaînes"
 msgid "Channel corners"
 msgstr "Coins des chaînes"
 
-msgid "Square"
-msgstr "Carrés"
+msgid "Square corners"
+msgstr "Coins carrés"
 
-msgid "Slight"
-msgstr "Légers"
+msgid "Slightly round"
+msgstr "Peu arrondis"
 
-msgid "Round"
-msgstr "Arrondis"
+msgid "Round corners"
+msgstr "Coins arrondis"
 
-msgid "Rounder"
+msgid "Extra round"
 msgstr "Très arrondis"
 
 msgid "How round the corners of the Channels view's tiles are. Theme keeps the theme's own; the others are the same in every theme."

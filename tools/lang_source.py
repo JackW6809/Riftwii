@@ -638,10 +638,10 @@ T = {
     "Channels": ("Canales", "チャンネル", "Canais", "Canali"),
     # Channel corners (Settings, the Channels view)
     "Channel corners": ("Esquinas de los canales", "チャンネルの角", "Cantos dos canais", "Angoli dei canali"),
-    "Square": ("Rectas", "四角", "Retos", "Squadrati"),
-    "Slight": ("Suaves", "少し丸く", "Suaves", "Leggeri"),
-    "Round": ("Redondas", "丸く", "Redondos", "Arrotondati"),
-    "Rounder": ("Más redondas", "もっと丸く", "Mais redondos", "Più arrotondati"),
+    "Square corners": ("Esquinas rectas", "四角い角", "Cantos retos", "Angoli squadrati"),
+    "Slightly round": ("Algo redondeadas", "少し丸い角", "Pouco arredondados", "Poco arrotondati"),
+    "Round corners": ("Esquinas redondas", "丸い角", "Cantos redondos", "Angoli arrotondati"),
+    "Extra round": ("Muy redondeadas", "もっと丸い角", "Bem arredondados", "Molto arrotondati"),
     "How round the corners of the Channels view's tiles are. Theme keeps the theme's own; the others are the same in every theme.": (
         "Lo redondeadas que son las esquinas de los recuadros en la vista Canales. Tema mantiene las del propio tema; las demás son iguales en todos los temas.",
         "チャンネル表示のタイルの角の丸さです。「テーマ」はテーマ自体の丸さのままです。ほかはどのテーマでも同じです。",
@@ -2289,14 +2289,14 @@ KO = {
         "채널",
     "Channel corners":
         "채널 모서리",
-    "Square":
-        "각지게",
-    "Slight":
-        "살짝 둥글게",
-    "Round":
-        "둥글게",
-    "Rounder":
-        "더 둥글게",
+    "Square corners":
+        "각진 모서리",
+    "Slightly round":
+        "살짝 둥근 모서리",
+    "Round corners":
+        "둥근 모서리",
+    "Extra round":
+        "더 둥근 모서리",
     "How round the corners of the Channels view's tiles are. Theme keeps the theme's own; the others are the same in every theme.":
         "채널 보기에서 타일 모서리가 얼마나 둥근지 정합니다. '테마'는 테마 자체의 모서리를 따르고, 나머지는 모든 테마에서 똑같습니다.",
     "Widescreen menu":
@@ -3656,13 +3656,13 @@ FR = {
         "Chaînes",
     "Channel corners":
         "Coins des chaînes",
-    "Square":
-        "Carrés",
-    "Slight":
-        "Légers",
-    "Round":
-        "Arrondis",
-    "Rounder":
+    "Square corners":
+        "Coins carrés",
+    "Slightly round":
+        "Peu arrondis",
+    "Round corners":
+        "Coins arrondis",
+    "Extra round":
         "Très arrondis",
     "How round the corners of the Channels view's tiles are. Theme keeps the theme's own; the others are the same in every theme.":
         "L'arrondi des coins des tuiles dans la vue Chaînes. Thème garde celui du thème ; les autres sont les mêmes dans tous les thèmes.",

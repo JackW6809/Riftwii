@@ -3836,10 +3836,12 @@ static const char* const kChannelCornerChoices[] = {"theme", "square", "slight",
 
 static std::string ChannelCornersName(const std::string& v)
 {
-	if (v == "square") return tr("Square");
-	if (v == "slight") return tr("Slight");
-	if (v == "round") return tr("Round");
-	if (v == "rounder") return tr("Rounder");
+	// Each named with its corners, not a bare "Round" or "Square" another
+	// screen might want for something else (a race's round, a button).
+	if (v == "square") return tr("Square corners");
+	if (v == "slight") return tr("Slightly round");
+	if (v == "round") return tr("Round corners");
+	if (v == "rounder") return tr("Extra round");
 	return tr("Theme");
 }
 
