@@ -232,6 +232,25 @@ void TestHttp() {
     EXPECT_TRUE(parse_http_url("http://www.gametdb.com/x", plain_from, error));
     EXPECT_TRUE(http_redirect(plain_from, "https://www.gametdb.com/x", to, error));  // up to https is fine
     EXPECT_TRUE(http_redirect(plain_from, "http://art.gametdb.com/x", to, error));
+
+    // Which redirects a download takes: any (the default), on the same
+    // server only, or none (the GameCube banners: a 301 is a miss).
+    HttpUrl banner, same_path, same_upper, other_host, other_port, to_https;
+    EXPECT_TRUE(parse_http_url("http://banner.rc24.xyz/GMSE04.bnr", banner, error));
+    EXPECT_TRUE(http_redirect(banner, "/GMS.bnr", same_path, error));
+    EXPECT_TRUE(http_redirect(banner, "http://BANNER.rc24.xyz/x.bnr", same_upper, error));
+    EXPECT_TRUE(http_redirect(banner, "http://evil.example/GMSE04.bnr", other_host, error));
+    EXPECT_TRUE(http_redirect(banner, "http://banner.rc24.xyz:8080/GMSE04.bnr", other_port, error));
+    EXPECT_TRUE(http_redirect(banner, "https://banner.rc24.xyz/GMSE04.bnr", to_https, error));
+    for (const HttpUrl* next : {&same_path, &same_upper, &other_host, &other_port, &to_https}) {
+        EXPECT_TRUE(http_redirect_allowed(HttpRedirects::Follow, banner, *next));
+        EXPECT_FALSE(http_redirect_allowed(HttpRedirects::Never, banner, *next));
+    }
+    EXPECT_TRUE(http_redirect_allowed(HttpRedirects::SameHost, banner, same_path));
+    EXPECT_TRUE(http_redirect_allowed(HttpRedirects::SameHost, banner, same_upper));
+    EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, other_host));
+    EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, other_port));
+    EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, to_https));
 }
 
 void TestCheats() {

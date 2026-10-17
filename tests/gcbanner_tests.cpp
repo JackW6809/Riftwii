@@ -6,6 +6,7 @@
 // banner server's addresses, and what the download check refuses.
 #include "riftwii/gcbanner.hpp"
 
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -275,11 +276,169 @@ static void test_disc_file() {
     EXPECT_FALSE(read_gc_disc_file(tiny_source, "/opening.bnr", out, error));
 }
 
-static void test_picture_layout() {
-    for (const bool icon : {true, false}) {
-        const Layout layout = gc_picture_layout(icon);
-        EXPECT_EQ(layout.textures.size(), std::size_t(1));
-        EXPECT_EQ(layout.textures[0], std::string(kGcPictureTexture));
+namespace {
+
+// A 96x32 picture, straight RGBA, every texel `fill`.
+Bytes make_rgba(LytColor fill) {
+    Bytes rgba(static_cast<std::size_t>(kGcBannerWidth) * kGcBannerHeight * 4);
+    for (std::size_t i = 0; i < rgba.size(); i += 4) {
+        rgba[i] = fill.r;
+        rgba[i + 1] = fill.g;
+        rgba[i + 2] = fill.b;
+        rgba[i + 3] = fill.a;
+    }
+    return rgba;
+}
+
+void set_texel(Bytes& rgba, int x, int y, LytColor c) {
+    const std::size_t at = (static_cast<std::size_t>(y) * kGcBannerWidth + x) * 4;
+    rgba[at] = c.r;
+    rgba[at + 1] = c.g;
+    rgba[at + 2] = c.b;
+    rgba[at + 3] = c.a;
+}
+
+bool same_colour(LytColor a, LytColor b) { return a.r == b.r && a.g == b.g && a.b == b.b; }
+
+const LytQuad* quad_of(const Layout& layout, const std::vector<LytQuad>& quads, const char* name) {
+    for (const LytQuad& q : quads) {
+        if (layout.panes[static_cast<std::size_t>(q.pane)].name == name) return &q;
+    }
+    return nullptr;
+}
+
+}  // namespace
+
+static void test_picture_colours() {
+    // Black with a teal logo, a red top row and a blue bottom row; the rows
+    // next to them half transparent, so only the outermost rows count.
+    Bytes rgba = make_rgba({0, 0, 0, 255});
+    for (int x = 0; x < kGcBannerWidth; ++x) {
+        set_texel(rgba, x, 0, {200, 0, 0, 255});
+        set_texel(rgba, x, 1, {0, 0, 0, 0});
+        set_texel(rgba, x, kGcBannerHeight - 2, {0, 0, 0, 0});
+        set_texel(rgba, x, kGcBannerHeight - 1, {0, 0, 120, 255});
+    }
+    for (int y = 4; y < 28; ++y) {
+        for (int x = 0; x < kGcBannerWidth; ++x) set_texel(rgba, x, y, {0, 110, 100, 255});
+    }
+    GcPictureColours colours = gc_picture_colours(rgba);
+    EXPECT_TRUE(same_colour(colours.top, {200, 0, 0, 255}));
+    EXPECT_TRUE(same_colour(colours.bottom, {0, 0, 120, 255}));
+    // The teal logo outweighs the black and the thin red and blue rows,
+    // brought to the accent's brightness (220 in its brightest channel).
+    EXPECT_TRUE(colours.colourful);
+    EXPECT_TRUE(colours.accent.g == 220 && colours.accent.b > 170 && colours.accent.r < 60);
+
+    // Purple letters beside a smaller green figure and some skin tones:
+    // the hue there is most of, not a grey mixed from all three.
+    Bytes logo = make_rgba({20, 20, 30, 255});
+    for (int y = 4; y < 28; ++y) {
+        for (int x = 0; x < 12; ++x) set_texel(logo, x, y, {41, 172, 0, 255});
+        for (int x = 12; x < 20; ++x) set_texel(logo, x, y, {230, 170, 120, 255});
+        for (int x = 30; x < 90; ++x) set_texel(logo, x, y, {131, 131, 255, 255});
+    }
+    colours = gc_picture_colours(logo);
+    EXPECT_TRUE(colours.colourful);
+    EXPECT_TRUE(colours.accent.b == 220 && colours.accent.r == colours.accent.g && colours.accent.r < 130);
+
+    // A cut-out logo, its outer rows transparent but for a few texels: the
+    // rows further in give the edge colour.
+    Bytes cut_out = make_rgba({0, 0, 0, 0});
+    set_texel(cut_out, 10, 0, {255, 255, 255, 255});
+    for (int x = 0; x < kGcBannerWidth; ++x) set_texel(cut_out, x, 3, {0, 0, 90, 255});
+    colours = gc_picture_colours(cut_out);
+    EXPECT_TRUE(colours.top.b > 80 && colours.top.r < 10);
+    EXPECT_TRUE(same_colour(colours.bottom, GcPictureColours().bottom));  // nothing opaque within six rows
+
+    // A grey picture: no accent; its edges are its grey.
+    colours = gc_picture_colours(make_rgba({90, 90, 90, 255}));
+    EXPECT_FALSE(colours.colourful);
+    EXPECT_TRUE(same_colour(colours.top, {90, 90, 90, 255}));
+    // All transparent, or no picture at all: the defaults.
+    const GcPictureColours defaults;
+    colours = gc_picture_colours(make_rgba({255, 0, 0, 0}));
+    EXPECT_FALSE(colours.colourful);
+    EXPECT_TRUE(same_colour(colours.top, defaults.top) && same_colour(colours.bottom, defaults.bottom));
+    colours = gc_picture_colours(Bytes(16, 255));
+    EXPECT_FALSE(colours.colourful);
+}
+
+static void test_icon_layout() {
+    GcPictureColours colours;
+    colours.top = {200, 0, 0, 255};
+    colours.bottom = {0, 0, 120, 255};
+    Layout layout = gc_picture_layout(true, colours);
+    EXPECT_EQ(layout.textures.size(), std::size_t(1));
+    EXPECT_EQ(layout.textures[0], std::string(kGcPictureTexture));
+    EXPECT_EQ(layout.width, 128.0f);
+    EXPECT_EQ(layout.height, 96.0f);
+    // On a 4:3 channel (and fitted with 1, the same): the picture spans the
+    // icon's whole width, 3:1, in its middle, the bands meeting it.
+    for (const bool fitted : {false, true}) {
+        if (fitted) gc_picture_fit(layout, 1.0f);
+        const std::vector<LytQuad> quads = layout_quads(layout);
+        const LytQuad* picture = quad_of(layout, quads, "picture");
+        const LytQuad* top = quad_of(layout, quads, "band_top");
+        const LytQuad* bottom = quad_of(layout, quads, "band_bottom");
+        EXPECT_TRUE(picture && top && bottom);
+        if (!picture || !top || !bottom) return;
+        EXPECT_EQ(quads.back().pane, picture->pane);  // drawn last, over the bands
+        EXPECT_EQ(layout.panes[static_cast<std::size_t>(picture->pane)].material, 1);
+        EXPECT_EQ(picture->x[0], -64.0f);
+        EXPECT_EQ(picture->x[1], 64.0f);
+        EXPECT_EQ(picture->y[0], 64.0f / 3);
+        EXPECT_EQ(picture->y[2], -64.0f / 3);
+        // The bands cover the rest of the icon, past its edges, and run a
+        // little under the picture so no gap shows.
+        EXPECT_TRUE(top->y[0] >= 48.0f && top->y[2] < picture->y[0]);
+        EXPECT_TRUE(bottom->y[2] <= -48.0f && bottom->y[0] > picture->y[2]);
+        EXPECT_TRUE(top->x[0] <= -64.0f && top->x[1] >= 64.0f);
+        // From the picture's edge colour at the picture to darker at the rim.
+        EXPECT_TRUE(same_colour(top->color[2], colours.top));
+        EXPECT_TRUE(top->color[0].r < colours.top.r && top->color[0].r > 0);
+        EXPECT_TRUE(same_colour(bottom->color[0], colours.bottom));
+        EXPECT_TRUE(bottom->color[2].b < colours.bottom.b);
+    }
+
+    // A 16:9 menu's channel (layout_quads narrows flagged panes by 0.75 and
+    // the menu stretches the whole icon by 4/3): fitted, the picture still
+    // spans the channel and keeps its shape, 128 x 57 as the TV shows it.
+    Layout wide_layout = gc_picture_layout(true, colours);
+    gc_picture_fit(wide_layout, 0.75f);
+    std::vector<LytQuad> wide;
+    LytScratch scratch;
+    layout_quads(wide_layout, wide, scratch, 0.75f);
+    const LytQuad* picture = quad_of(wide_layout, wide, "picture");
+    const LytQuad* top = quad_of(wide_layout, wide, "band_top");
+    const LytQuad* bottom = quad_of(wide_layout, wide, "band_bottom");
+    EXPECT_TRUE(picture && top && bottom);
+    if (!picture || !top || !bottom) return;
+    const float tall = 128.0f / 3 / 0.75f;
+    EXPECT_TRUE(std::fabs(picture->x[1] - picture->x[0] - 128.0f) < 0.01f);
+    EXPECT_TRUE(std::fabs(picture->y[0] - picture->y[2] - tall) < 0.01f);
+    EXPECT_TRUE(top->y[2] < picture->y[0] && top->y[0] >= 48.0f);
+    EXPECT_TRUE(bottom->y[0] > picture->y[2] && bottom->y[2] <= -48.0f);
+    // Fitting again for another box starts from the layout, not from the last fit.
+    gc_picture_fit(wide_layout, 1.0f);
+    const std::vector<LytQuad> back = layout_quads(wide_layout);
+    EXPECT_EQ(quad_of(wide_layout, back, "picture")->y[0], 64.0f / 3);
+    // A box far wider than 16:9: the picture stops at the 88 lines the channel shows.
+    gc_picture_fit(wide_layout, 0.25f);
+    std::vector<LytQuad> very_wide;
+    layout_quads(wide_layout, very_wide, scratch, 0.25f);
+    picture = quad_of(wide_layout, very_wide, "picture");
+    EXPECT_TRUE(picture && std::fabs(picture->y[0] - picture->y[2] - 88.0f) < 0.01f);
+}
+
+static void test_banner_layout() {
+    for (const bool colourful : {false, true}) {
+        GcPictureColours colours;
+        colours.accent = {0, 220, 200, 255};
+        colours.colourful = colourful;
+        Layout layout = gc_picture_layout(false, colours);
+        // The full banner is not an icon: fitting leaves it alone.
+        gc_picture_fit(layout, 0.75f);
         const std::vector<LytQuad> quads = layout_quads(layout);
         // The background, the frame's shadow and border, the picture last.
         EXPECT_EQ(quads.size(), std::size_t(4));
@@ -287,40 +446,85 @@ static void test_picture_layout() {
         const LytQuad& background = quads[0];
         const LytQuad& picture = quads[3];
         EXPECT_EQ(layout.panes[static_cast<std::size_t>(picture.pane)].material, 1);
-        EXPECT_EQ(layout.materials[1].maps.size(), std::size_t(1));
-        const float width = icon ? 112.0f : 384.0f, height = width / 3;
-        const float middle = icon ? 0.0f : 90.0f;
-        EXPECT_EQ(picture.x[1] - picture.x[0], width);
-        EXPECT_EQ(picture.y[0] - picture.y[2], height);
-        EXPECT_EQ(picture.x[0], -width / 2);
-        EXPECT_EQ(picture.y[0], middle + height / 2);
-        // The background covers the whole view.
-        EXPECT_TRUE(background.x[0] <= -layout.width / 2 && background.x[1] >= layout.width / 2);
-        EXPECT_TRUE(background.y[0] >= layout.height / 2 && background.y[2] <= -layout.height / 2);
+        EXPECT_EQ(picture.x[1] - picture.x[0], 384.0f);
+        EXPECT_EQ(picture.y[0] - picture.y[2], 128.0f);
+        EXPECT_EQ(picture.y[0], 90.0f + 64.0f);
+        // The background covers the whole view: light grey, tinted toward
+        // the accent (more at the bottom) when the picture has one.
+        EXPECT_TRUE(background.x[0] <= -304.0f && background.x[1] >= 304.0f);
+        EXPECT_TRUE(background.y[0] >= 228.0f && background.y[2] <= -228.0f);
+        const LytColor top = background.color[0], bottom = background.color[2];
+        if (colourful) {
+            EXPECT_TRUE(top.r < 248 && top.g > top.r && top.r > 200);
+            EXPECT_TRUE(bottom.g > bottom.r + 60);
+        } else {
+            EXPECT_TRUE(same_colour(top, {248, 249, 251, 255}));
+            EXPECT_TRUE(same_colour(bottom, {204, 210, 221, 255}));
+        }
         // A 16:9 menu narrows the framed picture back, not the background.
         std::vector<LytQuad> wide;
         LytScratch scratch;
         layout_quads(layout, wide, scratch, 0.75f);
-        EXPECT_EQ(wide[3].x[1] - wide[3].x[0], width * 0.75f);
+        EXPECT_EQ(wide[3].x[1] - wide[3].x[0], 384.0f * 0.75f);
         EXPECT_EQ(wide[0].x[1] - wide[0].x[0], quads[0].x[1] - quads[0].x[0]);
     }
 }
 
 static void test_urls() {
-    const std::vector<std::string> urls = gc_banner_urls("GMSE01");
+    const std::vector<std::string> urls = gc_banner_urls("GMSE01", true);
     EXPECT_EQ(urls.size(), std::size_t(2));
     if (urls.size() == 2) {
         EXPECT_EQ(urls[0], std::string("http://banner.rc24.xyz/GMSE01.bnr"));
         EXPECT_EQ(urls[1], std::string("http://banner.rc24.xyz/GMS.bnr"));
     }
-    EXPECT_EQ(gc_banner_urls("GLMP01").size(), std::size_t(2));
+    // A mod: its own ID only.
+    const std::vector<std::string> mod = gc_banner_urls("GMSE04", false);
+    EXPECT_EQ(mod.size(), std::size_t(1));
+    if (!mod.empty()) EXPECT_EQ(mod[0], std::string("http://banner.rc24.xyz/GMSE04.bnr"));
+    EXPECT_EQ(gc_banner_urls("GLMP01", true).size(), std::size_t(2));
     EXPECT_TRUE(gc_banner_id_ok("G8ME01"));
     // Only six capital letters or digits: nothing else reaches a URL.
     for (const char* bad : {"gmse01", "GMSE0", "GMSE01X", "GMS/01", "../GMS", "GMS?01", "GMS 01", "GMS%2F", ""}) {
         EXPECT_FALSE(gc_banner_id_ok(bad));
-        EXPECT_TRUE(gc_banner_urls(bad).empty());
+        EXPECT_TRUE(gc_banner_urls(bad, true).empty());
+        EXPECT_TRUE(gc_banner_urls(bad, false).empty());
     }
     EXPECT_FALSE(gc_banner_id_ok(std::string("GMS\0E1", 6)));
+}
+
+static void test_regional_copy() {
+    // As GameTDB's titles.txt has them: retail copies and the mods the
+    // community lists under IDs of their own.
+    TitleTable titles;
+    titles.add_text("TITLES = https://www.gametdb.com\n"
+                    "GMSE01 = Super Mario Sunshine\n"
+                    "GMSP01 = Super Mario Sunshine\n"
+                    "GMSJ01 = Super Mario Sunshine\n"
+                    "GMSE02 = Super Mario Sunshine Multiplayer\n"
+                    "GMSE04 = Super Mario Eclipse\n"
+                    "GLME01 = Luigi's Mansion\n"
+                    "GLMP01 = Luigi's Mansion\n"
+                    "GLME09 = Luigi's Mansion: Open World\n"
+                    "GZLE01 = The Legend of Zelda: The Wind Waker\n"
+                    "GZLJ01 = Kaze no Takuto\n"
+                    "GALE = Super Smash Bros. Melee\n"
+                    "GALP01 = Super Smash Bros. Melee\n");
+    EXPECT_TRUE(gc_banner_regional_copy("GMSE01", false, &titles));
+    EXPECT_TRUE(gc_banner_regional_copy("GMSP01", false, &titles));
+    EXPECT_TRUE(gc_banner_regional_copy("GLMP01", false, &titles));
+    // Mods: listed, but no other region's copy under that maker code and name.
+    EXPECT_FALSE(gc_banner_regional_copy("GMSE04", false, &titles));
+    EXPECT_FALSE(gc_banner_regional_copy("GMSE02", false, &titles));
+    EXPECT_FALSE(gc_banner_regional_copy("GLME09", false, &titles));
+    // Not listed at all; listed only by its 4-char prefix (GALE): exact IDs only.
+    EXPECT_FALSE(gc_banner_regional_copy("GMSE07", false, &titles));
+    EXPECT_FALSE(gc_banner_regional_copy("GALE01", false, &titles));
+    // Named differently in each region: its own banner only (the safe side).
+    EXPECT_FALSE(gc_banner_regional_copy("GZLE01", false, &titles));
+    // A patch-only mod is a mod whatever its ID; no database, no fallback.
+    EXPECT_FALSE(gc_banner_regional_copy("GMSE01", true, &titles));
+    EXPECT_FALSE(gc_banner_regional_copy("GMSE01", false, nullptr));
+    EXPECT_FALSE(gc_banner_regional_copy("gmse01", false, &titles));
 }
 
 static void test_download_check() {
@@ -354,8 +558,11 @@ int main() {
     test_parse_bnr1();
     test_bad_bnr();
     test_disc_file();
-    test_picture_layout();
+    test_picture_colours();
+    test_icon_layout();
+    test_banner_layout();
     test_urls();
+    test_regional_copy();
     test_download_check();
     if (g_failures == 0) std::cout << "gcbanner: all passed" << std::endl;
     return g_failures == 0 ? 0 : 1;

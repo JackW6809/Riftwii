@@ -140,7 +140,7 @@ bool write_file(const std::string& path, const std::vector<std::uint8_t>& bytes,
 }  // namespace
 
 bool HttpGet(const std::string& url, std::vector<std::uint8_t>& body, std::string& error, std::size_t max_bytes,
-             int timeout_ms, const HttpProgress& progress) {
+             int timeout_ms, const HttpProgress& progress, HttpRedirects redirects) {
     if (!NetStart(error)) return false;
     HttpUrl parsed;
     if (!parse_http_url(url, parsed, error)) return false;
@@ -148,10 +148,23 @@ bool HttpGet(const std::string& url, std::vector<std::uint8_t>& body, std::strin
         HttpResponse response;
         if (!exchange(parsed, http_get_request(parsed), response, error, max_bytes, timeout_ms, progress)) return false;
         if (response.status >= 300 && response.status < 400 && response.headers.count("location")) {
+            // A redirect this download does not take is the server's
+            // answer, worded as any other ("answered"), so the caller
+            // takes it as "not here" rather than as a network failure.
+            const std::string not_followed = parsed.host + " answered " + std::to_string(response.status) +
+                                             " (a redirect, not followed for this download)";
+            if (redirects == HttpRedirects::Never) {
+                error = not_followed;
+                return false;
+            }
             // Never from https to plain http: an update's DOL or update
             // pack would then come over a connection anyone can change.
             HttpUrl next;
             if (!http_redirect(parsed, response.headers["location"], next, error)) return false;
+            if (!http_redirect_allowed(redirects, parsed, next)) {
+                error = not_followed;
+                return false;
+            }
             parsed = next;
             continue;
         }
@@ -818,9 +831,9 @@ bool DownloadCheats(const std::string& game_id, std::string& error) {
     return true;
 }
 
-BannerDownload DownloadGameCubeBanner(const std::string& game_id, std::vector<std::uint8_t>& bytes,
-                                      std::string& error) {
-    const std::vector<std::string> urls = gc_banner_urls(game_id);
+BannerDownload DownloadGameCubeBanner(const std::string& game_id, bool regional_fallback,
+                                      std::vector<std::uint8_t>& bytes, std::string& error) {
+    const std::vector<std::string> urls = gc_banner_urls(game_id, regional_fallback);
     if (urls.empty()) {
         error = "no game ID to ask the banner server for";
         return BannerDownload::None;
@@ -829,10 +842,14 @@ BannerDownload DownloadGameCubeBanner(const std::string& game_id, std::vector<st
     for (const std::string& url : urls) {
         std::vector<std::uint8_t> body;
         std::string why;
-        // A banner is around a megabyte: the timeout leaves room for a slow link.
-        if (!HttpGet(url, body, why, kGcBannerDownloadMax, 30000)) {
-            // An HTTP answer (404 for a game it has no banner for) or a file
-            // over the size bound: this address has nothing to use. No
+        // A banner is around a megabyte: the timeout leaves room for a slow
+        // link. Only from the address asked: the server answers each banner
+        // directly, and a redirect (to another host, or to another game's
+        // banner) is taken as a miss.
+        if (!HttpGet(url, body, why, kGcBannerDownloadMax, 30000, nullptr, HttpRedirects::Never)) {
+            // An HTTP answer (404 for a game it has no banner for, or a
+            // redirect) or a file over the size bound: this address has
+            // nothing to use. No
             // answer at all: the network is down, and the next game's
             // download would only wait as long again.
             const bool answered = why.find(" answered ") != std::string::npos;

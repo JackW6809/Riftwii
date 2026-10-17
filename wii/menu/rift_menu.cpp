@@ -3423,7 +3423,14 @@ static int MenuSource(FrontendState& state)
 				const riftwii::wii::ImageGame& game = state.sd_catalog.games[e.index];
 				if (!game.gamecube || !g_gcBannersAsked.insert(game.id).second) continue;
 				if (!riftwii::wii::GameCubeBannerWanted(game.id)) continue;
-				if (riftwii::wii::StartGameCubeBannerFetch(game.id)) logf("Banners: asking for %s's animated banner\n", game.id.c_str());
+				// A mod is asked for by its own ID only: the three-letter
+				// banner would be the game it was made from.
+				const bool regional = riftwii::gc_banner_regional_copy(game.id, !game.gc_patch_source.empty(),
+					riftwii::wii::LoadedTitles());
+				if (riftwii::wii::StartGameCubeBannerFetch(game.id, regional))
+					logf("Banners: asking for %s's animated banner (%s)\n", game.id.c_str(),
+						regional ? "its ID, then its first three letters: a regional copy of a game"
+							: "its own ID only: a mod, or a game the title list does not show in another region");
 				break;
 			}
 		}

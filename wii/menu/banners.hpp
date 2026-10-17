@@ -40,7 +40,10 @@ enum class BannerFetch { Stored, NotFound, Failed };
 // (NetRunInBackground) and stored, checked first (riftwii/gcbanner.hpp's
 // check_gc_banner_download). One at a time: false while the network's
 // thread is busy or the last one's answer was not taken yet.
-bool StartGameCubeBannerFetch(const std::string& game_id);
+// `regional_fallback`: the game is a regional copy of a game, not a mod
+// (riftwii/gcbanner.hpp's gc_banner_regional_copy), so the server's banner
+// for its first three letters may stand in for its own.
+bool StartGameCubeBannerFetch(const std::string& game_id, bool regional_fallback);
 // The game a started fetch is for, until its answer is taken ("" if none).
 const std::string& GameCubeBannerFetchGame();
 // The answer once the fetch has finished, once. NotFound: the server has

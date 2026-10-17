@@ -9,6 +9,7 @@
 
 #include "riftwii/redirect.hpp"
 #include "riftwii/rvz.hpp"
+#include "riftwii/titles.hpp"
 #include "riftwii/usbgame.hpp"
 #include "resident.hpp"
 
@@ -149,6 +150,9 @@ bool sd_file_pieces(const std::string& sd_path, std::uint64_t& size, std::vector
 std::string GameDisplayName(const std::string& id, const std::string& internal);
 // Reads the title list again (after a language change or a download).
 void ReloadTitles();
+// The title list the last scan read, without reading or downloading it
+// now; null when there is none yet.
+const TitleTable* LoadedTitles();
 // Names (and sorts) a scanned catalog's games again from the title list.
 void RenameGames(ImageCatalog& catalog);
 // Whether a cIOS slot holds a launchable (non-stub) title.

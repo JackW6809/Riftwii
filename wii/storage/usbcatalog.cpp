@@ -1378,6 +1378,8 @@ std::string GameDisplayName(const std::string& id, const std::string& internal) 
     return display_title(titles(), id, std::string(), internal);
 }
 
+const TitleTable* LoadedTitles() { return g_titles_loaded && !g_titles_from.empty() ? &g_titles : nullptr; }
+
 void ReloadTitles() {
     g_titles = TitleTable{};
     g_titles_loaded = false;

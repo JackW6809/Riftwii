@@ -158,16 +158,17 @@ namespace {
 // thread's end, read by Take only after it ended.
 struct Background {
     std::string id;
+    bool regional_fallback = false;
     BannerFetch got = BannerFetch::Failed;
     std::string error;
 };
 Background g_background;
 
-BannerFetch FetchGameCubeBanner(const std::string& game_id, std::string& error) {
+BannerFetch FetchGameCubeBanner(const std::string& game_id, bool regional_fallback, std::string& error) {
     std::vector<std::uint8_t> bytes;
     BannerDownload answer = BannerDownload::Failed;
     try {
-        answer = DownloadGameCubeBanner(game_id, bytes, error);
+        answer = DownloadGameCubeBanner(game_id, regional_fallback, bytes, error);
     } catch (const std::bad_alloc&) {
         error = "out of memory for the banner";
         answer = BannerDownload::None;
@@ -188,17 +189,18 @@ BannerFetch FetchGameCubeBanner(const std::string& game_id, std::string& error) 
 }
 
 void RunBackgroundFetch() {
-    g_background.got = FetchGameCubeBanner(g_background.id, g_background.error);
+    g_background.got = FetchGameCubeBanner(g_background.id, g_background.regional_fallback, g_background.error);
     // A banner is checked by unpacking it whole: a few megabytes for a moment.
     mem::WatchHeap(("after the banner download of " + g_background.id).c_str());
 }
 
 }  // namespace
 
-bool StartGameCubeBannerFetch(const std::string& game_id) {
+bool StartGameCubeBannerFetch(const std::string& game_id, bool regional_fallback) {
     if (!ValidId(game_id) || !g_background.id.empty() || NetBackgroundBusy()) return false;
     g_background = Background{};
     g_background.id = game_id;
+    g_background.regional_fallback = regional_fallback;
     if (NetRunInBackground(RunBackgroundFetch)) return true;
     g_background.id.clear();
     return false;

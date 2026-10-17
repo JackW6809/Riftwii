@@ -242,7 +242,8 @@ bool BannerPlayer::LoadGameCube(const std::vector<std::uint8_t>& bnr, bool icon,
     GX_InitTexObj(&texture.obj, texture.own, kGcBannerWidth, kGcBannerHeight, GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP,
                   GX_FALSE);
     texture.ok = true;
-    base_ = gc_picture_layout(icon);
+    // The icon's bands and the banner's tint take their colours from the picture.
+    base_ = gc_picture_layout(icon, gc_picture_colours(banner.rgba));
     language_ = LanguagePanes();
     has_start_ = has_loop_ = false;
     work_ = base_;
@@ -448,7 +449,10 @@ void BannerPlayer::Draw(float x, float y, float w, float h, int alpha, const Rou
     GX_SetChanCtrl(GX_COLOR0A0, GX_DISABLE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHTNULL, GX_DF_NONE, GX_AF_NONE);
     // The narrowing that keeps a flagged pane's shape in that stretch; an
     // icon's in a box wider than 4:3 (a widescreen menu's channel tile).
-    layout_quads(work_, quads_, scratch_, (wide_ || icon_) && sx > 0 ? sy / sx : 1.0f);
+    const float narrowing = (wide_ || icon_) && sx > 0 ? sy / sx : 1.0f;
+    // A GameCube disc's picture spans the channel whatever its shape.
+    if (picture_ && icon_) gc_picture_fit(work_, narrowing);
+    layout_quads(work_, quads_, scratch_, narrowing);
     // A vertex's colour: the quad's, or the material's by its channel
     // control, times the banner's own fade.
     const auto vertex_color = [alpha](const LytQuad& q, const LytMaterial* m, int k) {
