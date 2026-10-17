@@ -24,9 +24,12 @@ bool MenuMusicFound();
 bool MenuMusicKeepForLaunch();
 // Fades the kept music out over half a second, stops its decoder and shuts
 // the audio down, saying `why` in the log. Called before the game's IOS
-// is loaded or the game is loaded over RiftWii, and when a launch fails.
-// Does nothing when no music was kept.
+// is loaded, right before RiftWii shuts down for the game (or a Homebrew
+// Channel app run in its place), and when a launch fails. Does nothing
+// when no music was kept.
 void LaunchMusicEnd(const char* why);
+// Whether music kept for the launch is playing now.
+bool LaunchMusicPlaying();
 // Before a cIOS reload in the launch: fades the kept music out and shuts
 // the audio down as LaunchMusicEnd does, remembering where the track was.
 void LaunchMusicPauseForReload(const char* why);

@@ -137,6 +137,8 @@ void LaunchMusicEnd(const char* why) {
     FadeOutAndStop(why, -1);
 }
 
+bool LaunchMusicPlaying() { return g_kept_for_launch; }
+
 void LaunchMusicPauseForReload(const char* why) {
     if (!g_kept_for_launch) return;
     // The audio must not run across an IOS reload: on a Wii, music left
