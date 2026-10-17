@@ -85,8 +85,9 @@ public:
     void SetChannels(bool on, IconDrawer icon);
     bool Channels() const { return channels; }
     // A profile's tile: its picture (item index), an RGBA8 texture `side`
-    // texels square, drawn in the tile's corner; nullptr when it has none,
-    // and the tile has no corner picture. Not on the shelf.
+    // texels square, drawn in the tile's corner; nullptr when it has none:
+    // Channels shows the Mods icon there, Names and Covers nothing. Not on
+    // the shelf.
     using PictureSource = std::function<const u8*(int index)>;
     void SetPictureSource(PictureSource source, int side) {
         pictureSource = std::move(source);
