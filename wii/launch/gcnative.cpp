@@ -1389,8 +1389,14 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
          low.read, low.seek, low.disk_id, low.inquiry, low.stop_motor, low.request_error, low.audio_stream,
          low.audio_status, low.audio_config, low.reset, low.set_alarm);
 
-    // Top of MEM1, as the apploader leaves it: the FST, then (ours) BI2's
-    // copy, the blob, its runs and its bounce buffer; the arena below.
+    // Top of MEM1, as the apploader leaves it: the FST, then (ours) the
+    // blob's buffers, the blob, the DI registers' stand-in and BI2's copy;
+    // the arena below. BI2 sits lowest, right on the arena's top: a disc
+    // whose bi2.bin still has developer arguments (Soulcalibur II's
+    // "Final_US.elf -O ...", argument offset 0x1FCC) has the SDK's __start
+    // set ArenaHi to BI2 plus that offset, and OSInit then clears the
+    // arena up to there. Above everything of ours, that wiped the blob;
+    // below it, the new ArenaHi stays inside BI2's own copy.
     const gc_rt_header& h = *reinterpret_cast<const gc_rt_header*>(riftwii_gc_bin);
     if (riftwii_gc_bin_size < sizeof(h) || h.magic != GC_RT_MAGIC || h.version != GC_RT_VERSION ||
         h.size > riftwii_gc_bin_size) {
@@ -1406,8 +1412,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     }
     const std::uint32_t runs_bytes = static_cast<std::uint32_t>(placed.size() * sizeof(gc_rt_run));
     const std::uint32_t fst_addr = (kMem1Top - fst_max) & ~31u;
-    const std::uint32_t bi2_addr = fst_addr - kBi2Bytes;
-    const std::uint32_t bounce_addr = (bi2_addr - kBounceBytes) & ~31u;
+    const std::uint32_t bounce_addr = (fst_addr - kBounceBytes) & ~31u;
     const std::uint32_t adp_addr = (bounce_addr - kStreamBytes) & ~31u;
     const std::uint32_t stream_addr = (adp_addr - sizeof(gc_rt_stream)) & ~31u;
     const std::uint32_t trace_addr = (stream_addr - 512) & ~31u;
@@ -1422,7 +1427,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // The DI registers' stand-in: its address must end in 0x6000, as the
     // game adds that to the upper half it loads.
     const std::uint32_t di_regs = ((blob_addr - 0x40 - 0x6000) & ~0xFFFFu) + 0x6000;
-    const std::uint32_t arena_hi = di_regs;
+    const std::uint32_t bi2_addr = (di_regs - kBi2Bytes) & ~31u;
+    const std::uint32_t arena_hi = bi2_addr;
     if (arena_hi < kLoaderCeiling) {
         error = "the game's FST is too large";
         return false;
@@ -1450,6 +1456,12 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     }
     std::memcpy(reinterpret_cast<void*>(fst_addr), fst.data(), fst.size());
     std::memcpy(reinterpret_cast<void*>(bi2_addr), bi2.data(), bi2.size());
+    // Developer arguments left in bi2.bin move the game's ArenaHi (see the
+    // layout above): worth a line, as a disc with them clears up to there.
+    const std::uint32_t bi2_arg_offset = be32(&bi2[8]);
+    if (bi2_arg_offset != 0)
+        logf("GameCube: bi2 argument offset 0x%x: the game's __start sets ArenaHi from it (0x%08x), below the blob\n",
+             static_cast<unsigned>(bi2_arg_offset), static_cast<unsigned>((bi2_addr + bi2_arg_offset + 4) & ~31u));
 
     // The trace and the memory cards live in sd:/riftwii/gc. mkdir makes one
     // level at a time, and a launch that did not come through the menu
@@ -1799,7 +1811,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     logf("GameCube: entry 0x%08x, FST 0x%08x, blob 0x%08x (%u bytes), %u run(s), arena top 0x%08x, card fd %d %s\n",
          dol.entry, fst_addr, blob_addr, static_cast<unsigned>(h.size), static_cast<unsigned>(placed.size()),
          arena_hi, card.fd, card.sdhc ? "SDHC" : "SDSC");
-    DCFlushRange(reinterpret_cast<void*>(di_regs), kMem1Top - di_regs);
+    DCFlushRange(reinterpret_cast<void*>(bi2_addr), kMem1Top - bi2_addr);
     ICInvalidateRange(reinterpret_cast<void*>(blob_addr), h.size);
     ICInvalidateRange(memcard->landing, sizeof(memcard->landing));
 
