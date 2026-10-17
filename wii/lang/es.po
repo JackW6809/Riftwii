@@ -1512,17 +1512,23 @@ msgstr "Un minuto, más o menos"
 msgid "About {1}-{2} minutes"
 msgstr "Unos {1}-{2} minutos"
 
-msgid "The game stopped. Press A to go back to RiftWii and send a problem report."
-msgstr "El juego se ha detenido. Pulsa A para volver a RiftWii y enviar un informe del problema."
+msgid "The game stopped."
+msgstr "El juego se ha detenido."
 
-msgid "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."
-msgstr "El juego se ha detenido. Pulsa A para volver al Menú de Wii. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie."
+msgid "Press HOME or A to go back to RiftWii and send a problem report."
+msgstr "Pulsa HOME o A para volver a RiftWii y enviar un informe del problema."
 
-msgid "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
-msgstr "El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie."
+msgid "Press HOME or A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts."
+msgstr "Pulsa HOME o A para volver al Homebrew Channel. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie."
 
-msgid "{1} at {2}"
-msgstr "{1} en {2}"
+msgid "Press HOME or A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."
+msgstr "Pulsa HOME o A para volver al Menú de Wii. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie."
+
+msgid "Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
+msgstr "Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie."
+
+msgid "Called from"
+msgstr "Llamado desde"
 
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "Mantén HOME dos segundos para salir del juego."

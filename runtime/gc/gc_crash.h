@@ -1,15 +1,19 @@
 /* SPDX-FileCopyrightText: 2026 RiftWii contributors */
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* A GameCube game's crash screen: white text on a blue frame, a large
- * ":(" at the top left, the menu's message under it and a smaller details
- * line (the game, the exception and where, RiftWii's version).
+/* A GameCube game's crash screen: white text on a blue frame, like a
+ * PowerPC crash handler's dump. A translated line at the top ("The game
+ * stopped."), the dump under it (the exception, SRR0, SRR1, LR, CTR, CR,
+ * XER, DSISR and DAR, the 32 GPRs in a grid, the callers up the stack,
+ * the game's ID and RiftWii's version) and a translated line at the
+ * bottom saying which button goes where.
  *
  * The menu draws everything in its own font and language before the
- * launch, so the blob carries no font. The face and the message go into
- * the card; the details line is made at the crash from pieces the menu
- * drew into a strip next to the card (hex digits, the exception names and
- * the line's fixed words), as only the crash knows which exception it was
- * and where.
+ * launch, so the blob carries no font. The two lines go into the card; the
+ * dump is put together at the crash from pieces the menu drew into a
+ * strip next to the card (the hex digits, the register names, the
+ * exception names and a few words), as only the crash knows the values.
+ * The digits go on a grid of equal cells, so the dump's columns line up as
+ * in a fixed-width font.
  *
  * Shared by the blob (gc_rt.c), the loader (wii/launch/gcnative.cpp, the
  * menu's MakeGcCrashCard) and the host tests, so the functions here are
@@ -33,52 +37,80 @@
 #define GC_EXCEPTION_STRAY 0x100u
 
 /* The card: 2 bits of coverage a pixel, four pixels a byte, the leftmost
- * in the top bits, centred on the frame. Bands from the top: the face,
- * the message (four lines of the menu font at 24 pixels) and the details
- * line, which the blob fills from the strip at the crash. */
-#define GC_CRASH_CARD_W 576u
-#define GC_CRASH_FACE_H 112u
-#define GC_CRASH_MESSAGE_Y 120u
-#define GC_CRASH_MESSAGE_H 128u
-#define GC_CRASH_DETAILS_Y 264u
-#define GC_CRASH_STRIP_H 24u
-#define GC_CRASH_CARD_H (GC_CRASH_DETAILS_Y + GC_CRASH_STRIP_H)
+ * in the top bits, centred on the frame. Bands from the top: the header
+ * line, the dump (rows of GC_CRASH_ROW_H, filled by the blob from the
+ * strip) and the hint (up to two lines). */
+#define GC_CRASH_CARD_W 624u
+#define GC_CRASH_HEADER_H 36u
+#define GC_CRASH_DUMP_Y 44u
+#define GC_CRASH_ROW_H 20u
+#define GC_CRASH_DUMP_ROWS 15u
+#define GC_CRASH_HINT_Y (GC_CRASH_DUMP_Y + GC_CRASH_DUMP_ROWS * GC_CRASH_ROW_H + 12u)
+#define GC_CRASH_HINT_H 44u
+#define GC_CRASH_CARD_H (GC_CRASH_HINT_Y + GC_CRASH_HINT_H)
 #define GC_CRASH_CARD_BYTES (GC_CRASH_CARD_W * GC_CRASH_CARD_H / 4u)
 
-/* The strip's pieces: the hex digits 0-F, then "x", then one name for each
- * exception the hook can see (gc_crash_name_piece), then the details
- * line's own words (the game's ID, the translation's "at", the version). */
-#define GC_CRASH_PIECES 32u
+/* The dump's grid: four columns of GC_CRASH_COLUMN_CELLS cells, each a
+ * register's name and, GC_CRASH_VALUE_CELL cells in, its eight digits. */
+#define GC_CRASH_COLUMNS 4u
+#define GC_CRASH_COLUMN_CELLS 14u
+#define GC_CRASH_VALUE_CELL 5u
+/* The dump's rows (the others stay blank between the groups). */
+#define GC_CRASH_ROW_EXCEPTION 0u
+#define GC_CRASH_ROW_SPECIAL 2u   /* SRR0 SRR1 LR CTR, then CR XER DSISR DAR */
+#define GC_CRASH_ROW_GPRS 5u      /* r0 r8 r16 r24 to r7 r15 r23 r31 */
+#define GC_CRASH_ROW_CHAIN 14u
+
+/* The strip's pieces: the hex digits 0-F, "x", one name for each
+ * exception the hook can see (gc_crash_name_piece), the register names'
+ * parts, then the menu's own words. */
+#define GC_CRASH_PIECES 40u
 #define GC_CRASH_PIECE_X 16u
 #define GC_CRASH_PIECE_NAMES 17u
 #define GC_CRASH_NAME_COUNT 9u
-#define GC_CRASH_PIECE_TEXT (GC_CRASH_PIECE_NAMES + GC_CRASH_NAME_COUNT)
-#define GC_CRASH_TEXT_COUNT (GC_CRASH_PIECES - GC_CRASH_PIECE_TEXT)
+#define GC_CRASH_PIECE_OPEN 26u    /* "(" */
+#define GC_CRASH_PIECE_CLOSE 27u   /* ")" */
+#define GC_CRASH_PIECE_R 28u       /* "R", before a GPR's number (a capital: the menu font's small r reads as f at the dump's size) */
+#define GC_CRASH_PIECE_SRR 29u     /* "SRR", before 0 or 1 */
+#define GC_CRASH_PIECE_LR 30u
+#define GC_CRASH_PIECE_CTR 31u
+#define GC_CRASH_PIECE_CR 32u
+#define GC_CRASH_PIECE_XER 33u
+#define GC_CRASH_PIECE_DSISR 34u
+#define GC_CRASH_PIECE_DAR 35u
+#define GC_CRASH_PIECE_TEXT 36u    /* the menu's own words from here */
+#define GC_CRASH_PIECE_GAME 36u    /* the game's ID */
+#define GC_CRASH_PIECE_VERSION 37u /* "RiftWii 2610-545" */
+#define GC_CRASH_PIECE_CALLED 38u  /* the translated "Called from" */
 #define GC_CRASH_NO_PIECE 0xFFu
 /* Columns copied past a piece's advance, for glyphs that reach beyond it. */
 #define GC_CRASH_PIECE_PAD 3u
 
-/* The details line's order: pieces, or these. */
-#define GC_CRASH_ORDER 16u
-#define GC_CRASH_ITEM_NAME 0xF0u     /* the exception's name (its number in hex if it has none) */
-#define GC_CRASH_ITEM_ADDRESS 0xF1u  /* SRR0 as 0x and eight digits */
-#define GC_CRASH_ITEM_END 0xFFu
-
 #define GC_CRASH_STRIP_W 2048u
+#define GC_CRASH_STRIP_H GC_CRASH_ROW_H
 #define GC_CRASH_STRIP_BYTES (GC_CRASH_STRIP_W * GC_CRASH_STRIP_H / 4u)
 
 /* Right after the card in MEM2 (loader-placed): where each piece is in the
- * strip, how far it moves the pen, and the details line's order. */
+ * strip, how far it moves the pen, and the width of the dump's cells. */
 struct gc_crash_strip {
     uint16_t at[GC_CRASH_PIECES];
     uint16_t advance[GC_CRASH_PIECES];  /* 0: the piece is missing */
-    uint8_t order[GC_CRASH_ORDER];
-    uint8_t reserved[16];
+    uint16_t cell;                      /* pixels; the widest digit's advance and a little */
+    uint16_t reserved[15];
     uint8_t coverage[GC_CRASH_STRIP_BYTES];
 };
-#define GC_CRASH_STRIP_HEADER 160u
+#define GC_CRASH_STRIP_HEADER 192u
 #define GC_CRASH_SCREEN_BYTES (GC_CRASH_CARD_BYTES + GC_CRASH_STRIP_HEADER + GC_CRASH_STRIP_BYTES)
 typedef char gc_crash_strip_size[(sizeof(struct gc_crash_strip) == GC_CRASH_STRIP_HEADER + GC_CRASH_STRIP_BYTES) ? 1 : -1];
+
+/* What the dump shows, from the crashed context (the SDK's OSContext) and
+ * the crash's own record. */
+struct gc_crash_regs {
+    uint32_t exception;
+    uint32_t srr0, srr1, lr, ctr, cr, xer, dsisr, dar;
+    uint32_t gpr[32];
+    uint32_t chain[4];  /* the saved LRs up the stack, 0 where it ended */
+};
 
 /* The blue: RGB (0, 120, 215) in BT.601's studio range. White text is
  * Y 235 with no colour (Cb and Cr 128). */
@@ -138,66 +170,111 @@ static inline uint32_t gc_crash_name_piece(uint32_t exception) {
     return GC_CRASH_NO_PIECE;
 }
 
-/* Copies a piece from the strip into the card's details band at `pen`;
- * returns the pen after it. A missing piece moves nothing. */
+/* Copies a piece from the strip into the card's dump at `pen` on dump row
+ * `row`; returns the pen after it. A missing piece moves nothing. */
 static inline uint32_t gc_crash_put_piece(const struct gc_crash_strip* strip, uint8_t* card, uint32_t piece,
-                                          uint32_t pen) {
-    uint32_t column, row;
+                                          uint32_t pen, uint32_t row) {
+    const uint32_t top = GC_CRASH_DUMP_Y + row * GC_CRASH_ROW_H;
+    uint32_t column, y;
     uint32_t advance;
-    if (piece >= GC_CRASH_PIECES) return pen;
+    if (piece >= GC_CRASH_PIECES || row >= GC_CRASH_DUMP_ROWS) return pen;
     advance = strip->advance[piece];
     if (advance == 0) return pen;
     for (column = 0; column < advance + GC_CRASH_PIECE_PAD; ++column) {
         const uint32_t from = strip->at[piece] + column;
         const uint32_t to = pen + column;
         if (from >= GC_CRASH_STRIP_W || to >= GC_CRASH_CARD_W) break;
-        for (row = 0; row < GC_CRASH_STRIP_H; ++row) {
-            const uint32_t level = gc_crash_level(strip->coverage, GC_CRASH_STRIP_W, from, row);
-            if (level != 0) gc_crash_raise(card, GC_CRASH_CARD_W, to, GC_CRASH_DETAILS_Y + row, level);
+        for (y = 0; y < GC_CRASH_STRIP_H; ++y) {
+            const uint32_t level = gc_crash_level(strip->coverage, GC_CRASH_STRIP_W, from, y);
+            if (level != 0) gc_crash_raise(card, GC_CRASH_CARD_W, to, top + y, level);
         }
     }
     return pen + advance;
 }
 
-/* "0x" and `value`'s hex digits: all eight, or from its first one that is
- * not zero when `all` is 0. */
+/* One character on the grid: the piece centred in the cell at `pen`;
+ * returns the next cell. */
+static inline uint32_t gc_crash_put_cell(const struct gc_crash_strip* strip, uint8_t* card, uint32_t piece,
+                                         uint32_t pen, uint32_t row) {
+    const uint32_t cell = strip->cell;
+    const uint32_t advance = piece < GC_CRASH_PIECES ? strip->advance[piece] : 0u;
+    const uint32_t inset = advance < cell ? (cell - advance) / 2u : 0u;
+    gc_crash_put_piece(strip, card, piece, pen + inset, row);
+    return pen + cell;
+}
+
+/* `value`'s hex digits on the grid: all eight, or from its first one that
+ * is not zero when `all` is 0. Returns the pen after them. */
 static inline uint32_t gc_crash_put_hex(const struct gc_crash_strip* strip, uint8_t* card, uint32_t value,
-                                        int all, uint32_t pen) {
+                                        int all, uint32_t pen, uint32_t row) {
     int shift;
     int started = all;
-    pen = gc_crash_put_piece(strip, card, 0u, pen);
-    pen = gc_crash_put_piece(strip, card, GC_CRASH_PIECE_X, pen);
     for (shift = 28; shift >= 0; shift -= 4) {
         const uint32_t digit = (value >> shift) & 0xFu;
         if (digit != 0) started = 1;
         if (!started && shift != 0) continue;
-        pen = gc_crash_put_piece(strip, card, digit, pen);
+        pen = gc_crash_put_cell(strip, card, digit, pen, row);
     }
     return pen;
 }
 
-/* The details line into the card, left-aligned like the message; returns
- * its width. */
-static inline uint32_t gc_crash_details(const struct gc_crash_strip* strip, uint8_t* card, uint32_t exception,
-                                        uint32_t address) {
+/* A register in the grid: its name (one piece, then a number's decimal
+ * digits when `number` is not 0xFF) at the column's start, its value
+ * GC_CRASH_VALUE_CELL cells in. */
+static inline void gc_crash_put_register(const struct gc_crash_strip* strip, uint8_t* card, uint32_t name,
+                                         uint32_t number, uint32_t value, uint32_t column, uint32_t row) {
+    const uint32_t start = column * GC_CRASH_COLUMN_CELLS * strip->cell;
+    uint32_t pen = gc_crash_put_piece(strip, card, name, start, row);
+    if (number != 0xFFu) {
+        if (number >= 10u) pen = gc_crash_put_piece(strip, card, number / 10u, pen, row);
+        gc_crash_put_piece(strip, card, number % 10u, pen, row);
+    }
+    gc_crash_put_hex(strip, card, value, 1, start + GC_CRASH_VALUE_CELL * strip->cell, row);
+}
+
+/* The whole dump into the card. */
+static inline void gc_crash_dump(const struct gc_crash_strip* strip, uint8_t* card, const struct gc_crash_regs* regs) {
+    const uint32_t cell = strip->cell;
+    const uint32_t name = gc_crash_name_piece(regs->exception);
     uint32_t pen = 0;
     uint32_t i;
-    for (i = 0; i < GC_CRASH_ORDER; ++i) {
-        const uint32_t item = strip->order[i];
-        if (item == GC_CRASH_ITEM_END) break;
-        if (item == GC_CRASH_ITEM_NAME) {
-            const uint32_t name = gc_crash_name_piece(exception);
-            if (name != GC_CRASH_NO_PIECE && strip->advance[name] != 0)
-                pen = gc_crash_put_piece(strip, card, name, pen);
-            else
-                pen = gc_crash_put_hex(strip, card, exception, 0, pen);
-        } else if (item == GC_CRASH_ITEM_ADDRESS) {
-            pen = gc_crash_put_hex(strip, card, address, 1, pen);
-        } else {
-            pen = gc_crash_put_piece(strip, card, item, pen);
-        }
+    if (cell == 0) return;
+    /* "ISI (0x3)", then the game and the version from the third column. */
+    if (name != GC_CRASH_NO_PIECE && strip->advance[name] != 0)
+        pen = gc_crash_put_piece(strip, card, name, pen, GC_CRASH_ROW_EXCEPTION);
+    pen += cell;
+    pen = gc_crash_put_piece(strip, card, GC_CRASH_PIECE_OPEN, pen, GC_CRASH_ROW_EXCEPTION);
+    pen = gc_crash_put_piece(strip, card, 0u, pen, GC_CRASH_ROW_EXCEPTION);
+    pen = gc_crash_put_piece(strip, card, GC_CRASH_PIECE_X, pen, GC_CRASH_ROW_EXCEPTION);
+    pen = gc_crash_put_hex(strip, card, regs->exception, 0, pen, GC_CRASH_ROW_EXCEPTION);
+    pen = gc_crash_put_piece(strip, card, GC_CRASH_PIECE_CLOSE, pen, GC_CRASH_ROW_EXCEPTION);
+    {
+        const uint32_t third = 2u * GC_CRASH_COLUMN_CELLS * cell;
+        pen = pen + cell > third ? pen + cell : third;
     }
-    return pen;
+    pen = gc_crash_put_piece(strip, card, GC_CRASH_PIECE_GAME, pen, GC_CRASH_ROW_EXCEPTION);
+    gc_crash_put_piece(strip, card, GC_CRASH_PIECE_VERSION, pen + 2u * cell, GC_CRASH_ROW_EXCEPTION);
+
+    gc_crash_put_register(strip, card, GC_CRASH_PIECE_SRR, 0u, regs->srr0, 0u, GC_CRASH_ROW_SPECIAL);
+    gc_crash_put_register(strip, card, GC_CRASH_PIECE_SRR, 1u, regs->srr1, 1u, GC_CRASH_ROW_SPECIAL);
+    gc_crash_put_register(strip, card, GC_CRASH_PIECE_LR, 0xFFu, regs->lr, 2u, GC_CRASH_ROW_SPECIAL);
+    gc_crash_put_register(strip, card, GC_CRASH_PIECE_CTR, 0xFFu, regs->ctr, 3u, GC_CRASH_ROW_SPECIAL);
+    gc_crash_put_register(strip, card, GC_CRASH_PIECE_CR, 0xFFu, regs->cr, 0u, GC_CRASH_ROW_SPECIAL + 1u);
+    gc_crash_put_register(strip, card, GC_CRASH_PIECE_XER, 0xFFu, regs->xer, 1u, GC_CRASH_ROW_SPECIAL + 1u);
+    gc_crash_put_register(strip, card, GC_CRASH_PIECE_DSISR, 0xFFu, regs->dsisr, 2u, GC_CRASH_ROW_SPECIAL + 1u);
+    gc_crash_put_register(strip, card, GC_CRASH_PIECE_DAR, 0xFFu, regs->dar, 3u, GC_CRASH_ROW_SPECIAL + 1u);
+
+    /* The GPRs down the columns: r0-r7, r8-r15, r16-r23, r24-r31. */
+    for (i = 0; i < 32u; ++i)
+        gc_crash_put_register(strip, card, GC_CRASH_PIECE_R, i, regs->gpr[i], i / 8u, GC_CRASH_ROW_GPRS + i % 8u);
+
+    /* "Called from" and the callers, each on the grid two cells apart. */
+    pen = gc_crash_put_piece(strip, card, GC_CRASH_PIECE_CALLED, 0u, GC_CRASH_ROW_CHAIN);
+    pen = pen + 2u * cell > GC_CRASH_VALUE_CELL * cell ? pen + 2u * cell : GC_CRASH_VALUE_CELL * cell;
+    for (i = 0; i < 4u; ++i) {
+        if (regs->chain[i] == 0) break;
+        pen = gc_crash_put_hex(strip, card, regs->chain[i], 1, pen, GC_CRASH_ROW_CHAIN) + 2u * cell;
+    }
 }
 
 #endif

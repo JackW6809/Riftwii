@@ -257,11 +257,14 @@ and `sd:/riftwii/gc/trace.bin`.
   alone; L, R, Z and Start on a GameCube controller), just after saving:
   Settings > Return to: RiftWii goes back to the RiftWii channel (the Wii
   Menu without it), Wii Menu to the Wii Menu; the save is there next time.
-- [ ] **A crash** (`sd:/riftwii/gc/crash` makes one 600 pad reads in): the
-  blue screen shows the face, the message and the details line (the game's
-  ID, the exception and where, the version), straight at 4:3 and 16:9; A
-  goes back, the next start offers the report. In Dolphin,
-  `sd:/riftwii/gc/leave` as well takes A as pressed after twenty seconds.
+- [ ] **A crash** (`sd:/riftwii/gc/crash` makes one 600 pad reads in;
+  `sd:/riftwii/gc/crashblack` makes it on a blanked screen, as in a game's
+  first moments): the blue screen shows "The game stopped.", the register
+  dump (the exception, SRR0 to DAR, R0-R31, the callers, the game's ID and
+  the version) and the hint, on the TV and straight at 4:3 and 16:9; HOME
+  or A goes back (to the Homebrew Channel when it started RiftWii), the
+  next start offers the report. In Dolphin, `sd:/riftwii/gc/leave` as well
+  takes A as pressed after twenty seconds.
 - [ ] **Options**: Disc reads Fast loads sooner; 480p on a component
   cable (the game asks first); 16:9, picked by hand (Default keeps the
   game's own), widens the 3D (experimental: on a Wii Super Mario Eclipse's

@@ -21,21 +21,13 @@ namespace riftwii {
 bool describe_gc_crash(const std::vector<std::uint8_t>& trace, const std::string& game_id, std::string& text);
 
 // The crash screen the menu draws for the blob (runtime/gc/gc_crash.h):
-// a card with the face and the message, and a strip of pieces the blob
-// puts the details line together from at the crash.
+// a card with the header and the hint, and a strip of pieces the blob
+// puts the dump together from at the crash.
 
-// A fixed piece's text: a hex digit, "x" or an exception's name; empty
-// for the details line's own pieces (gc_crash_details_layout's).
+// A fixed piece's text: a hex digit, "x", an exception's name or a part
+// of a register's name; empty for the menu's own words (from
+// GC_CRASH_PIECE_TEXT on: the game's ID, the version, "Called from").
 std::string gc_crash_piece_text(unsigned piece);
-
-// The details line, "GMSE01 · DSI at 0x8023A1C4 · RiftWii 2610-432": its
-// own pieces' texts (from GC_CRASH_PIECE_TEXT on) and the order, ended by
-// GC_CRASH_ITEM_END. `name_at_address` is the translation of "{1} at {2}",
-// {1} the exception and {2} its address in either order; one without
-// both is taken as the English.
-void gc_crash_details_layout(const std::string& game_id, const std::string& name_at_address,
-                             const std::string& version, std::vector<std::string>& texts,
-                             std::vector<std::uint8_t>& order);
 
 // 8-bit coverage to the card's 2 bits a pixel (four levels; the leftmost
 // of four pixels in a byte's top bits). `packed` holds (pixels + 3) / 4.

@@ -1169,12 +1169,16 @@ constexpr std::uint32_t kLeaveBytes = 0x100;
 constexpr u64 kWiiMenuTitle = 0x0000000100000002ull;
 
 // Where the way back goes, as Settings > Return to says and as a Wii
-// game's HOME Menu goes (boot.cpp's return_title): the RiftWii channel on
-// "riftwii" when it is installed, else the Wii Menu. The first of those
-// with a ticket, with its first ticket view; 0 when neither has one.
+// game's HOME Menu goes (boot.cpp's return_title): on "riftwii", back to
+// what started RiftWii (the Homebrew Channel when its stub is there, else
+// the RiftWii channel when it is installed), else the Wii Menu. The first
+// of those with a ticket, with its first ticket view; 0 when none has one.
 static u64 way_back_title(GcWayBack& kind, tikview& view) {
     std::vector<std::pair<u64, GcWayBack>> titles;
     if (Settings().return_to == "riftwii") {
+        if (StartedByHomebrewChannel()) {
+            if (const u64 hbc = HomebrewChannelTitle()) titles.emplace_back(hbc, GcWayBack::HomebrewChannel);
+        }
         if (const u64 channel = ChannelTitle()) titles.emplace_back(channel, GcWayBack::Channel);
     }
     titles.emplace_back(kWiiMenuTitle, GcWayBack::WiiMenu);
@@ -1594,6 +1598,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const bool test_leave = stat("sd:/riftwii/gc/leave", &st_press) == 0;
     // And of the crash screen (GC_FLAG_CRASH).
     const bool test_crash = stat("sd:/riftwii/gc/crash", &st_press) == 0;
+    // And of it on a blanked screen (GC_FLAG_CRASH_BLACK).
+    const bool test_crash_black = stat("sd:/riftwii/gc/crashblack", &st_press) == 0;
     // And of disc audio streaming: the music alone, to compare it with an
     // offline decode (GC_FLAG_STREAM_ONLY).
     const bool test_stream_only = stat("sd:/riftwii/gc/streamonly", &st_press) == 0;
@@ -2016,12 +2022,12 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // What holding HOME goes to.
     prepare_leave(ctx, leave_addr, test_leave);
     ctx->crash_card = 0;
-    // A message promising that A goes back is left out when there is no
-    // way back after all (/dev/es did not open): a plain blue screen beats
-    // a promise A cannot keep.
+    // A hint promising that HOME or A goes back is left out (with the
+    // dump) when there is no way back after all (/dev/es did not open): a
+    // plain blue screen beats a promise the buttons cannot keep.
     const bool broken_promise = g_crash_screen_way_back && ctx->leave_buf == 0;
     if (broken_promise && !g_crash_screen.empty())
-        logf("GameCube: the crash screen's message is left out, as it promises a way back there is not\n");
+        logf("GameCube: the crash screen's dump and hint are left out, as the hint promises a way back there is not\n");
     if (g_crash_screen.size() == GC_CRASH_SCREEN_BYTES && !broken_promise) {
         std::memcpy(staged(crash_addr), g_crash_screen.data(), GC_CRASH_SCREEN_BYTES);
         ctx->crash_card = crash_addr;
@@ -2119,7 +2125,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
         replay_hook(pad_read, h.hook_pad_read, h.replay_pad_read, h.continue_pad_read);
         if (test_presses) ctx->flags |= GC_FLAG_PRESS;
         if (test_leave) ctx->flags |= GC_FLAG_LEAVE;
-        if (test_crash) ctx->flags |= GC_FLAG_CRASH;
+        if (test_crash || test_crash_black) ctx->flags |= GC_FLAG_CRASH;
+        if (test_crash_black) ctx->flags |= GC_FLAG_CRASH_BLACK;
     }
     if (test_stream_only) ctx->flags |= GC_FLAG_STREAM_ONLY;
     // The memory card: the EXI functions to the blob (gc_card.h).

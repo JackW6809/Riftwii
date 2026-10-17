@@ -19,18 +19,19 @@ namespace riftwii::wii {
 // Returns only on failure.
 bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string& error);
 
-// Where holding HOME in a GameCube game goes, as Settings > Return to
-// says: the RiftWii channel (on "riftwii", when it is installed), else the
-// Wii Menu; None when neither has a ticket.
-enum class GcWayBack { None, Channel, WiiMenu };
+// Where holding HOME in a GameCube game, and HOME or A on its crash
+// screen, go, as Settings > Return to says: on "riftwii", what started
+// RiftWii (the Homebrew Channel, or the RiftWii channel when it is
+// installed), else the Wii Menu; None when none of them has a ticket.
+enum class GcWayBack { None, Channel, WiiMenu, HomebrewChannel };
 GcWayBack FindGcWayBack();
 
 // The crash screen, made by the menu in its own font and language: the
 // card and the strip as runtime/gc/gc_crash.h lays them out
 // (GC_CRASH_SCREEN_BYTES). The next GameCube launch shows it if the game
 // crashes; without one a crash turns the screen plain blue. `way_back`:
-// the message says A goes back (a way back was found), false when it says
-// to turn the Wii off.
+// the hint says HOME or A goes back (a way back was found), false when it
+// says to turn the Wii off.
 void SetGcCrashScreen(std::vector<std::uint8_t> screen, bool way_back);
 
 }  // namespace riftwii::wii

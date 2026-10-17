@@ -1392,10 +1392,12 @@ T = {
     "{1} could not be built: {2}. Nothing was kept.": ("No se pudo crear {1}: {2}. No se guardó nada.", "{1}を作れませんでした: {2}。何も保存されませんでした。", "Não foi possível criar {1}: {2}. Nada foi salvo.", "Impossibile creare {1}: {2}. Non è stato salvato nulla."),
     "About a minute": ("Un minuto, más o menos", "約1分", "Cerca de um minuto", "Circa un minuto"),
     "About {1}-{2} minutes": ("Unos {1}-{2} minutos", "約{1}〜{2}分", "Cerca de {1}-{2} minutos", "Circa {1}-{2} minuti"),
-    "The game stopped. Press A to go back to RiftWii and send a problem report.": ("El juego se ha detenido. Pulsa A para volver a RiftWii y enviar un informe del problema.", "ゲームが止まりました。Aを押すとRiftWiiに戻り、問題の報告を送れます。", "O jogo parou. Aperte A para voltar ao RiftWii e enviar um relatório do problema.", "Il gioco si è fermato. Premi A per tornare a RiftWii e inviare una segnalazione del problema."),
-    "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Pulsa A para volver al Menú de Wii. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Aを押すとWiiメニューに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Aperte A para voltar ao Menu Wii. O RiftWii vai oferecer o envio de um relatório do problema na próxima vez que iniciar.", "Il gioco si è fermato. Premi A per tornare al Menu Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
-    "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Desligue o Wii e ligue de novo. O RiftWii vai oferecer o envio de um relatório do problema na próxima vez que iniciar.", "Il gioco si è fermato. Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
-    "{1} at {2}": ("{1} en {2}", "{2}で{1}", "{1} em {2}", "{1} a {2}"),
+    "The game stopped.": ("El juego se ha detenido.", "ゲームが止まりました。", "O jogo parou.", "Il gioco si è fermato."),
+    "Press HOME or A to go back to RiftWii and send a problem report.": ("Pulsa HOME o A para volver a RiftWii y enviar un informe del problema.", "HOMEかAを押すとRiftWiiに戻り、問題の報告を送れます。", "Aperte HOME ou A para voltar ao RiftWii e enviar um relatório do problema.", "Premi HOME o A per tornare a RiftWii e inviare una segnalazione del problema."),
+    "Press HOME or A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.": ("Pulsa HOME o A para volver al Homebrew Channel. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "HOMEかAを押すとHomebrew Channelに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "Aperte HOME ou A para voltar ao Homebrew Channel. O RiftWii vai oferecer o envio de um relatório do problema na próxima vez que iniciar.", "Premi HOME o A per tornare all'Homebrew Channel. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
+    "Press HOME or A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.": ("Pulsa HOME o A para volver al Menú de Wii. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "HOMEかAを押すとWiiメニューに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "Aperte HOME ou A para voltar ao Menu Wii. O RiftWii vai oferecer o envio de um relatório do problema na próxima vez que iniciar.", "Premi HOME o A per tornare al Menu Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
+    "Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.": ("Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "Desligue o Wii e ligue de novo. O RiftWii vai oferecer o envio de um relatório do problema na próxima vez que iniciar.", "Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
+    "Called from": ("Llamado desde", "呼び出し元", "Chamado de", "Chiamato da"),
     "Hold HOME for two seconds to leave the game.": ("Mantén HOME dos segundos para salir del juego.", "HOMEを2秒押し続けるとゲームをやめます。", "Segure HOME por dois segundos para sair do jogo.", "Tieni premuto HOME per due secondi per uscire dal gioco."),
     "1 block": ("1 bloque", "1ブロック", "1 bloco", "1 blocco"),
     "{1} blocks": ("{1} bloques", "{1}ブロック", "{1} blocos", "{1} blocchi"),
@@ -2957,14 +2959,18 @@ KO = {
         "약 1분",
     "About {1}-{2} minutes":
         "약 {1}~{2}분",
-    "The game stopped. Press A to go back to RiftWii and send a problem report.":
-        "게임이 멈췄습니다. A를 누르면 RiftWii로 돌아가 문제 보고를 보낼 수 있습니다.",
-    "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.":
-        "게임이 멈췄습니다. A를 누르면 Wii 메뉴로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
-    "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
-        "게임이 멈췄습니다. Wii를 껐다가 다시 켜세요. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
-    "{1} at {2}":
-        "{2}에서 {1}",
+    "The game stopped.":
+        "게임이 멈췄습니다.",
+    "Press HOME or A to go back to RiftWii and send a problem report.":
+        "HOME이나 A를 누르면 RiftWii로 돌아가 문제 보고를 보낼 수 있습니다.",
+    "Press HOME or A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.":
+        "HOME이나 A를 누르면 홈브류 채널로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
+    "Press HOME or A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.":
+        "HOME이나 A를 누르면 Wii 메뉴로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
+    "Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
+        "Wii를 껐다가 다시 켜세요. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
+    "Called from":
+        "호출한 곳",
     "Hold HOME for two seconds to leave the game.":
         "HOME을 2초 동안 누르면 게임을 나갑니다.",
     "1 block":
@@ -4760,14 +4766,18 @@ FR = {
         "Environ une minute",
     "About {1}-{2} minutes":
         "Environ {1} à {2} minutes",
-    "The game stopped. Press A to go back to RiftWii and send a problem report.":
-        "Le jeu s'est arrêté. Appuyez sur A pour revenir à RiftWii et envoyer un rapport de problème.",
-    "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.":
-        "Le jeu s'est arrêté. Appuyez sur A pour revenir au Menu Wii. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
-    "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
-        "Le jeu s'est arrêté. Éteignez la Wii puis rallumez-la. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
-    "{1} at {2}":
-        "{1} à {2}",
+    "The game stopped.":
+        "Le jeu s'est arrêté.",
+    "Press HOME or A to go back to RiftWii and send a problem report.":
+        "Appuyez sur HOME ou A pour revenir à RiftWii et envoyer un rapport de problème.",
+    "Press HOME or A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.":
+        "Appuyez sur HOME ou A pour revenir à la Chaîne Homebrew. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
+    "Press HOME or A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.":
+        "Appuyez sur HOME ou A pour revenir au Menu Wii. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
+    "Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
+        "Éteignez la Wii puis rallumez-la. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
+    "Called from":
+        "Appelé depuis",
     "Hold HOME for two seconds to leave the game.":
         "Maintenez HOME deux secondes pour quitter le jeu.",
     "1 block":

@@ -149,11 +149,17 @@ typedef char gc_trace_fits[(GC_TR_WORDS * 4 <= 512) ? 1 : -1];
 /* The last records of the trace go round; the others stay. */
 #define GC_TRACE_RING 16u
 
+/* gc_rt_context.vi_shown: the VI's registers 0x00-0x2b (timing, frame
+ * buffers) as eleven words, then 0x48 (the fetch width and scaling) and
+ * 0x6c (the clock), each word two 16-bit registers. */
+#define GC_VI_SAVED_WORDS 13u
+
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
 #define GC_FLAG_CRASH 4u  /* tests of the crash screen: the 600th pad read takes a program exception */
 #define GC_FLAG_LEAVE 2u  /* tests of the way back: port 1 holds L, R, Z and Start from the 1800th pad read;
                            * with GC_FLAG_CRASH, the crash screen takes A after twenty seconds */
+#define GC_FLAG_CRASH_BLACK 64u  /* with GC_FLAG_CRASH: the screen is blanked first, as VISetBlack does (no active lines) */
 #define GC_FLAG_STREAM_ONLY 32u  /* tests: AI buffers that carry disc music carry it alone (the game's own sound cleared) */
 #define GC_FLAG_PROGRESSIVE 8u  /* 480p: VIConfigure's NTSC interlaced modes become progressive (gc_on_vi_configure) */
 #define GC_FLAG_WIDEN 16u  /* 16:9: perspective projections are drawn 3/4 as wide (gc_on_projection); off with the
@@ -313,6 +319,12 @@ struct gc_rt_context {
     uint32_t leave_card_quiet;    /* since when the card has had no access (timebase) */
     uint32_t ipc_no_timeout;      /* 1: the request being sent waits for its reply however long (the launch) */
     uint32_t crash_a_was_down;    /* the crash screen: A was down at the last look */
+    /* The VI's registers the last time they showed a picture (gc_vi_note):
+     * RiftWii's own frame at the jump, then the game's at each heartbeat.
+     * A crash puts them back when the screen it finds is blanked, as the
+     * SDK keeps it from VIInit until the game's first frame and while it
+     * is black (VISetBlack), so the crash screen is seen. */
+    uint32_t vi_shown[GC_VI_SAVED_WORDS];
     /* The picture options (the game's Options: 480p, 16:9). */
     uint32_t vi_configures;
     uint32_t vi_mode;         /* GC_TR_VI_MODE */
@@ -335,7 +347,7 @@ struct gc_rt_context {
     uint32_t response[8] __attribute__((aligned(32)));
 };
 
-#define GC_RT_CONTEXT_BYTES 0x500u
+#define GC_RT_CONTEXT_BYTES 0x520u
 typedef char gc_rt_context_size[(sizeof(struct gc_rt_context) == GC_RT_CONTEXT_BYTES) ? 1 : -1];
 
 #ifdef RT_TARGET_PPC

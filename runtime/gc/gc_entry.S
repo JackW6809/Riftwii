@@ -345,13 +345,19 @@ gc_alarm:
 /* An exception before the game's OS has its handlers. The loader's stub
  * at the vector has put r3, SRR0, SRR1 and the vector number in SPRG0-3
  * and come here with translation back on. The registers go into an OSContext-shaped block on the stack
- * (GPRs at 0, LR at 0x84, SRR0/SRR1 at 0x198) for gc_on_fatal, which
+ * (GPRs at 0, CR, LR, CTR and XER at 0x80, SRR0/SRR1 at 0x198) for gc_on_fatal, which
  * never returns. */
     .globl gc_dsi_entry
 gc_dsi_entry:
     stwu 1, -0x1C0(1)
     stw 0, 8(1)
     stmw 2, 16(1)
+    mfcr 0
+    stw 0, 8 + 0x80(1)
+    mfctr 0
+    stw 0, 8 + 0x88(1)
+    mfxer 0
+    stw 0, 8 + 0x8C(1)
     mfsprg 0, 0
     stw 0, 20(1)
     addi 0, 1, 0x1C0
@@ -384,6 +390,12 @@ gc_stray_entry:
     stwu 1, -0x1C0(1)
     stmw 2, 16(1)
     stw 0, 8 + 0x84(1)
+    mfcr 0
+    stw 0, 8 + 0x80(1)
+    mfctr 0
+    stw 0, 8 + 0x88(1)
+    mfxer 0
+    stw 0, 8 + 0x8C(1)
     li 0, 0
     stw 0, 8(1)
     addi 0, 1, 0x1C0
@@ -489,6 +501,6 @@ gc_exi_table:
     .balign 32
     .globl gc_context_data
 gc_context_data:
-    /* struct gc_rt_context, GC_RT_CONTEXT_BYTES (0x500) long: the magic, then zeros */
+    /* struct gc_rt_context, GC_RT_CONTEXT_BYTES (0x520) long: the magic, then zeros */
     .long 0x52574743
-    .fill 319, 4, 0
+    .fill 327, 4, 0

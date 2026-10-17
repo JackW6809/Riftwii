@@ -5813,20 +5813,25 @@ static void MenuGcCard(FrontendState& state)
 
 // A GameCube game's crash screen (gcnative.hpp's SetGcCrashScreen, laid
 // out as runtime/gc/gc_crash.h says), in the menu's own font and language,
-// made here as the launch screen cannot show translations: a large ":(",
-// the message under it, and the pieces of the details line, which the
-// blob puts together at the crash.
+// made here as the launch screen cannot show translations: a header line,
+// a hint saying which button goes where, and the pieces the blob puts the
+// register dump together from at the crash.
 static void MakeGcCrashCard(const riftwii::wii::ImageGame& game)
 {
-	std::string text;
-	// The two ways back promise that A goes back; with none the message
-	// says to turn the Wii off.
+	std::string hint;
+	// The ways back say that HOME or A goes back; with none the hint says
+	// to turn the Wii off.
 	bool wayBack = true;
 	switch (riftwii::wii::FindGcWayBack()) {
-		case riftwii::wii::GcWayBack::Channel: text = tr("The game stopped. Press A to go back to RiftWii and send a problem report."); break;
-		case riftwii::wii::GcWayBack::WiiMenu: text = tr("The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."); break;
+		case riftwii::wii::GcWayBack::HomebrewChannel:
+			hint = tr("Press HOME or A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts.");
+			break;
+		case riftwii::wii::GcWayBack::Channel: hint = tr("Press HOME or A to go back to RiftWii and send a problem report."); break;
+		case riftwii::wii::GcWayBack::WiiMenu:
+			hint = tr("Press HOME or A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.");
+			break;
 		default:
-			text = tr("The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.");
+			hint = tr("Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.");
 			wayBack = false;
 			break;
 	}
@@ -5837,87 +5842,83 @@ static void MakeGcCrashCard(const riftwii::wii::ImageGame& game)
 	const unsigned cardW = GC_CRASH_CARD_W;
 	std::vector<std::uint8_t> card(static_cast<std::size_t>(cardW) * GC_CRASH_CARD_H, 0);
 
-	// The face: as large as its band takes, its ink from the band's top
-	// and from the message's left edge (the colon's own margin is wider
-	// than a letter's).
-	const unsigned kFaceIndent = 2;
-	int faceSize = 0;
-	for (int size = 160; size >= 48 && faceSize == 0; size -= 8) {
-		const unsigned tall = static_cast<unsigned>(size) * 2;
-		std::vector<std::uint8_t> drawn(static_cast<std::size_t>(cardW) * tall, 0);
-		if (RenderTextCoverage(":(", size, drawn.data(), cardW, tall, glyphWidth(size), false) < 1) continue;
-		unsigned first = tall, last = 0, left = cardW;
-		for (unsigned y = 0; y < tall; ++y) {
-			const auto row = drawn.begin() + static_cast<std::size_t>(y) * cardW;
-			const auto ink = std::find_if(row, row + cardW, [](std::uint8_t v) { return v != 0; });
-			if (ink == row + cardW) continue;
-			first = std::min(first, y);
-			last = y;
-			left = std::min(left, static_cast<unsigned>(ink - row));
+	// A band of the card from the left edge, at the largest size whose
+	// text fits; even cut short at the smallest, what was drawn beats none.
+	const auto drawBand = [&](const std::string& text, std::initializer_list<int> sizes, unsigned top, unsigned tall,
+				  int& usedSize) {
+		std::vector<std::uint8_t> band;
+		int lines = -1;
+		for (int size : sizes) {
+			usedSize = size;
+			band.assign(static_cast<std::size_t>(cardW) * tall, 0);
+			lines = RenderTextCoverage(text.c_str(), size, band.data(), cardW, tall, glyphWidth(size), false);
+			if (lines >= 1) break;
 		}
-		if (first > last || last - first + 1 > GC_CRASH_FACE_H) continue;
-		const unsigned shift = left > kFaceIndent ? left - kFaceIndent : 0;
-		for (unsigned y = first; y <= last; ++y) {
-			const auto row = drawn.begin() + static_cast<std::size_t>(y) * cardW;
-			std::copy(row + shift, row + cardW, card.begin() + static_cast<std::size_t>(y - first) * cardW);
-		}
-		faceSize = size;
-	}
+		std::copy(band.begin(), band.end(), card.begin() + static_cast<std::size_t>(top) * cardW);
+		return lines;
+	};
+	int headerSize = 0, hintSize = 0;
+	const int headerLines = drawBand(tr("The game stopped."), {24, 21, 18}, 0, GC_CRASH_HEADER_H, headerSize);
+	const int hintLines = drawBand(hint, {20, 18, 16, 14}, GC_CRASH_HINT_Y, GC_CRASH_HINT_H, hintSize);
 
-	// The message, left-aligned under the face; a longer translation is
-	// drawn smaller until all of it fits.
-	static const int kSizes[] = {24, 21, 18, 16};
-	std::vector<std::uint8_t> message;
-	int lines = -1;
-	int size = 0;
-	for (int candidate : kSizes) {
-		size = candidate;
-		message.assign(static_cast<std::size_t>(cardW) * GC_CRASH_MESSAGE_H, 0);
-		lines = RenderTextCoverage(text.c_str(), size, message.data(), cardW, GC_CRASH_MESSAGE_H, glyphWidth(size), false);
-		if (lines >= 1) break;
-	}
-	// Even cut short at the smallest size, what was drawn beats a crash
-	// screen without a message.
-	const bool drewSome = std::any_of(message.begin(), message.end(), [](std::uint8_t v) { return v != 0; });
-	std::copy(message.begin(), message.end(), card.begin() + static_cast<std::size_t>(GC_CRASH_MESSAGE_Y) * cardW);
-
-	// The details line's pieces: the hex digits, the exception names, and
-	// its own words around them, at the largest size whose line fits.
-	std::vector<std::string> details;
-	std::vector<std::uint8_t> order;
-	riftwii::gc_crash_details_layout(game.id, tr("{1} at {2}"), RIFTWII_VERSION, details, order);
-	auto strip = std::make_unique<gc_crash_strip>();
-	memset(strip.get(), 0, sizeof(gc_crash_strip));
-	memset(strip->order, GC_CRASH_ITEM_END, sizeof(strip->order));
-	std::copy(order.begin(), order.begin() + std::min<std::size_t>(order.size(), GC_CRASH_ORDER), strip->order);
+	// The dump's pieces. The cell is the widest digit and a pixel; the size
+	// is the largest at which the four columns fit across the card and
+	// every register's name ends before its value.
+	std::vector<std::string> texts(GC_CRASH_PIECES);
+	for (unsigned index = 0; index < GC_CRASH_PIECE_TEXT; ++index) texts[index] = riftwii::gc_crash_piece_text(index);
+	texts[GC_CRASH_PIECE_GAME] = game.id;
+	texts[GC_CRASH_PIECE_VERSION] = std::string("RiftWii ") + RIFTWII_VERSION;
+	texts[GC_CRASH_PIECE_CALLED] = tr("Called from");
 	const unsigned pieceW = 512;
 	std::vector<std::uint8_t> piece(static_cast<std::size_t>(pieceW) * GC_CRASH_STRIP_H);
-	int detailSize = 18;
-	while (detailSize > 10 && RenderTextCoverage("0", detailSize, piece.data(), pieceW, GC_CRASH_STRIP_H, glyphWidth(detailSize), false) < 1)
-		--detailSize;
+	const auto measure = [&](const std::string& text, int size) {
+		std::fill(piece.begin(), piece.end(), 0);
+		int advance = 0;
+		if (RenderTextCoverage(text.c_str(), size, piece.data(), pieceW, GC_CRASH_STRIP_H, glyphWidth(size), false, &advance) != 1)
+			return -1;
+		return advance;
+	};
+	int dumpSize = 0;
+	unsigned cell = 0;
+	for (int size = 18; size >= 10 && cell == 0; --size) {
+		int widest = 0;
+		for (unsigned digit = 0; digit < 16 && widest >= 0; ++digit) {
+			const int advance = measure(texts[digit], size);
+			widest = advance < 0 ? -1 : std::max(widest, advance);
+		}
+		if (widest <= 0) continue;
+		const unsigned candidate = static_cast<unsigned>(widest) + 1;
+		if (candidate * GC_CRASH_COLUMNS * GC_CRASH_COLUMN_CELLS > cardW) continue;
+		// The longest names, "DSISR", "SRR1" and "R31", end half a cell
+		// before the value.
+		const int room = static_cast<int>(GC_CRASH_VALUE_CELL * candidate - candidate / 2);
+		if (measure("DSISR", size) > room || measure("SRR1", size) > room || measure("R31", size) > room) continue;
+		dumpSize = size;
+		cell = candidate;
+	}
+	if (cell == 0) {
+		// The smallest size, overlapping or not.
+		dumpSize = 10;
+		cell = static_cast<unsigned>(std::max(1, measure("0", dumpSize))) + 1;
+	}
+	auto strip = std::make_unique<gc_crash_strip>();
+	memset(strip.get(), 0, sizeof(gc_crash_strip));
+	strip->cell = static_cast<std::uint16_t>(cell);
 	unsigned next = 0;
 	unsigned missing = 0;
 	for (unsigned index = 0; index < GC_CRASH_PIECES; ++index) {
-		const bool fixed = index < GC_CRASH_PIECE_TEXT;
-		const std::size_t own = fixed ? 0 : index - GC_CRASH_PIECE_TEXT;
-		if (!fixed && own >= details.size()) break;
-		const std::string pieceText = fixed ? riftwii::gc_crash_piece_text(index) : details[own];
-		std::fill(piece.begin(), piece.end(), 0);
-		int advance = 0;
-		const int drawn = RenderTextCoverage(pieceText.c_str(), detailSize, piece.data(), pieceW, GC_CRASH_STRIP_H,
-			glyphWidth(detailSize), false, &advance);
-		if (drawn != 1 || advance <= 0 || !riftwii::gc_crash_strip_add(*strip, index, piece.data(), pieceW, advance, next))
-			++missing;
+		if (texts[index].empty()) continue;
+		const int advance = measure(texts[index], dumpSize);
+		if (advance <= 0 || !riftwii::gc_crash_strip_add(*strip, index, piece.data(), pieceW, advance, next)) ++missing;
 	}
 
 	std::vector<std::uint8_t> screen(GC_CRASH_SCREEN_BYTES, 0);
 	riftwii::gc_crash_pack(card.data(), card.size(), screen.data());
 	memcpy(screen.data() + GC_CRASH_CARD_BYTES, strip.get(), sizeof(gc_crash_strip));
-	logf("GameCube: the crash screen drawn%s: the face at %d px, the message at %d px (%d line(s)%s), the details at "
-		"%d px (%u of %u columns of the strip, %u piece(s) missing)\n",
-		wide ? " 3/4 as wide for 16:9" : "", faceSize, size, lines, lines >= 1 ? "" : ", not all of it fits",
-		detailSize, next, GC_CRASH_STRIP_W, missing);
-	if (!drewSome) logf("GameCube: the crash screen has no message; a crash shows the face and the details alone\n");
+	logf("GameCube: the crash screen drawn%s: the header at %d px%s, the hint at %d px (%d line(s)%s), the dump at "
+		"%d px in %u-pixel cells (%u of %u columns of the strip, %u piece(s) missing)\n",
+		wide ? " 3/4 as wide for 16:9" : "", headerSize, headerLines >= 1 ? "" : " (cut short)", hintSize, hintLines,
+		hintLines >= 1 ? "" : ", not all of it fits", dumpSize, cell, next, GC_CRASH_STRIP_W, missing);
 	riftwii::wii::SetGcCrashScreen(std::move(screen), wayBack);
 }
 

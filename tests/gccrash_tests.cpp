@@ -141,33 +141,11 @@ void test_names() {
         EXPECT_TRUE(!riftwii::gc_crash_piece_text(piece).empty());
     EXPECT_TRUE(riftwii::gc_crash_piece_text(10) == "A");
     EXPECT_TRUE(riftwii::gc_crash_piece_text(GC_CRASH_PIECE_X) == "x");
+    EXPECT_TRUE(riftwii::gc_crash_piece_text(GC_CRASH_PIECE_SRR) == "SRR");
+    EXPECT_TRUE(riftwii::gc_crash_piece_text(GC_CRASH_PIECE_DSISR) == "DSISR");
+    EXPECT_TRUE(riftwii::gc_crash_piece_text(GC_CRASH_PIECE_R) == "R");
     EXPECT_TRUE(riftwii::gc_crash_piece_text(GC_CRASH_PIECE_TEXT).empty());
-}
-
-void test_layout() {
-    std::vector<std::string> texts;
-    std::vector<std::uint8_t> order;
-    riftwii::gc_crash_details_layout("GMSE01", "{1} at {2}", "2610-432", texts, order);
-    EXPECT_TRUE(texts.size() == 3);
-    EXPECT_TRUE(texts[0] == "GMSE01 \xC2\xB7 ");
-    EXPECT_TRUE(texts[1] == " at ");
-    EXPECT_TRUE(texts[2] == " \xC2\xB7 RiftWii 2610-432");
-    const std::vector<std::uint8_t> english = {GC_CRASH_PIECE_TEXT, GC_CRASH_ITEM_NAME, GC_CRASH_PIECE_TEXT + 1,
-                                               GC_CRASH_ITEM_ADDRESS, GC_CRASH_PIECE_TEXT + 2, GC_CRASH_ITEM_END};
-    EXPECT_TRUE(order == english);
-    // A translation may put the address first.
-    riftwii::gc_crash_details_layout("GLMP01", "{2}\xE3\x81\xA7{1}", "2610-432", texts, order);
-    EXPECT_TRUE(texts.size() == 3 && texts[1] == "\xE3\x81\xA7");
-    EXPECT_TRUE(order.size() == 6 && order[1] == GC_CRASH_ITEM_ADDRESS && order[3] == GC_CRASH_ITEM_NAME);
-    // One that lost a placeholder is taken as the English.
-    riftwii::gc_crash_details_layout("GMSE01", "{1} at", "2610-432", texts, order);
-    EXPECT_TRUE(order == english && texts[1] == " at ");
-    riftwii::gc_crash_details_layout("GMSE01", "{1}{1} {2}", "2610-432", texts, order);
-    EXPECT_TRUE(order == english);
-    // Braces that are not placeholders stay words.
-    riftwii::gc_crash_details_layout("GMSE01", "{1} {x} {2}", "1", texts, order);
-    EXPECT_TRUE(texts.size() == 3 && texts[1] == " {x} ");
-    EXPECT_TRUE(order.size() <= GC_CRASH_ORDER && texts.size() <= GC_CRASH_TEXT_COUNT);
+    EXPECT_TRUE(riftwii::gc_crash_piece_text(GC_CRASH_PIECE_CALLED).empty());
 }
 
 void test_pack() {
@@ -179,55 +157,107 @@ void test_pack() {
     EXPECT_TRUE(packed[1] == 0xC0);
 }
 
-// Pieces drawn as a bar in their first column, so the composed line shows
+// Pieces drawn as a bar in their first column, so the composed dump shows
 // where each one landed.
-void test_compose() {
-    static gc_crash_strip strip;
+struct Bars {
+    gc_crash_strip strip;
+    std::vector<std::uint8_t> card = std::vector<std::uint8_t>(GC_CRASH_CARD_BYTES, 0);
+};
+
+unsigned advance_of(unsigned piece) { return 5 + piece % 3; }
+
+void make_strip(gc_crash_strip& strip) {
     std::memset(&strip, 0, sizeof(strip));
+    strip.cell = 8;
     unsigned next = 0;
     for (unsigned piece = 0; piece < GC_CRASH_PIECES; ++piece) {
-        const unsigned advance = 5 + piece % 3;
+        const unsigned advance = advance_of(piece);
         std::vector<std::uint8_t> drawn(advance * 2 * GC_CRASH_STRIP_H, 0);
         for (unsigned y = 0; y < GC_CRASH_STRIP_H; ++y) drawn[y * advance * 2] = 255;
         EXPECT_TRUE(riftwii::gc_crash_strip_add(strip, piece, drawn.data(), advance * 2, advance, next));
     }
+}
+
+bool bar_at(const std::vector<std::uint8_t>& card, unsigned x, unsigned row) {
+    return gc_crash_level(card.data(), GC_CRASH_CARD_W, x, GC_CRASH_DUMP_Y + row * GC_CRASH_ROW_H) == 3;
+}
+
+// Where a digit lands on the grid: centred in its cell.
+unsigned digit_x(unsigned cell_start, unsigned digit) { return cell_start + (8 - advance_of(digit)) / 2; }
+
+void test_compose() {
+    static gc_crash_strip strip;
+    make_strip(strip);
     EXPECT_TRUE(strip.advance[7] == 6 && strip.at[1] == 5 + GC_CRASH_PIECE_PAD);
     // A piece that does not fit is left missing.
     std::vector<std::uint8_t> wide(GC_CRASH_STRIP_W * GC_CRASH_STRIP_H, 255);
     unsigned full = GC_CRASH_STRIP_W - 4;
-    EXPECT_TRUE(!riftwii::gc_crash_strip_add(strip, GC_CRASH_PIECE_TEXT + 5, wide.data(), GC_CRASH_STRIP_W, 40, full));
-    EXPECT_TRUE(strip.advance[GC_CRASH_PIECE_TEXT + 5] == 0 && full == GC_CRASH_STRIP_W - 4);
+    static gc_crash_strip spare;
+    std::memset(&spare, 0, sizeof(spare));
+    EXPECT_TRUE(!riftwii::gc_crash_strip_add(spare, GC_CRASH_PIECE_TEXT, wide.data(), GC_CRASH_STRIP_W, 40, full));
+    EXPECT_TRUE(spare.advance[GC_CRASH_PIECE_TEXT] == 0 && full == GC_CRASH_STRIP_W - 4);
 
-    std::vector<std::string> texts;
-    std::vector<std::uint8_t> order;
-    riftwii::gc_crash_details_layout("GMSE01", "{1} at {2}", "1", texts, order);
-    std::memcpy(strip.order, order.data(), order.size());
+    gc_crash_regs regs;
+    std::memset(&regs, 0, sizeof(regs));
+    regs.exception = 3;
+    regs.srr0 = 0x8023A1C4u;
+    regs.dar = 0xFFFFFFFFu;
+    for (unsigned i = 0; i < 32; ++i) regs.gpr[i] = 0x11111111u * (i % 16);
+    regs.chain[0] = 0x80005678u;
     std::vector<std::uint8_t> card(GC_CRASH_CARD_BYTES, 0);
-    const std::uint32_t width = gc_crash_details(&strip, card.data(), 2, 0x8023A1C4u);
-    // The pieces in turn: the ID's, DSI, " at ", 0 x 8 0 2 3 A 1 C 4, the version's.
-    const unsigned pieces[] = {GC_CRASH_PIECE_TEXT, GC_CRASH_PIECE_NAMES + 1, GC_CRASH_PIECE_TEXT + 1, 0,
-                               GC_CRASH_PIECE_X, 8, 0, 2, 3, 0xA, 1, 0xC, 4, GC_CRASH_PIECE_TEXT + 2};
-    unsigned pen = 0;
-    std::vector<unsigned> bars;
-    for (unsigned piece : pieces) {
-        bars.push_back(pen);
-        pen += 5 + piece % 3;
-    }
-    EXPECT_TRUE(width == pen);
+    gc_crash_dump(&strip, card.data(), &regs);
+
+    // The first row: ISI, then "(0x3)".
+    EXPECT_TRUE(bar_at(card, 0, GC_CRASH_ROW_EXCEPTION));
+    unsigned pen = advance_of(GC_CRASH_PIECE_NAMES + 2) + 8;
+    EXPECT_TRUE(bar_at(card, pen, GC_CRASH_ROW_EXCEPTION));  // "("
+    pen += advance_of(GC_CRASH_PIECE_OPEN) + advance_of(0) + advance_of(GC_CRASH_PIECE_X);
+    EXPECT_TRUE(bar_at(card, digit_x(pen, 3), GC_CRASH_ROW_EXCEPTION));
+    // The game's ID from the third column.
+    EXPECT_TRUE(bar_at(card, 2 * GC_CRASH_COLUMN_CELLS * 8, GC_CRASH_ROW_EXCEPTION));
+
+    // SRR0: "SRR" and "0" from the left, its digits six cells in.
+    EXPECT_TRUE(bar_at(card, 0, GC_CRASH_ROW_SPECIAL));
+    EXPECT_TRUE(bar_at(card, advance_of(GC_CRASH_PIECE_SRR), GC_CRASH_ROW_SPECIAL));
+    const unsigned srr0_digits[8] = {8, 0, 2, 3, 0xA, 1, 0xC, 4};
+    for (unsigned i = 0; i < 8; ++i)
+        EXPECT_TRUE(bar_at(card, digit_x((GC_CRASH_VALUE_CELL + i) * 8, srr0_digits[i]), GC_CRASH_ROW_SPECIAL));
+    // DAR in the fourth column of the next row, all F.
+    const unsigned dar = 3 * GC_CRASH_COLUMN_CELLS * 8;
+    EXPECT_TRUE(bar_at(card, dar, GC_CRASH_ROW_SPECIAL + 1));
+    for (unsigned i = 0; i < 8; ++i)
+        EXPECT_TRUE(bar_at(card, digit_x(dar + (GC_CRASH_VALUE_CELL + i) * 8, 0xF), GC_CRASH_ROW_SPECIAL + 1));
+
+    // r13 in the second column, sixth row of the GPRs: "r", "1", "3", D...
+    const unsigned r13 = GC_CRASH_COLUMN_CELLS * 8;
+    const unsigned row = GC_CRASH_ROW_GPRS + 5;
+    EXPECT_TRUE(bar_at(card, r13, row));
+    EXPECT_TRUE(bar_at(card, r13 + advance_of(GC_CRASH_PIECE_R), row));
+    EXPECT_TRUE(bar_at(card, r13 + advance_of(GC_CRASH_PIECE_R) + advance_of(1), row));
+    EXPECT_TRUE(bar_at(card, digit_x(r13 + GC_CRASH_VALUE_CELL * 8, 0xD), row));
+    // r7, single digit, in the first column's last row.
+    EXPECT_TRUE(bar_at(card, advance_of(GC_CRASH_PIECE_R), GC_CRASH_ROW_GPRS + 7));
+    EXPECT_TRUE(!bar_at(card, advance_of(GC_CRASH_PIECE_R) + advance_of(7), GC_CRASH_ROW_GPRS + 7));
+
+    // The callers: "Called from", then one address, then nothing.
+    EXPECT_TRUE(bar_at(card, 0, GC_CRASH_ROW_CHAIN));
+    const unsigned chain = GC_CRASH_VALUE_CELL * 8;
+    EXPECT_TRUE(bar_at(card, digit_x(chain, 8), GC_CRASH_ROW_CHAIN));
+    EXPECT_TRUE(bar_at(card, digit_x(chain + 7 * 8, 8), GC_CRASH_ROW_CHAIN));
+    for (unsigned x = chain + 8 * 8; x < GC_CRASH_CARD_W; ++x) EXPECT_TRUE(!bar_at(card, x, GC_CRASH_ROW_CHAIN));
+
+    // Nothing in the blank rows, the header or the hint.
     for (unsigned x = 0; x < GC_CRASH_CARD_W; ++x) {
-        const bool bar = std::find(bars.begin(), bars.end(), x) != bars.end();
-        EXPECT_TRUE((gc_crash_level(card.data(), GC_CRASH_CARD_W, x, GC_CRASH_DETAILS_Y) == 3) == bar);
-        EXPECT_TRUE(gc_crash_level(card.data(), GC_CRASH_CARD_W, x, GC_CRASH_DETAILS_Y - 1) == 0);
+        EXPECT_TRUE(!bar_at(card, x, 1));
+        EXPECT_TRUE(!bar_at(card, x, 4));
+        EXPECT_TRUE(!bar_at(card, x, 13));
+        EXPECT_TRUE(gc_crash_level(card.data(), GC_CRASH_CARD_W, x, 0) == 0);
+        EXPECT_TRUE(gc_crash_level(card.data(), GC_CRASH_CARD_W, x, GC_CRASH_HINT_Y) == 0);
     }
-    // An exception with no name: its number in hex, no leading zeros
-    // ("0x10"); the address keeps all eight digits ("0x00000000").
-    std::fill(card.begin(), card.end(), 0);
-    const std::uint32_t unnamed = gc_crash_details(&strip, card.data(), 0x10, 0);
-    const unsigned unnamed_pieces[] = {GC_CRASH_PIECE_TEXT, 0, GC_CRASH_PIECE_X, 1, 0, GC_CRASH_PIECE_TEXT + 1,
-                                       0, GC_CRASH_PIECE_X, 0, 0, 0, 0, 0, 0, 0, 0, GC_CRASH_PIECE_TEXT + 2};
-    unsigned unnamed_width = 0;
-    for (unsigned piece : unnamed_pieces) unnamed_width += 5 + piece % 3;
-    EXPECT_TRUE(unnamed == unnamed_width);
+    // The dump's four columns fit across the card at an 8-pixel cell, and
+    // the hint stays inside it.
+    EXPECT_TRUE(GC_CRASH_COLUMNS * GC_CRASH_COLUMN_CELLS * 8 <= GC_CRASH_CARD_W);
+    EXPECT_TRUE(GC_CRASH_HINT_Y + GC_CRASH_HINT_H == GC_CRASH_CARD_H);
 }
 
 }  // namespace
@@ -237,7 +267,6 @@ int main() {
     test_crash();
     test_blue();
     test_names();
-    test_layout();
     test_pack();
     test_compose();
     if (failures == 0) std::printf("gccrash: all passed\n");

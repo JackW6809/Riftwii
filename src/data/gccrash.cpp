@@ -85,62 +85,34 @@ std::string gc_crash_piece_text(unsigned piece) {
     if (piece < 16) return std::string(1, "0123456789ABCDEF"[piece]);
     if (piece == GC_CRASH_PIECE_X) return "x";
     // In gc_crash_name_piece's order. PowerPC's own names, kept in English
-    // like the addresses next to them; RiftWii's words around them are
-    // translated.
-    switch (piece - GC_CRASH_PIECE_NAMES) {
-        case 0: return "Machine check";
-        case 1: return "DSI";
-        case 2: return "ISI";
-        case 3: return "Alignment";
-        case 4: return "Program";
-        case 5: return "Float";
-        case 6: return "Breakpoint";
-        case 7: return "Protection";
-        case 8: return "Stray jump";
+    // like the register names and the addresses next to them; RiftWii's
+    // words around them are translated.
+    if (piece >= GC_CRASH_PIECE_NAMES && piece < GC_CRASH_PIECE_NAMES + GC_CRASH_NAME_COUNT) {
+        switch (piece - GC_CRASH_PIECE_NAMES) {
+            case 0: return "Machine check";
+            case 1: return "DSI";
+            case 2: return "ISI";
+            case 3: return "Alignment";
+            case 4: return "Program";
+            case 5: return "Float";
+            case 6: return "Breakpoint";
+            case 7: return "Protection";
+            default: return "Stray jump";
+        }
+    }
+    switch (piece) {
+        case GC_CRASH_PIECE_OPEN: return "(";
+        case GC_CRASH_PIECE_CLOSE: return ")";
+        case GC_CRASH_PIECE_R: return "R";
+        case GC_CRASH_PIECE_SRR: return "SRR";
+        case GC_CRASH_PIECE_LR: return "LR";
+        case GC_CRASH_PIECE_CTR: return "CTR";
+        case GC_CRASH_PIECE_CR: return "CR";
+        case GC_CRASH_PIECE_XER: return "XER";
+        case GC_CRASH_PIECE_DSISR: return "DSISR";
+        case GC_CRASH_PIECE_DAR: return "DAR";
         default: return "";
     }
-}
-
-void gc_crash_details_layout(const std::string& game_id, const std::string& name_at_address,
-                             const std::string& version, std::vector<std::string>& texts,
-                             std::vector<std::uint8_t>& order) {
-    static const char kDot[] = " \xC2\xB7 ";  // a middle dot between spaces
-    const auto once = [](const std::string& text, const char* mark) {
-        const std::size_t at = text.find(mark);
-        return at != std::string::npos && text.find(mark, at + 1) == std::string::npos;
-    };
-    const bool usable = once(name_at_address, "{1}") && once(name_at_address, "{2}");
-    const std::string pattern = usable ? name_at_address : "{1} at {2}";
-    texts.clear();
-    order.clear();
-    // Words between the two items become one piece each.
-    std::string words = game_id + kDot;
-    const auto flush_words = [&] {
-        if (words.empty()) return;
-        order.push_back(static_cast<std::uint8_t>(GC_CRASH_PIECE_TEXT + texts.size()));
-        texts.push_back(words);
-        words.clear();
-    };
-    std::size_t at = 0;
-    while (at < pattern.size()) {
-        const std::size_t mark = pattern.find('{', at);
-        const bool item = mark != std::string::npos && mark + 2 < pattern.size() && pattern[mark + 2] == '}' &&
-                          (pattern[mark + 1] == '1' || pattern[mark + 1] == '2');
-        if (!item) {
-            const std::size_t end = mark == std::string::npos ? pattern.size() : mark + 1;
-            words += pattern.substr(at, end - at);
-            at = end;
-            continue;
-        }
-        words += pattern.substr(at, mark - at);
-        flush_words();
-        order.push_back(pattern[mark + 1] == '1' ? GC_CRASH_ITEM_NAME : GC_CRASH_ITEM_ADDRESS);
-        at = mark + 3;
-    }
-    words += kDot;
-    words += "RiftWii " + version;
-    flush_words();
-    order.push_back(GC_CRASH_ITEM_END);
 }
 
 void gc_crash_pack(const std::uint8_t* coverage, std::size_t pixels, std::uint8_t* packed) {

@@ -800,6 +800,58 @@ uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb) {
     return 1;
 }
 
+/* The VI's registers (16 bits each). */
+#define GC_VI_BASE 0xCC002000u
+#define GC_VI_VTR 0xCC002000u   /* bits 4-13: active lines per field */
+#define GC_VI_DCR 0xCC002002u   /* bit 0: the display is on */
+#define GC_VI_TFBL 0xCC00201Cu  /* the top field's frame buffer */
+#define GC_VI_BFBL 0xCC002024u  /* the bottom field's */
+#define GC_VI_HSW 0xCC002048u   /* bits 0-7: a field line's stride, bits 8-14: its width, both in 32 bytes */
+#define GC_VI_ACTIVE_LINES(vtr) (((vtr) >> 4) & 0x3FFu)
+/* A frame buffer register's address: bits 0-23, shifted by 5 when bit 28
+ * (the page offset) is set, as the SDK writes it. */
+static uint32_t gc_vi_fb(uint32_t reg) {
+    const uint32_t v = gc_read32(reg);
+    return (v & 0x10000000u) ? (v & 0x00FFFFFFu) << 5 : (v & 0x00FFFFFFu);
+}
+/* Whether the VI shows a picture now: on, with active lines and a frame
+ * buffer in MEM1. The SDK blanks the screen by setting no active lines
+ * (and longer blanking around them): from VIInit until the game's first
+ * frame, and whenever the game calls VISetBlack. */
+static int gc_vi_showing(void) {
+    const uint16_t vtr = *(volatile uint16_t*)(uintptr_t)GC_VI_VTR;
+    const uint16_t dcr = *(volatile uint16_t*)(uintptr_t)GC_VI_DCR;
+    const uint32_t top = gc_vi_fb(GC_VI_TFBL);
+    return (dcr & 1u) && GC_VI_ACTIVE_LINES(vtr) != 0 && top != 0 && top < 0x01800000u;
+}
+/* Where gc_rt_context.vi_shown's word `i` is, from the VI's base. */
+static uint32_t gc_vi_saved_offset(uint32_t i) {
+    if (i < 11u) return 4u * i;
+    return i == 11u ? 0x48u : 0x6Cu;
+}
+/* The registers into vi_shown, when they show a picture. */
+static void gc_vi_note(struct gc_rt_context* ctx) {
+    uint32_t i;
+    if (!gc_vi_showing()) return;
+    for (i = 0; i < GC_VI_SAVED_WORDS; ++i) {
+        const uint32_t at = GC_VI_BASE + gc_vi_saved_offset(i);
+        const uint32_t high = *(volatile uint16_t*)(uintptr_t)at;
+        const uint32_t low = *(volatile uint16_t*)(uintptr_t)(at + 2u);
+        ctx->vi_shown[i] = high << 16 | low;
+    }
+}
+/* vi_shown back into the VI, the timing last, when it holds a picture.
+ * The VI takes it at its next field. */
+static void gc_vi_put_back(const struct gc_rt_context* ctx) {
+    uint32_t i;
+    if (GC_VI_ACTIVE_LINES(ctx->vi_shown[0] >> 16) == 0) return;  /* nothing noted */
+    for (i = GC_VI_SAVED_WORDS; i-- > 0;) {
+        const uint32_t at = GC_VI_BASE + gc_vi_saved_offset(i);
+        *(volatile uint16_t*)(uintptr_t)(at + 2u) = (uint16_t)ctx->vi_shown[i];
+        *(volatile uint16_t*)(uintptr_t)at = (uint16_t)(ctx->vi_shown[i] >> 16);
+    }
+}
+
 typedef void (*gc_callback_fn)(uint32_t type);
 /* An OSContext's saved LR, SRR0 and SRR1 (the SDK's layout). */
 #define GC_OSCONTEXT_LR 0x84u
@@ -816,6 +868,7 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
             ctx->beat_msr = *(const uint32_t*)(uintptr_t)(os_context + GC_OSCONTEXT_SRR1);
         }
         gc_guard(ctx);
+        gc_vi_note(ctx);
         if (ctx->card) gc_card_flush(ctx, (struct gc_card*)(uintptr_t)ctx->card, 0);
         gc_trace(ctx, GC_TRACE_BEAT);
         gc_beat_arm(ctx);
@@ -1062,7 +1115,6 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
  * IOS still runs in Wii mode. The screen goes black first (the VI's
  * display enable, DCR bit 0). Returns only when IOS refused. */
 #define GC_ES_LAUNCHTITLE 8u
-#define GC_VI_DCR 0xCC002002u
 static void gc_leave(struct gc_rt_context* ctx) {
     const uint32_t buf = ctx->leave_buf;
     int32_t result;
@@ -1279,7 +1331,13 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
         p[10] = 0;
     }
     if (status != 0) gc_leave_check(ctx, (const uint8_t*)(uintptr_t)status);
-    if ((ctx->flags & GC_FLAG_CRASH) && n == 600) __asm__ volatile("trap");
+    if ((ctx->flags & GC_FLAG_CRASH) && n == 600) {
+        /* The crash screen's test on a blanked screen: no active lines, as
+         * the SDK has from VIInit to the game's first frame. */
+        if (ctx->flags & GC_FLAG_CRASH_BLACK)
+            *(volatile uint16_t*)(uintptr_t)GC_VI_VTR = *(volatile uint16_t*)(uintptr_t)GC_VI_VTR & 0x000Fu;
+        __asm__ volatile("trap");
+    }
     return result;
 }
 
@@ -1394,7 +1452,12 @@ void gc_after_ar_dma(struct gc_rt_context* ctx) {
 
 /* The loader's record just before the jump: the first one written through
  * the blob's own IPC, as the game will use it. */
-void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) { gc_trace(ctx, where); }
+void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
+    /* The jump's: the VI shows RiftWii's last frame, in the game's TV
+     * format, until the game's VIInit. */
+    if (where == GC_TRACE_JUMP) gc_vi_note(ctx);
+    gc_trace(ctx, where);
+}
 
 /* A crashed context's registers and the LRs saved up its stack (each
  * frame's back chain at 0, its caller's LR at 4 of the frame above),
@@ -1419,20 +1482,10 @@ static void gc_crash_stack(struct gc_rt_context* ctx, const uint32_t* gpr) {
 /* After a crash: the frame on screen blue (through the uncached mirror,
  * so the VI shows it at once) and the disc slot's blue light flashing
  * (Hollywood GPIO, Broadway's bank, bit 5), since the game's own picture
- * may hide the frame. With the menu's card (crash_card), the face, the
- * message and the details line go on it in white (gc_crash.h). */
+ * may hide the frame. With the menu's card (crash_card), the header, the
+ * register dump and the hint go on it in white (gc_crash.h). */
 #define GC_GPIO_OUT 0xCD0000C0u
 #define GC_GPIO_SLOT_LED 0x20u
-#define GC_VI_VTR 0xCC002000u   /* bits 4-13: active lines per field */
-#define GC_VI_TFBL 0xCC00201Cu  /* the top field's frame buffer */
-#define GC_VI_BFBL 0xCC002024u  /* the bottom field's */
-#define GC_VI_HSW 0xCC002048u   /* bits 0-7: a field line's stride, bits 8-14: its width, both in 32 bytes */
-/* A frame buffer register's address: bits 0-23, shifted by 5 when bit 28
- * (the page offset) is set, as the SDK writes it. */
-static uint32_t gc_vi_fb(uint32_t reg) {
-    const uint32_t v = gc_read32(reg);
-    return (v & 0x10000000u) ? (v & 0x00FFFFFFu) << 5 : (v & 0x00FFFFFFu);
-}
 /* The card's coverage (0-255) at the frame's (x, y): 0 outside it, or
  * with no card. */
 static uint32_t gc_card_at(const uint8_t* card, int32_t x, int32_t y) {
@@ -1440,26 +1493,32 @@ static uint32_t gc_card_at(const uint8_t* card, int32_t x, int32_t y) {
     if (x < 0 || y < 0 || x >= (int32_t)GC_CRASH_CARD_W || y >= (int32_t)GC_CRASH_CARD_H) return 0;
     return gc_crash_level(card, GC_CRASH_CARD_W, (uint32_t)x, (uint32_t)y) * 85u;
 }
+/* RiftWii's own memory at MEM1's top starts this far below the context
+ * at most (BI2, then the blob, the context near its start); the crash
+ * screen draws nothing there, as the blob is running and the memory
+ * card's sectors are still to be written back. */
+#define GC_CRASH_KEEP_BELOW_CONTEXT 0x8000u
 /* The picture the VI shows now, both fields: blue, with the card in the
  * middle. 0 when the VI's registers give no frame to draw in. */
-static int gc_crash_frame(const uint8_t* card) {
+static int gc_crash_frame(const struct gc_rt_context* ctx, const uint8_t* card) {
+    const uint32_t keep_from = gc_physical((uint32_t)(uintptr_t)ctx) - GC_CRASH_KEEP_BELOW_CONTEXT;
     const uint32_t top = gc_vi_fb(GC_VI_TFBL), bottom = gc_vi_fb(GC_VI_BFBL);
     const uint16_t hsw = *(volatile uint16_t*)(uintptr_t)GC_VI_HSW;
     const uint32_t stride = (hsw & 0xFFu) * 32u, words = ((hsw >> 8) & 0x7Fu) * 32u / 4u;
-    const uint32_t lines = (*(volatile uint16_t*)(uintptr_t)GC_VI_VTR >> 4) & 0x3FFu;
+    const uint32_t lines = GC_VI_ACTIVE_LINES(*(volatile uint16_t*)(uintptr_t)GC_VI_VTR);
     /* A bottom field only when its register holds a frame buffer too. */
-    const uint32_t fields = bottom != top && bottom != 0 && bottom < 0x01800000u ? 2u : 1u;
+    const uint32_t fields = bottom != top && bottom != 0 && bottom < keep_from ? 2u : 1u;
     const int32_t width = (int32_t)(words * 2u), height = (int32_t)(lines * fields);
     const int32_t card_left = (width - (int32_t)GC_CRASH_CARD_W) / 2;
     const int32_t card_top = (height - (int32_t)GC_CRASH_CARD_H) / 2;
     uint32_t field, k, w;
-    if (top == 0 || top >= 0x01800000u || stride == 0 || words == 0 || lines == 0) return 0;
+    if (top == 0 || top >= keep_from || stride == 0 || words == 0 || lines == 0) return 0;
     for (field = 0; field < fields; ++field) {
         const uint32_t base = field == 0 ? top : bottom;
         for (k = 0; k < lines; ++k) {
             volatile uint32_t* row = (volatile uint32_t*)(uintptr_t)((base + k * stride) | 0xC0000000u);
             const int32_t y = (int32_t)(k * fields + field) - card_top;
-            if (base + k * stride + words * 4u > 0x01800000u) break;
+            if (base + k * stride + words * 4u > keep_from) break;
             for (w = 0; w < words; ++w) {
                 /* Two pixels a word: Y0 Cb Y1 Cr. */
                 const int32_t x = (int32_t)(w * 2u) - card_left;
@@ -1469,30 +1528,61 @@ static int gc_crash_frame(const uint8_t* card) {
     }
     return 1;
 }
-static void gc_crash_screen(const struct gc_rt_context* ctx) {
-    uint8_t* card = (uint8_t*)(uintptr_t)ctx->crash_card;
+/* The crash screen into the frame the VI shows. A screen the game had
+ * blanked, or one it had not set up yet (a crash in its first moments),
+ * gets back the registers of the last picture shown (vi_shown) first:
+ * drawing into a frame the VI does not scan out left the TV black. */
+static void gc_crash_draw(const struct gc_rt_context* ctx) {
+    const uint8_t* card = (const uint8_t*)(uintptr_t)ctx->crash_card;
+    const uint32_t keep_from = gc_physical((uint32_t)(uintptr_t)ctx) - GC_CRASH_KEEP_BELOW_CONTEXT;
     volatile uint32_t* p;
     uint32_t i;
-    /* The details line, which only now knows the exception and where it
-     * was (SRR0), from the strip the menu drew after the card. */
-    if (card != 0) {
-        const uint32_t strip_addr = ctx->crash_card + GC_CRASH_CARD_BYTES;
-        const struct gc_crash_strip* strip = (const struct gc_crash_strip*)(uintptr_t)strip_addr;
-        gc_crash_details(strip, card, ctx->exception, ctx->beat_pc);
-    }
-    if (gc_crash_frame(card)) return;
+    if (!gc_vi_showing()) gc_vi_put_back(ctx);
+    if (gc_crash_frame(ctx, card)) return;
     /* No frame in the VI's registers: the one on screen at the jump. */
-    if (ctx->xfb == 0) return;
+    if (ctx->xfb == 0 || gc_physical(ctx->xfb) + ctx->xfb_bytes > keep_from) return;
     p = (volatile uint32_t*)(uintptr_t)(gc_physical(ctx->xfb) | 0xC0000000u);
     for (i = 0; i < ctx->xfb_bytes / 4; ++i) p[i] = gc_crash_yuyv(0, 0);
 }
-/* A pressed on a Wii Remote or a GameCube controller in port 1 (its SI
+/* The SDK's OSContext: the GPRs from 0, then CR, LR, CTR and XER; SRR0
+ * and SRR1 at 0x198 (gc_entry.S's early and stray entries fill the same
+ * places). */
+#define GC_OSCONTEXT_CR 0x80u
+#define GC_OSCONTEXT_CTR 0x88u
+#define GC_OSCONTEXT_XER 0x8Cu
+static void gc_crash_screen(const struct gc_rt_context* ctx, uint32_t os_context) {
+    /* The dump, which only now knows the registers, from the strip the
+     * menu drew after the card. */
+    if (ctx->crash_card != 0) {
+        uint8_t* card = (uint8_t*)(uintptr_t)ctx->crash_card;
+        const uint32_t strip_addr = ctx->crash_card + GC_CRASH_CARD_BYTES;
+        const struct gc_crash_strip* strip = (const struct gc_crash_strip*)(uintptr_t)strip_addr;
+        const uint32_t* saved = (const uint32_t*)(uintptr_t)os_context;
+        struct gc_crash_regs regs;
+        uint32_t i;
+        for (i = 0; i < 32u; ++i) regs.gpr[i] = saved ? saved[i] : 0u;
+        regs.cr = saved ? saved[GC_OSCONTEXT_CR / 4u] : 0u;
+        regs.lr = ctx->beat_lr;
+        regs.ctr = saved ? saved[GC_OSCONTEXT_CTR / 4u] : 0u;
+        regs.xer = saved ? saved[GC_OSCONTEXT_XER / 4u] : 0u;
+        regs.srr0 = ctx->beat_pc;
+        regs.srr1 = ctx->beat_msr;
+        regs.dsisr = ctx->dsisr;
+        regs.dar = ctx->dar;
+        regs.exception = ctx->exception;
+        for (i = 0; i < 4u; ++i) regs.chain[i] = ctx->crash_chain[i];
+        gc_crash_dump(strip, card, &regs);
+    }
+    gc_crash_draw(ctx);
+}
+/* A (or HOME) pressed on a Wii Remote or a GameCube controller in port 1 (its SI
  * buffer, which the SI goes on filling with interrupts off: A is bit 24 of
  * the first word; in Wii mode the SI sits at 0xCD006400). */
 #define GC_SI_C0INBUFH 0xCD006404u
 /* A down now: port 1's SI word with no error (ERRSTAT, bit 31), a Wii
- * Remote's A or a Classic Controller's a (its sixth byte's 0x10, active
- * low). */
+ * Remote's A or HOME, or a Classic Controller's a or HOME (its sixth
+ * byte's 0x10 and its fifth's 0x08, active low). A GameCube controller has
+ * no HOME. */
 static int gc_crash_a_down(struct gc_rt_context* ctx) {
     uint32_t i;
     const uint32_t si = gc_read32(GC_SI_C0INBUFH);
@@ -1503,8 +1593,10 @@ static int gc_crash_a_down(struct gc_rt_context* ctx) {
         for (i = 0; i < GC_BT_REMOTES; ++i) {
             const struct gc_bt_remote* r = &bt->remotes[i];
             if (!r->used || !r->ready) continue;
-            if (r->core[1] & 0x08u) return 1;
-            if (r->ext_kind == GC_BT_EXT_CLASSIC && r->ext_step == 4 && !(r->ext[5] & 0x10u)) return 1;
+            /* A or HOME (0x08, 0x80); the Classic Controller's a or HOME. */
+            if (r->core[1] & 0x88u) return 1;
+            if (r->ext_kind == GC_BT_EXT_CLASSIC && r->ext_step == 4 && (!(r->ext[5] & 0x10u) || !(r->ext[4] & 0x08u)))
+                return 1;
         }
     }
     return 0;
@@ -1518,7 +1610,8 @@ static int gc_crash_a(struct gc_rt_context* ctx) {
     ctx->crash_a_was_down = (uint32_t)down;
     return pressed;
 }
-/* The light flashes; A goes back to RiftWii when there is a way back. */
+/* The light flashes; A or HOME goes back (to the title in leave_buf) when
+ * there is a way back. */
 /* About a frame (16 ms of the timebase): how often the controllers are
  * looked at, the pace gc_bt's start-up counts in. */
 #define GC_CRASH_POLL_TICKS 972000u
@@ -1529,6 +1622,7 @@ static int gc_crash_a(struct gc_rt_context* ctx) {
 static void gc_crash_wait(struct gc_rt_context* ctx) {
     const int test_a = (ctx->flags & GC_FLAG_CRASH) && (ctx->flags & GC_FLAG_LEAVE);
     uint32_t start, now, polled, shown;
+    uint32_t toggles = 0;
     __asm__ volatile("mftb %0" : "=r"(start));
     polled = start;
     shown = start;
@@ -1538,6 +1632,9 @@ static void gc_crash_wait(struct gc_rt_context* ctx) {
         if (now - start >= 10000000u) {
             start = now;
             gc_write32(GC_GPIO_OUT, gc_read32(GC_GPIO_OUT) ^ GC_GPIO_SLOT_LED);
+            /* About once a second the screen again: the graphics processor
+             * may still have finished a copy of the game's over it. */
+            if (++toggles % 8u == 0) gc_crash_draw(ctx);
         }
         if (now - polled < GC_CRASH_POLL_TICKS) continue;
         polled = now;
@@ -1568,7 +1665,7 @@ void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_cont
     }
     ctx->busy = 0;  /* a crash inside a read leaves it set; nothing else runs now */
     gc_trace(ctx, GC_TRACE_FATAL);
-    gc_crash_screen(ctx);
+    gc_crash_screen(ctx, os_context);
     gc_crash_wait(ctx);
 }
 
