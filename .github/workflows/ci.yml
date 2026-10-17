@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # The checks docs/DEVELOPING.md asks of every change, run on each pull
-# request and every push: the host tests, the Wii build (DOL and channel)
-# and the translations. Nothing is published: no release, no downloadable
+# request and every push: the host tests (also under the sanitizers), the
+# Wii build (DOL and channel), the translations and the project rules. Nothing is published: no release, no downloadable
 # build.
 name: CI
 
@@ -58,10 +58,58 @@ jobs:
             exit 1
           fi
 
+  host-sanitizers:
+    name: Host tests (sanitizers)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      # With GCC 13's AddressSanitizer, stack-use-after-return makes the
+      # parser tests about 100 times slower (patch_tests 0.3 s -> 42 s,
+      # vsdbuild_tests 3 s -> 177 s) and their time limits fail. The rest of
+      # AddressSanitizer stays on.
+      ASAN_OPTIONS: detect_stack_use_after_return=0
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Ninja
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
+      # AddressSanitizer and UndefinedBehaviorSanitizer (RIFTWII_SANITIZE in
+      # CMakeLists.txt). Leak detection is on, so a test that forgets to free
+      # fails too. UBSan stops the test at the first finding.
+      - name: Configure
+        run: cmake -S . -B build-asan -G Ninja -DRIFTWII_SANITIZE=ON
+      - name: Build
+        run: cmake --build build-asan
+      # The low-memory suites map buffers or fixed addresses below 4 GiB
+      # (rtfs, rtfat, hook and rvz with MAP_32BIT; vsdblob at 0x80100000
+      # and 0x90000000). AddressSanitizer keeps that range for its shadow
+      # memory, so those mappings fail and the suites skip or break. They
+      # run in the next step with UBSan alone.
+      - name: Test (AddressSanitizer and UBSan)
+        run: ctest --test-dir build-asan --output-on-failure -j4 -E '^(rtfs|rtfat|hook|rvz|vsdblob)$'
+      - name: Configure (UBSan only)
+        run: cmake -S . -B build-ubsan -G Ninja -DRIFTWII_SANITIZE=ON -DRIFTWII_SANITIZE_ADDRESS=OFF
+      - name: Build (UBSan only)
+        run: cmake --build build-ubsan
+      - name: Test low-memory suites (UBSan only)
+        run: |
+          set -o pipefail
+          ctest --test-dir build-ubsan --output-on-failure -V -R '^(rtfs|rtfat|hook|rvz|vsdblob)$' 2>&1 | tee ctest.log
+          # As in the host-tests job: a suite that found no low memory
+          # skips (ctest's exit 77) and still passes, so a skip is a failure.
+          if grep -F '***Skipped' ctest.log; then
+            echo "::error::A low-memory suite found no memory at its addresses and skipped. It did not run."
+            exit 1
+          fi
+
   wii-build:
     name: Wii build (devkitPPC)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    # actions: read lets the size report look up main's artifact. A pull
+    # request from a fork gets read access only, which is enough.
+    permissions:
+      contents: read
+      actions: read
     # devkitPro's own image, pinned so a new devkitPPC or libogc can't turn
     # a PR red by itself. Moving the pin is its own PR. This one is
     # devkitPPC 16.1.0 (October 2026).
@@ -86,6 +134,102 @@ jobs:
           test -s riftwii.dol
       - name: Build the channel
         run: make -f Makefile.channel -j"$(nproc)"
+      # Size report: the DOL and each runtime blob against main, so a
+      # memory-layout problem shows in review instead of on a Wii.
+      #
+      # The baseline is the `size-report` artifact (a small JSON, never the
+      # DOL) of the newest run on main in this repository. Every run of this
+      # job uploads one, so main's runs keep it up to date. It is looked up
+      # through the REST API with curl and the Python the build already
+      # uses. That is one lookup, where actions/download-artifact would
+      # first need the id of a run that still has the artifact. Artifacts of
+      # pull requests from forks are skipped (their head repository differs
+      # from the base one), as a fork's branch may also be called main. A
+      # missing baseline (first run, expired artifact, API error) never
+      # fails the job: the report then has no change column.
+      - name: Find the size baseline on main
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API: ${{ github.api_url }}/repos/${{ github.repository }}
+        run: |
+          apt-get install -y -qq curl ca-certificates
+          curl -fsS -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "$API/actions/artifacts?name=size-report&per_page=100" -o artifacts.json
+          python3 - <<'EOF' > baseline-url.txt
+          import json
+          for artifact in json.load(open("artifacts.json")).get("artifacts", []):
+              run = artifact.get("workflow_run") or {}
+              if (not artifact.get("expired")
+                      and run.get("head_branch") == "main"
+                      and run.get("repository_id") == run.get("head_repository_id")):
+                  print(artifact["archive_download_url"])
+                  break
+          EOF
+          url="$(cat baseline-url.txt)"
+          if [ -n "$url" ]; then
+            curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$url" -o baseline.zip
+            python3 - <<'EOF'
+          import zipfile
+          with zipfile.ZipFile("baseline.zip") as archive:
+              info = archive.getinfo("size-report.json")
+              if info.file_size > 1 << 20:
+                  raise SystemExit("baseline too large")
+              open("baseline.json", "wb").write(archive.read(info))
+          EOF
+          fi
+      - name: Size report
+        run: |
+          # The container's default shell is plain sh: no arrays, no pipefail.
+          baseline=""
+          if [ -s baseline.json ]; then baseline="--baseline baseline.json"; fi
+          python3 tools/size_report.py --dol riftwii.dol \
+            --blob build-runtime/riftwii_rt.bin \
+            --blob build-runtime/riftwii_rt_rvz.bin \
+            --blob build-runtime/riftwii_rt_rvz.rel \
+            --blob build-runtime/riftwii_pad.bin \
+            --blob build-runtime/riftwii_shot.bin \
+            --blob build-runtime/riftwii_fault.bin \
+            --blob build-runtime/riftwii_wlog.bin \
+            --blob build-runtime/riftwii_vsd.bin \
+            $baseline --json-out size-report.json > size-report.md
+          cat size-report.md >> "$GITHUB_STEP_SUMMARY"
+      # Sizes only, a few hundred bytes of JSON. Not the DOL: CI publishes
+      # no builds.
+      - uses: actions/upload-artifact@v5
+        with:
+          name: size-report
+          path: size-report.json
+          retention-days: 90
+          if-no-files-found: error
+
+  project-rules:
+    name: Project rules
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The checks compare the change with its base, so they need the
+          # history and the base branch.
+          fetch-depth: 0
+      # AGENTS.md's rules that a script can check: SPDX lines on new files,
+      # no build output, unique base names, NOTICE.md with vendor changes,
+      # no secrets or console files. tools/ci_rules.py has the details and
+      # runs by hand the same way.
+      - name: Pull request changes
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: python3 tools/ci_rules.py --base "origin/$BASE_REF"
+      # A push to a branch is checked from where the branch was before it.
+      # A new branch (all zeros) or a force push that dropped that commit
+      # gets the whole-tree checks only.
+      - name: Pushed changes
+        if: github.event_name != 'pull_request'
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: python3 tools/ci_rules.py --before "$BEFORE_SHA"
 
   translations:
     name: Translations
