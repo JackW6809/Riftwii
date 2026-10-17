@@ -16,7 +16,9 @@
 
 #include <fat.h>
 
+#include "boot.hpp"
 #include "channel.hpp"
+#include "codehandleronly_bin.h"
 #include "d2xsd.hpp"
 #include "gc_bt.h"
 #include "gc_card.h"
@@ -25,6 +27,7 @@
 #include "loadersettings.hpp"
 #include "ios_reload.hpp"
 #include "log.hpp"
+#include "riftwii/codehook.hpp"
 #include "riftwii/fat32.hpp"
 #include "riftwii/gccard.hpp"
 #include "riftwii/gclayout.hpp"
@@ -1456,6 +1459,95 @@ bool unpack_gc_rvz_blob(std::vector<std::uint8_t>& out, std::string& error) {
     return true;
 }
 
+// Cheats (riftwii/cheats.hpp), picked on the game page as for a Wii game:
+// the Gecko code handler at kCodeHandlerAddress and the code list after it
+// (to kCodeListEnd), in the GameCube's debugger area. Nothing of RiftWii's
+// is there in a GameCube launch (the blob, the DI registers' stand-in and
+// BI2 are at MEM1's top, the buffers in MEM2, the early exception stubs
+// below 0x80000E00), no game section loads under kGameFloor, and the
+// game's OS leaves the area alone. The handler runs at the end of the
+// game's __VIRetraceHandler, once per frame, as in a Wii game.
+struct GcCheats {
+    std::vector<std::uint8_t> gct;  // empty: no cheats
+    std::uint32_t hook = 0;         // the retrace handler's blr
+};
+
+// IOS's globals area and the most of the function there that may run from
+// a copy (move_out_of_ios): a hook in it would be undone or left behind.
+constexpr std::uint32_t kIosAreaStart = 0x80003100;
+constexpr std::uint32_t kIosAreaEnd = kIosCounter + kMovedBytes;
+
+// The launch's cheats and where their hook goes, looked for in the game's
+// code before any patch of ours. False, with `why`, when they stay off.
+static bool plan_gc_cheats(const Dol& dol, GcCheats& out, std::string& why) {
+    const LaunchExtras& extras = CurrentLaunchExtras();
+    out = GcCheats{};
+    if (extras.cheat_gct.empty()) return true;
+    // A code build's gameconfig.txt (Project+) is for Wii games: its list
+    // place and hook type mean nothing here.
+    if (!extras.code_builds.empty() || extras.code_list_start != 0 || extras.code_hooktype == 7) {
+        why = "a code build's own codes are not supported for GameCube games";
+        return false;
+    }
+    // The handler's file ends with the first 8 bytes of its own (empty)
+    // code list, at kCodeListAddress: the list written there replaces them.
+    if (codehandleronly_bin_size > kCodeListEnd - kCodeHandlerAddress) {
+        why = "the code handler is larger than the debugger area";
+        return false;
+    }
+    const std::uint32_t room = kCodeListEnd - kCodeListAddress;
+    if (extras.cheat_gct.size() > room) {
+        why = "the codes need " + std::to_string(extras.cheat_gct.size()) + " bytes and the code list holds " +
+              std::to_string(room) + " (up to 0x80003000, where IOS's globals start); pick fewer cheats";
+        return false;
+    }
+    std::vector<CodeRange> text;
+    for (const Section& s : dol.text) text.push_back(CodeRange{s.address, s.bytes.data(), s.bytes.size()});
+    const std::uint32_t hook = find_gc_cheat_hook(text);
+    if (hook == 0) {
+        why = "the game's video retrace handler was not found, so there is nowhere to run them from";
+        return false;
+    }
+    if (hook >= kIosAreaStart && hook < kIosAreaEnd) {
+        why = "the end of the game's video retrace handler is in IOS's globals area, where RiftWii moves code";
+        return false;
+    }
+    out.gct = extras.cheat_gct;
+    out.hook = hook;
+    return true;
+}
+
+// The branch to the handler, into the staged code, once every other patch
+// is in: false, with `why`, when one of them took the hook's word.
+static bool hook_gc_cheats(Code& code, const GcCheats& cheats, std::string& why) {
+    constexpr std::uint32_t kBlr = 0x4E800020;
+    if (code.at(cheats.hook) != kBlr) {
+        why = "another of RiftWii's patches changed the end of the game's video retrace handler";
+        return false;
+    }
+    const std::uint32_t jump = encode_b(cheats.hook, kCodeHandlerEntry);
+    if (jump == 0) {
+        why = "the code handler is out of a branch's reach from the game's video retrace handler";
+        return false;
+    }
+    code.put(cheats.hook, jump);
+    return true;
+}
+
+// The handler and the list into the debugger area: after the jump's clear
+// of low memory, before the game runs.
+static void place_gc_cheats(const GcCheats& cheats, const std::string& game_id) {
+    std::uint8_t* handler = reinterpret_cast<std::uint8_t*>(kCodeHandlerAddress);
+    std::memcpy(handler, codehandleronly_bin, codehandleronly_bin_size);
+    // Its first bytes hold the game's ID, where cheat tools look for it.
+    std::memcpy(handler, game_id.data(), std::min<std::size_t>(6, game_id.size()));
+    void* list = reinterpret_cast<void*>(kCodeListAddress);
+    std::memset(list, 0, kCodeListEnd - kCodeListAddress);
+    std::memcpy(list, cheats.gct.data(), cheats.gct.size());
+    DCFlushRange(handler, kCodeListEnd - kCodeHandlerAddress);
+    ICInvalidateRange(handler, kCodeListEnd - kCodeHandlerAddress);
+}
+
 bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string& error) {
     logf("GameCube (native): %s (%s)\n", image.id.c_str(), image.path.c_str());
     // Test presses for Dolphin runs with no controller to press with
@@ -1519,6 +1611,10 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     Code code(dol.text);
     DvdLow low;
     if (!find_dvd_low(code, low, error)) return false;
+    // The cheats' hook, found while the code is still the game's own.
+    GcCheats cheats;
+    std::string cheats_off;
+    if (!plan_gc_cheats(dol, cheats, cheats_off)) logf("Codes are off: %s\n", cheats_off.c_str());
     logf("GameCube: DVDLowRead 0x%08x, Seek 0x%08x, ReadDiskID 0x%08x, Inquiry 0x%08x, StopMotor 0x%08x, "
          "RequestError 0x%08x, AudioStream 0x%08x, AudioStatus 0x%08x, AudioConfig 0x%08x, Reset 0x%08x, "
          "OSSetAlarm 0x%08x\n",
@@ -2083,6 +2179,18 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     logf("GameCube: %u DI register access(es) sent to 0x%08x; AIInitDMA 0x%08x%s\n", di_patches, di_regs, ai_dma,
          ai_dma ? "" : " (not found: no disc audio streaming)");
     if (low.reset != 0) code.put(low.reset, 0x4E800020);  // blr: the drive is not there to reset
+    // The cheats' hook, last: every patch above is in, so none can have
+    // taken its word unnoticed.
+    if (!cheats.gct.empty()) {
+        if (hook_gc_cheats(code, cheats, cheats_off)) {
+            logf("Codes: %u cheat(s), %u bytes at 0x%08x, handler at 0x%08x called from the retrace handler 0x%08x\n",
+                 static_cast<unsigned>(CurrentLaunchExtras().cheat_count), static_cast<unsigned>(cheats.gct.size()),
+                 kCodeListAddress, kCodeHandlerAddress, cheats.hook);
+        } else {
+            logf("Codes are off: %s\n", cheats_off.c_str());
+            cheats = GcCheats{};
+        }
+    }
 
     // The SD card goes to the blob only now, after every patch above, so
     // their log lines still reach boot.log (testers send it). The card,
@@ -2180,6 +2288,8 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     store32(0x800000F4, bi2_addr);
     store32(0x800000F8, kWiiBusClock);
     store32(0x800000FC, kWiiCpuClock);
+    // After the clear above, which would have taken them.
+    if (!cheats.gct.empty()) place_gc_cheats(cheats, image.id);
     // IOS's replies stay polled: no IPC interrupt reaches the game.
     store32(0xCD000004, 0);
     // Nor any other of Hollywood's interrupts: the game's OS knows none of

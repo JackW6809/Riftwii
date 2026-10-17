@@ -314,6 +314,11 @@ T = {
         "Nessun file di trucchi in {1}"),
     "The cheat file has no cheats in it: {1}": ("El archivo de trucos no tiene trucos: {1}", "チートファイルにチートがありません: {1}",
                                                 "O arquivo de trapaças está vazio: {1}", "Il file dei trucchi non ne contiene: {1}"),
+    "The cheat file only has cheats for other versions of this game.": (
+        "El archivo de trucos solo tiene trucos para otras versiones de este juego.",
+        "チートファイルには、このゲームの別のバージョン用のチートしかありません。",
+        "O arquivo de trapaças só tem trapaças para outras versões deste jogo.",
+        "Il file dei trucchi ha solo trucchi per altre versioni di questo gioco."),
 
     # Settings
     "Settings": ("Ajustes", "設定", "Configurações", "Impostazioni"),
@@ -1339,9 +1344,7 @@ T = {
     "{1} could not be made: {2}. Nothing was kept.": ("No se pudo crear {1}: {2}. No se guardó nada.", "{1}を作成できませんでした: {2}。何も保存されませんでした。", "Não foi possível criar {1}: {2}. Nada foi guardado.", "Impossibile creare {1}: {2}. Non è stato salvato nulla."),
     "GameCube": ("GameCube", "ゲームキューブ", "GameCube", "GameCube"),
     "Memory Card": ("Tarjeta de memoria", "メモリーカード", "Cartão de memória", "Memory Card"),
-    "Not yet": ("Aún no", "まだ非対応", "Ainda não", "Non ancora"),
     "Build and play": ("Crear y jugar", "作ってプレイ", "Criar e jogar", "Crea e gioca"),
-    "Cheats don't work in GameCube games yet.": ("Los trucos aún no funcionan en los juegos de GameCube.", "ゲームキューブのゲームではまだチートを使えません。", "Os cheats ainda não funcionam nos jogos de GameCube.", "I trucchi non funzionano ancora nei giochi GameCube."),
     "Made from {1} on first start, once; every start after that is immediate.": ("Se crea a partir de {1} en el primer inicio, una sola vez; los inicios siguientes son inmediatos.", "最初の起動時に{1}から一度だけ作られます。次回からはすぐに始まります。", "É criado a partir de {1} no primeiro arranque, uma só vez; os arranques seguintes são imediatos.", "Viene creato da {1} al primo avvio, una volta sola; gli avvii successivi sono immediati."),
     "Saves go to this game's own memory card on the SD card: {1}.": ("Las partidas se guardan en la tarjeta de memoria propia de este juego, en la tarjeta SD: {1}.", "セーブはSDカード上のこのゲーム専用のメモリーカードに保存されます: {1}。", "Os saves vão para o cartão de memória próprio deste jogo, no cartão SD: {1}.", "I salvataggi vanno nella Memory Card di questo gioco, sulla scheda SD: {1}."),
     "Stop making {1}?": ("¿Dejar de crear {1}?", "{1}の作成を中止しますか?", "Parar de criar {1}?", "Interrompere la creazione di {1}?"),
@@ -2152,6 +2155,8 @@ KO = {
         "{1}에 치트 파일이 없",
     "The cheat file has no cheats in it: {1}":
         "치트 파일에 치트 없음: {1}",
+    "The cheat file only has cheats for other versions of this game.":
+        "치트 파일에는 이 게임의 다른 버전용 치트만 있습니다.",
     "Settings":
         "설정",
     "Language":
@@ -2828,12 +2833,8 @@ KO = {
         "게임큐브",
     "Memory Card":
         "메모리 카드",
-    "Not yet":
-        "아직 미지원",
     "Build and play":
         "만들고 플레이",
-    "Cheats don't work in GameCube games yet.":
-        "게임큐브 게임에서는 아직 치트를 쓸 수 없습니다.",
     "Made from {1} on first start, once; every start after that is immediate.":
         "처음 시작할 때 {1}에서 한 번만 만들어지며, 그 뒤로는 바로 시작됩니다.",
     "Saves go to this game's own memory card on the SD card: {1}.":
@@ -3707,6 +3708,8 @@ FR = {
         "Aucun fichier de triche dans {1}",
     "The cheat file has no cheats in it: {1}":
         "Le fichier ne contient aucun code de triche : {1}",
+    "The cheat file only has cheats for other versions of this game.":
+        "Le fichier ne contient que des codes de triche pour d'autres versions de ce jeu.",
     "Settings":
         "Paramètres",
     "Language":
@@ -4551,12 +4554,8 @@ FR = {
         "GameCube",
     "Memory Card":
         "Carte mémoire",
-    "Not yet":
-        "Pas encore",
     "Build and play":
         "Créer et jouer",
-    "Cheats don't work in GameCube games yet.":
-        "Les codes de triche ne marchent pas encore dans les jeux GameCube.",
     "Made from {1} on first start, once; every start after that is immediate.":
         "Créé à partir de {1} au premier lancement, une seule fois ; les lancements suivants sont immédiats.",
     "Saves go to this game's own memory card on the SD card: {1}.":

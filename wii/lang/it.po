@@ -363,6 +363,9 @@ msgstr "Nessun file di trucchi in {1}"
 msgid "The cheat file has no cheats in it: {1}"
 msgstr "Il file dei trucchi non ne contiene: {1}"
 
+msgid "The cheat file only has cheats for other versions of this game."
+msgstr "Il file dei trucchi ha solo trucchi per altre versioni di questo gioco."
+
 msgid "Settings"
 msgstr "Impostazioni"
 
@@ -1389,14 +1392,8 @@ msgstr "GameCube"
 msgid "Memory Card"
 msgstr "Memory Card"
 
-msgid "Not yet"
-msgstr "Non ancora"
-
 msgid "Build and play"
 msgstr "Crea e gioca"
-
-msgid "Cheats don't work in GameCube games yet."
-msgstr "I trucchi non funzionano ancora nei giochi GameCube."
 
 msgid "Made from {1} on first start, once; every start after that is immediate."
 msgstr "Viene creato da {1} al primo avvio, una volta sola; gli avvii successivi sono immediati."

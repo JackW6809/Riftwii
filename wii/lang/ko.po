@@ -363,6 +363,9 @@ msgstr "{1}에 치트 파일이 없"
 msgid "The cheat file has no cheats in it: {1}"
 msgstr "치트 파일에 치트 없음: {1}"
 
+msgid "The cheat file only has cheats for other versions of this game."
+msgstr "치트 파일에는 이 게임의 다른 버전용 치트만 있습니다."
+
 msgid "Settings"
 msgstr "설정"
 
@@ -1389,14 +1392,8 @@ msgstr "게임큐브"
 msgid "Memory Card"
 msgstr "메모리 카드"
 
-msgid "Not yet"
-msgstr "아직 미지원"
-
 msgid "Build and play"
 msgstr "만들고 플레이"
-
-msgid "Cheats don't work in GameCube games yet."
-msgstr "게임큐브 게임에서는 아직 치트를 쓸 수 없습니다."
 
 msgid "Made from {1} on first start, once; every start after that is immediate."
 msgstr "처음 시작할 때 {1}에서 한 번만 만들어지며, 그 뒤로는 바로 시작됩니다."

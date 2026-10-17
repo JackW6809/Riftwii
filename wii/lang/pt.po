@@ -363,6 +363,9 @@ msgstr "Nenhum arquivo de trapaças em {1}"
 msgid "The cheat file has no cheats in it: {1}"
 msgstr "O arquivo de trapaças está vazio: {1}"
 
+msgid "The cheat file only has cheats for other versions of this game."
+msgstr "O arquivo de trapaças só tem trapaças para outras versões deste jogo."
+
 msgid "Settings"
 msgstr "Configurações"
 
@@ -1389,14 +1392,8 @@ msgstr "GameCube"
 msgid "Memory Card"
 msgstr "Cartão de memória"
 
-msgid "Not yet"
-msgstr "Ainda não"
-
 msgid "Build and play"
 msgstr "Criar e jogar"
-
-msgid "Cheats don't work in GameCube games yet."
-msgstr "Os cheats ainda não funcionam nos jogos de GameCube."
 
 msgid "Made from {1} on first start, once; every start after that is immediate."
 msgstr "É criado a partir de {1} no primeiro arranque, uma só vez; os arranques seguintes são imediatos."

@@ -6194,7 +6194,7 @@ static bool AskCheatValues(const FrontendState& state, const riftwii::Cheat& c, 
 	std::string& error)
 {
 	error.clear();
-	std::vector<riftwii::CheatField> fields = riftwii::wii::CheatFields(state.game_id, c.name);
+	std::vector<riftwii::CheatField> fields = riftwii::wii::CheatFields(state.game_id, c.name, state.game_revision);
 	if (fields.empty()) {
 		error = tr("Its values could not be found in the file.");
 		return false;
@@ -6217,9 +6217,9 @@ static bool AskCheatValues(const FrontendState& state, const riftwii::Cheat& c, 
 		if (keys.Result() < 0) return false;
 		f.value = keys.Text();
 	}
-	if (!riftwii::wii::FillCheatValues(state.game_id, c.name, fields, error)) return false;
+	if (!riftwii::wii::FillCheatValues(state.game_id, c.name, fields, state.game_revision, error)) return false;
 	values.clear();
-	for (const riftwii::CheatField& f : riftwii::wii::CheatFields(state.game_id, c.name))
+	for (const riftwii::CheatField& f : riftwii::wii::CheatFields(state.game_id, c.name, state.game_revision))
 		values += std::string(values.empty() ? "" : ", ") + f.letter + " = " + f.value;
 	return true;
 }
@@ -6298,7 +6298,7 @@ static void MenuCheats(FrontendState& state)
 	// Picks of cheats the file no longer has are dropped, so the game page
 	// counts only what will be applied.
 	const auto load = [&](bool download) {
-		loaded = riftwii::wii::LoadGameCheats(state.game_id, download, file, status);
+		loaded = riftwii::wii::LoadGameCheats(state.game_id, state.game_revision, download, file, status);
 		if (!loaded) return;
 		std::set<std::string> names;
 		for (const riftwii::Cheat& c : file.cheats) names.insert(c.name);
@@ -6415,7 +6415,7 @@ static void MenuCheats(FrontendState& state)
 				say(FlatCapped(note.empty() ? c.name : c.name + ": " + note, 200));
 			} else if (ref.act == Act::Values) {
 				std::string values;
-				for (const riftwii::CheatField& f : riftwii::wii::CheatFields(state.game_id, file.cheats[ref.cheat].name))
+				for (const riftwii::CheatField& f : riftwii::wii::CheatFields(state.game_id, file.cheats[ref.cheat].name, state.game_revision))
 					values += std::string(values.empty() ? "" : ", ") + f.letter + " = " + f.value;
 				say(tr("Values of {1}: {2}. Press A to change them.", {FlatCapped(file.cheats[ref.cheat].name, 60), values}));
 			} else if (ref.act == Act::Use) {
@@ -7027,11 +7027,11 @@ static void BuildGameTiles(const FrontendState& state, std::vector<TileSpec>& ti
 	const riftwii::wii::ImageGame* gamecube = SelectedGcGame(state);
 	const riftwii::wii::ImageGame* toBuild = SelectedGcPatch(state);
 	// A GameCube game saves to its memory card on the SD card, whatever the
-	// save mode, and takes no cheats yet.
+	// save mode. Its cheats are picked as a Wii game's are.
 	const std::string saves = gamecube ? std::string(tr("Memory Card")) + " \xC2\xB7 SD"
 		: !state.model.pack_save_owner().empty() ? std::string(tr("Kept by the pack"))
 		: std::string(tr(SaveLabel(state.model.save_mode).c_str()));
-	const std::string cheats = gamecube ? std::string(tr("Not yet")) : CheatsValue(game);
+	const std::string cheats = CheatsValue(game);
 	// Until a patch's game is made: what making it takes, where the mods
 	// count would be.
 	std::string play = tr("Play"), playValue = modsOn;
@@ -7051,7 +7051,7 @@ static void BuildGameTiles(const FrontendState& state, std::vector<TileSpec>& ti
 		shown == 0 ? tr("None") : enabled == 0 ? tr("Off") : tr("On"),
 		&skin::iconMods, enabled != 0);
 	add(GameTile::Cheats, kTilesX, 228, kHalfW, 70, tr("Cheats"), cheats, &skin::iconCheats,
-		!gamecube && game.cheats && !game.cheat_names.empty());
+		game.cheats && !game.cheat_names.empty());
 	add(GameTile::Saves, kRightX, 228, kHalfW, 70, tr("Saves"), saves, &skin::iconSaves,
 		!gamecube && state.model.save_mode != "nand");
 	add(GameTile::Favorite, kHeroX, 310, kHeroW, 70, tr("Favourite"), favorite ? tr("On") : tr("Off"),
@@ -7490,10 +7490,7 @@ static int MenuHome(FrontendState& state)
 			switch (tileWhat[static_cast<std::size_t>(lit)]) {
 				case GameTile::Play: say(PlayTileNote(state)); break;
 				case GameTile::Mods: say(ModsNote(state, scanStatus)); break;
-				case GameTile::Cheats:
-					say(SelectedGcGame(state) ? std::string(tr("Cheats don't work in GameCube games yet."))
-								  : std::string(tr("Cheat codes for this game. Press A to choose them.")));
-					break;
+				case GameTile::Cheats: say(tr("Cheat codes for this game. Press A to choose them.")); break;
 				case GameTile::Saves: say(SelectedGcGame(state) ? GcSaveNote(state) : SaveNote(state.model)); break;
 				case GameTile::Favorite: say(tr("Favourites have their own view on Home: press 1 there until it shows.")); break;
 				case GameTile::Options:
@@ -7519,8 +7516,6 @@ static int MenuHome(FrontendState& state)
 				mainWindow->Append(&w);
 				rebuildTiles();
 				shownTile = -1;
-			} else if (tile == GameTile::Cheats && SelectedGcGame(state)) {
-				say(tr("Cheats don't work in GameCube games yet."));
 			} else if (tile == GameTile::Saves && !state.model.pack_save_owner().empty()) {
 				say(SaveNote(state.model));
 			} else if (tile == GameTile::Saves) {

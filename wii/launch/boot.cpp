@@ -2353,6 +2353,8 @@ bool prepare_savegame(const DiscProbe& probe, const BootOptions& options, Savega
 
 void SetLaunchExtras(LaunchExtras extras) { g_extras = std::move(extras); }
 
+const LaunchExtras& CurrentLaunchExtras() { return g_extras; }
+
 bool LaunchPackKeepsSaves() { return g_extras.pack_keeps_saves; }
 
 std::vector<std::string> TakeCardLog() {

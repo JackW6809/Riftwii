@@ -363,6 +363,9 @@ msgstr "{1} にチートファイルがありません"
 msgid "The cheat file has no cheats in it: {1}"
 msgstr "チートファイルにチートがありません: {1}"
 
+msgid "The cheat file only has cheats for other versions of this game."
+msgstr "チートファイルには、このゲームの別のバージョン用のチートしかありません。"
+
 msgid "Settings"
 msgstr "設定"
 
@@ -1389,14 +1392,8 @@ msgstr "ゲームキューブ"
 msgid "Memory Card"
 msgstr "メモリーカード"
 
-msgid "Not yet"
-msgstr "まだ非対応"
-
 msgid "Build and play"
 msgstr "作ってプレイ"
-
-msgid "Cheats don't work in GameCube games yet."
-msgstr "ゲームキューブのゲームではまだチートを使えません。"
 
 msgid "Made from {1} on first start, once; every start after that is immediate."
 msgstr "最初の起動時に{1}から一度だけ作られます。次回からはすぐに始まります。"

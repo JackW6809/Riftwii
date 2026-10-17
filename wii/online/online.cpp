@@ -756,18 +756,18 @@ std::string read_cheat_file(const std::string& game_id) {
 
 }  // namespace
 
-std::vector<CheatField> CheatFields(const std::string& game_id, const std::string& name) {
-    return cheat_fields(read_cheat_file(game_id), name);
+std::vector<CheatField> CheatFields(const std::string& game_id, const std::string& name, int revision) {
+    return cheat_fields(read_cheat_file(game_id), name, revision);
 }
 
 bool FillCheatValues(const std::string& game_id, const std::string& name, const std::vector<CheatField>& fields,
-                     std::string& error) {
+                     int revision, std::string& error) {
     std::string text = read_cheat_file(game_id);
     if (text.empty()) {
         error = "cannot read " + CheatPath(game_id);
         return false;
     }
-    if (!fill_cheat_values(text, name, fields, error)) return false;
+    if (!fill_cheat_values(text, name, fields, error, revision)) return false;
     const std::vector<std::uint8_t> bytes(text.begin(), text.end());
     if (!write_file(CheatPath(game_id), bytes, error)) return false;
     std::string values;

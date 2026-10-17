@@ -119,10 +119,11 @@ enum class BannerDownload { Found, None, Failed };
 BannerDownload DownloadGameCubeBanner(const std::string& game_id, bool regional_fallback,
                                       std::vector<std::uint8_t>& bytes, std::string& error);
 // The placeholders (X, Y...) of cheat `name` in the game's cheat file,
-// with their values when they are filled in. Empty when none.
-std::vector<CheatField> CheatFields(const std::string& game_id, const std::string& name);
+// with their values when they are filled in. Empty when none. `revision`
+// is the disc's, for a file with a section per release.
+std::vector<CheatField> CheatFields(const std::string& game_id, const std::string& name, int revision);
 // Fills them in, in the file (riftwii/cheats.hpp fill_cheat_values).
 bool FillCheatValues(const std::string& game_id, const std::string& name, const std::vector<CheatField>& fields,
-                     std::string& error);
+                     int revision, std::string& error);
 
 }  // namespace riftwii::wii

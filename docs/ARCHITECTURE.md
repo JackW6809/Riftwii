@@ -194,6 +194,17 @@ opens `/dev/sdio/slot0` and `/dev/es`
 (IOS keeps both open across the jump), writes low memory as a GameCube's
 start-up leaves it, and jumps to the game.
 
+**Cheats.** The game page's Cheats work as for a Wii game (the same
+file, download and code list). After the low-memory clear the loader puts
+the Gecko code handler at `0x80001800`, the GameCube's debugger area, and
+the code list after it up to `0x80003000`; the end of the game's
+`__VIRetraceHandler` branches to it, found by its check of the second
+display interrupt (`CodeHook::GcRetrace` in `riftwii/codehook.hpp`, the
+Wii's pattern as a fallback). The hook is looked for before any other
+patch, and put in only after all of them, if its `blr` is still there.
+No hook or too many codes: the game starts without them, with a
+`boot.log` line.
+
 **The blob** (`runtime/gc/`, position independent, no heap or libc):
 - `gc_rt.c`: disc reads from the image's SD sectors (and the packs'
   window), with polled IPC and the game's own `OSSetAlarm` for the
@@ -242,7 +253,7 @@ from `sd:/riftwii/gc/saves`.
 
 | Where | What |
 | --- | --- |
-| `0x80000000`–`0x80003400` | Low-memory globals; the Gecko code handler at `0x80001800` |
+| `0x80000000`–`0x80003400` | Low-memory globals; the Gecko code handler at `0x80001800` and its code list to `0x80003000` (in Wii and GameCube games) |
 | `0x80A00000`–`0x81200000` | The RiftWii loader (link address in `Makefile.wii`) and its heap |
 | `0x81200000` | The game's apploader, while it runs |
 | `0x80002300`–`0x80003000` | With a code build whose code list is elsewhere: veneers into code in MEM2 (the resident runtime's or the virtual SD card's) |
