@@ -137,9 +137,9 @@ jobs:
           fi
       - name: Size report
         run: |
-          set -o pipefail
-          baseline=()
-          if [ -s baseline.json ]; then baseline=(--baseline baseline.json); fi
+          # The container's default shell is plain sh: no arrays, no pipefail.
+          baseline=""
+          if [ -s baseline.json ]; then baseline="--baseline baseline.json"; fi
           python3 tools/size_report.py --dol riftwii.dol \
             --blob build-runtime/riftwii_rt.bin \
             --blob build-runtime/riftwii_rt_rvz.bin \
@@ -149,7 +149,8 @@ jobs:
             --blob build-runtime/riftwii_fault.bin \
             --blob build-runtime/riftwii_wlog.bin \
             --blob build-runtime/riftwii_vsd.bin \
-            "${baseline[@]}" --json-out size-report.json | tee -a "$GITHUB_STEP_SUMMARY"
+            $baseline --json-out size-report.json > size-report.md
+          cat size-report.md >> "$GITHUB_STEP_SUMMARY"
       # Sizes only, a few hundred bytes of JSON. Not the DOL: CI publishes
       # no builds.
       - uses: actions/upload-artifact@v5
