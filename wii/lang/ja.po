@@ -1512,6 +1512,9 @@ msgstr "ゲームが止まりました。Aを押すとWiiメニューに戻り�
 msgid "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
 msgstr "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。"
 
+msgid "{1} at {2}"
+msgstr "{2}で{1}"
+
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "HOMEを2秒押し続けるとゲームをやめます。"
 

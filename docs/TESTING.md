@@ -257,7 +257,10 @@ and `sd:/riftwii/gc/trace.bin`.
   Settings > Return to: RiftWii goes back to the RiftWii channel (the Wii
   Menu without it), Wii Menu to the Wii Menu; the save is there next time.
 - [ ] **A crash** (`sd:/riftwii/gc/crash` makes one 600 pad reads in): the
-  message shows, A goes back, the next start offers the report.
+  blue screen shows the face, the message and the details line (the game's
+  ID, the exception and where, the version), straight at 4:3 and 16:9; A
+  goes back, the next start offers the report. In Dolphin,
+  `sd:/riftwii/gc/leave` as well takes A as pressed after twenty seconds.
 - [ ] **Options**: Disc reads Fast loads sooner; 480p on a component
   cable (the game asks first); 16:9, picked by hand (Default keeps the
   game's own), widens the 3D (experimental: on a Wii Super Mario Eclipse's

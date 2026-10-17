@@ -1512,6 +1512,9 @@ msgstr "게임이 멈췄습니다. A를 누르면 Wii 메뉴로 돌아갑니다.
 msgid "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
 msgstr "게임이 멈췄습니다. Wii를 껐다가 다시 켜세요. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다."
 
+msgid "{1} at {2}"
+msgstr "{2}에서 {1}"
+
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "HOME을 2초 동안 누르면 게임을 나갑니다."
 

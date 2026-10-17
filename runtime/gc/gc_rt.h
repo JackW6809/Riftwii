@@ -20,6 +20,8 @@
 
 #include <stdint.h>
 
+#include "gc_crash.h"
+
 #define GC_RT_MAGIC 0x52574744u          /* "RWGD" */
 #define GC_RT_VERSION 4u                 /* also in gc_entry.S's header */
 #define GC_RT_CONTEXT_MAGIC 0x52574743u  /* "RWGC" */
@@ -85,16 +87,8 @@ struct gc_rt_header {
     uint32_t hook_load_callbacks_done; /* and group(old) after them: gc_on_load_callbacks_done */
 };
 
-/* gc_on_fatal's exception number for one caught by the loader's own
- * vectors, before the game's OS replaced them: 0x10 plus the vector
- * (0x12 DSI, 0x13 ISI, 0x16 program...). */
-#define GC_EXCEPTION_EARLY 0x10u
-/* gc_on_fatal's exception number for a jump into RiftWii's own data, caught
- * by the two landing words at its start (gc_card.h): SRR0 is where it
- * landed, LR as the jump left it (the jumper's return address after a
- * bctrl or blrl; the landing keeps it in r0, so r0 itself is lost), and
- * DAR holds CTR (the target after a bctr). */
-#define GC_EXCEPTION_STRAY 0x100u
+/* gc_on_fatal's exception numbers (GC_EXCEPTION_EARLY, GC_EXCEPTION_STRAY)
+ * and the crash screen are in gc_crash.h. */
 
 /* The trace: a ring of 512-byte records in sd:/riftwii/gc/trace.bin
  * (loader-made, its sectors known), written now and then while the game
@@ -155,17 +149,11 @@ typedef char gc_trace_fits[(GC_TR_WORDS * 4 <= 512) ? 1 : -1];
 /* The last records of the trace go round; the others stay. */
 #define GC_TRACE_RING 16u
 
-/* The crash screen's message, as the menu drew it (gcnative.hpp's
- * SetGcCrashCard): 2 bits of coverage a pixel, four pixels a byte, the
- * leftmost in the top bits. */
-#define GC_CRASH_CARD_W 512u
-#define GC_CRASH_CARD_H 128u  /* four lines of the menu font at 24 pixels */
-#define GC_CRASH_CARD_BYTES (GC_CRASH_CARD_W * GC_CRASH_CARD_H / 4u)
-
 /* gc_rt_context.flags */
 #define GC_FLAG_PRESS 1u  /* tests without a controller: port 1 presses A, B and Start in turn */
 #define GC_FLAG_CRASH 4u  /* tests of the crash screen: the 600th pad read takes a program exception */
-#define GC_FLAG_LEAVE 2u  /* tests of the way back: port 1 holds L, R, Z and Start from the 1800th pad read */
+#define GC_FLAG_LEAVE 2u  /* tests of the way back: port 1 holds L, R, Z and Start from the 1800th pad read;
+                           * with GC_FLAG_CRASH, the crash screen takes A after twenty seconds */
 #define GC_FLAG_STREAM_ONLY 32u  /* tests: AI buffers that carry disc music carry it alone (the game's own sound cleared) */
 #define GC_FLAG_PROGRESSIVE 8u  /* 480p: VIConfigure's NTSC interlaced modes become progressive (gc_on_vi_configure) */
 #define GC_FLAG_WIDEN 16u  /* 16:9: perspective projections are drawn 3/4 as wide (gc_on_projection); off with the
@@ -282,7 +270,7 @@ struct gc_rt_context {
     uint32_t alarms;
     uint32_t last_ar[4];
     uint32_t busy;            /* the IPC buffers are in use (a read or a trace write) */
-    uint32_t xfb;             /* the frame on screen at the jump (YUYV), turned white by a crash; 0: none */
+    uint32_t xfb;             /* the frame on screen at the jump (YUYV), turned blue by a crash; 0: none */
     uint32_t xfb_bytes;
     /* The heartbeat: an OSAlarm of its own every half second once the
      * game reads, noting where the game was when it went off (the
@@ -320,7 +308,7 @@ struct gc_rt_context {
     uint32_t leave_buf;       /* 32-byte aligned: the title ID at 0, its ticket view (0xD8 bytes) at 0x20 */
     uint32_t leave_hold;      /* timebase ticks */
     uint32_t leave_since;     /* when the hold began (low bit set), 0: not held */
-    uint32_t crash_card;      /* the message, GC_CRASH_CARD_BYTES (loader-placed), 0: none */
+    uint32_t crash_card;      /* the crash screen's card and strip, GC_CRASH_SCREEN_BYTES (loader-placed), 0: none */
     uint32_t leave_card_activity; /* the memory card's activity at the last pad read */
     uint32_t leave_card_quiet;    /* since when the card has had no access (timebase) */
     uint32_t ipc_no_timeout;      /* 1: the request being sent waits for its reply however long (the launch) */

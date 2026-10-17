@@ -25,12 +25,12 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
 enum class GcWayBack { None, Channel, WiiMenu };
 GcWayBack FindGcWayBack();
 
-// The crash screen's message, made by the menu in its own font and
-// language (8-bit coverage, kGcCrashCardW x kGcCrashCardH): the next
-// GameCube launch shows it if the game crashes. Without one a crash turns
-// the screen white. `way_back`: the message says A goes back (a way back
-// was found), false when it says to turn the Wii off.
-constexpr int kGcCrashCardW = 512, kGcCrashCardH = 128;
-void SetGcCrashCard(std::vector<std::uint8_t> coverage, bool way_back);
+// The crash screen, made by the menu in its own font and language: the
+// card and the strip as runtime/gc/gc_crash.h lays them out
+// (GC_CRASH_SCREEN_BYTES). The next GameCube launch shows it if the game
+// crashes; without one a crash turns the screen plain blue. `way_back`:
+// the message says A goes back (a way back was found), false when it says
+// to turn the Wii off.
+void SetGcCrashScreen(std::vector<std::uint8_t> screen, bool way_back);
 
 }  // namespace riftwii::wii

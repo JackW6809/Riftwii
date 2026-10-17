@@ -1512,6 +1512,9 @@ msgstr "O jogo parou. Prima A para voltar ao Menu Wii. O RiftWii oferece-se para
 msgid "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
 msgstr "O jogo parou. Desligue a Wii e volte a ligá-la. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar."
 
+msgid "{1} at {2}"
+msgstr "{1} em {2}"
+
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "Mantenha HOME premido dois segundos para sair do jogo."
 

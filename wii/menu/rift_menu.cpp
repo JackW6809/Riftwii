@@ -88,6 +88,8 @@
 #include "codebuilds.hpp"
 #include "gclaunch.hpp"
 #include "gcnative.hpp"
+#include "gc_crash.h"
+#include "riftwii/gccrash.hpp"
 #include "gcpatch.hpp"
 #include "vsdmake.hpp"
 #include "gameextras.hpp"
@@ -5451,10 +5453,12 @@ static void MenuGcCard(FrontendState& state)
 	RunRowPage(shared ? tr("Shared Memory Card") : tr("Memory Card"), GameTitle(state), rows, note, act, space);
 }
 
-// What a GameCube game's crash screen says (gcnative.hpp's
-// SetGcCrashCard), in the menu's own font and language, made here as the
-// launch screen cannot show translations.
-static void MakeGcCrashCard()
+// A GameCube game's crash screen (gcnative.hpp's SetGcCrashScreen, laid
+// out as runtime/gc/gc_crash.h says), in the menu's own font and language,
+// made here as the launch screen cannot show translations: a large ":(",
+// the message under it, and the pieces of the details line, which the
+// blob puts together at the crash.
+static void MakeGcCrashCard(const riftwii::wii::ImageGame& game)
 {
 	std::string text;
 	// The two ways back promise that A goes back; with none the message
@@ -5468,38 +5472,105 @@ static void MakeGcCrashCard()
 			wayBack = false;
 			break;
 	}
-	// The card is a fixed 512 x 128; a longer translation is drawn smaller
-	// until all of it fits.
+	// A 16:9 TV stretches the game's picture, so there the glyphs are drawn
+	// 3/4 as wide, as the menu itself is.
+	const bool wide = riftwii::wii::MenuWidescreen();
+	const auto glyphWidth = [wide](int size) { return static_cast<FT_UInt>(wide ? size * 3 / 4 : 0); };
+	const unsigned cardW = GC_CRASH_CARD_W;
+	std::vector<std::uint8_t> card(static_cast<std::size_t>(cardW) * GC_CRASH_CARD_H, 0);
+
+	// The face: as large as its band takes, its ink from the band's top
+	// and from the message's left edge (the colon's own margin is wider
+	// than a letter's).
+	const unsigned kFaceIndent = 2;
+	int faceSize = 0;
+	for (int size = 160; size >= 48 && faceSize == 0; size -= 8) {
+		const unsigned tall = static_cast<unsigned>(size) * 2;
+		std::vector<std::uint8_t> drawn(static_cast<std::size_t>(cardW) * tall, 0);
+		if (RenderTextCoverage(":(", size, drawn.data(), cardW, tall, glyphWidth(size), false) < 1) continue;
+		unsigned first = tall, last = 0, left = cardW;
+		for (unsigned y = 0; y < tall; ++y) {
+			const auto row = drawn.begin() + static_cast<std::size_t>(y) * cardW;
+			const auto ink = std::find_if(row, row + cardW, [](std::uint8_t v) { return v != 0; });
+			if (ink == row + cardW) continue;
+			first = std::min(first, y);
+			last = y;
+			left = std::min(left, static_cast<unsigned>(ink - row));
+		}
+		if (first > last || last - first + 1 > GC_CRASH_FACE_H) continue;
+		const unsigned shift = left > kFaceIndent ? left - kFaceIndent : 0;
+		for (unsigned y = first; y <= last; ++y) {
+			const auto row = drawn.begin() + static_cast<std::size_t>(y) * cardW;
+			std::copy(row + shift, row + cardW, card.begin() + static_cast<std::size_t>(y - first) * cardW);
+		}
+		faceSize = size;
+	}
+
+	// The message, left-aligned under the face; a longer translation is
+	// drawn smaller until all of it fits.
 	static const int kSizes[] = {24, 21, 18, 16};
-	const std::size_t cardBytes = static_cast<std::size_t>(riftwii::wii::kGcCrashCardW) * riftwii::wii::kGcCrashCardH;
-	std::vector<std::uint8_t> coverage;
+	std::vector<std::uint8_t> message;
 	int lines = -1;
 	int size = 0;
 	for (int candidate : kSizes) {
 		size = candidate;
-		coverage.assign(cardBytes, 0);
-		lines = RenderTextCoverage(text.c_str(), size, coverage.data(), riftwii::wii::kGcCrashCardW,
-			riftwii::wii::kGcCrashCardH);
+		message.assign(static_cast<std::size_t>(cardW) * GC_CRASH_MESSAGE_H, 0);
+		lines = RenderTextCoverage(text.c_str(), size, message.data(), cardW, GC_CRASH_MESSAGE_H, glyphWidth(size), false);
 		if (lines >= 1) break;
 	}
-	// Even cut short at the smallest size, what was drawn beats the white
-	// screen a crash shows without a message.
-	const bool drewSome = std::any_of(coverage.begin(), coverage.end(), [](std::uint8_t v) { return v != 0; });
-	if (lines >= 1)
-		logf("GameCube: the crash screen's message drawn at %d px (%d line(s))\n", size, lines);
-	else
-		logf("GameCube: the crash screen's message does not all fit even at %d px; %s\n", size,
-			drewSome ? "its start is shown" : "a crash shows a white screen");
-	riftwii::wii::SetGcCrashCard(drewSome ? std::move(coverage) : std::vector<std::uint8_t>(), wayBack);
+	// Even cut short at the smallest size, what was drawn beats a crash
+	// screen without a message.
+	const bool drewSome = std::any_of(message.begin(), message.end(), [](std::uint8_t v) { return v != 0; });
+	std::copy(message.begin(), message.end(), card.begin() + static_cast<std::size_t>(GC_CRASH_MESSAGE_Y) * cardW);
+
+	// The details line's pieces: the hex digits, the exception names, and
+	// its own words around them, at the largest size whose line fits.
+	std::vector<std::string> details;
+	std::vector<std::uint8_t> order;
+	riftwii::gc_crash_details_layout(game.id, tr("{1} at {2}"), RIFTWII_VERSION, details, order);
+	auto strip = std::make_unique<gc_crash_strip>();
+	memset(strip.get(), 0, sizeof(gc_crash_strip));
+	memset(strip->order, GC_CRASH_ITEM_END, sizeof(strip->order));
+	std::copy(order.begin(), order.begin() + std::min<std::size_t>(order.size(), GC_CRASH_ORDER), strip->order);
+	const unsigned pieceW = 512;
+	std::vector<std::uint8_t> piece(static_cast<std::size_t>(pieceW) * GC_CRASH_STRIP_H);
+	int detailSize = 18;
+	while (detailSize > 10 && RenderTextCoverage("0", detailSize, piece.data(), pieceW, GC_CRASH_STRIP_H, glyphWidth(detailSize), false) < 1)
+		--detailSize;
+	unsigned next = 0;
+	unsigned missing = 0;
+	for (unsigned index = 0; index < GC_CRASH_PIECES; ++index) {
+		const bool fixed = index < GC_CRASH_PIECE_TEXT;
+		const std::size_t own = fixed ? 0 : index - GC_CRASH_PIECE_TEXT;
+		if (!fixed && own >= details.size()) break;
+		const std::string pieceText = fixed ? riftwii::gc_crash_piece_text(index) : details[own];
+		std::fill(piece.begin(), piece.end(), 0);
+		int advance = 0;
+		const int drawn = RenderTextCoverage(pieceText.c_str(), detailSize, piece.data(), pieceW, GC_CRASH_STRIP_H,
+			glyphWidth(detailSize), false, &advance);
+		if (drawn != 1 || advance <= 0 || !riftwii::gc_crash_strip_add(*strip, index, piece.data(), pieceW, advance, next))
+			++missing;
+	}
+
+	std::vector<std::uint8_t> screen(GC_CRASH_SCREEN_BYTES, 0);
+	riftwii::gc_crash_pack(card.data(), card.size(), screen.data());
+	memcpy(screen.data() + GC_CRASH_CARD_BYTES, strip.get(), sizeof(gc_crash_strip));
+	logf("GameCube: the crash screen drawn%s: the face at %d px, the message at %d px (%d line(s)%s), the details at "
+		"%d px (%u of %u columns of the strip, %u piece(s) missing)\n",
+		wide ? " 3/4 as wide for 16:9" : "", faceSize, size, lines, lines >= 1 ? "" : ", not all of it fits",
+		detailSize, next, GC_CRASH_STRIP_W, missing);
+	if (!drewSome) logf("GameCube: the crash screen has no message; a crash shows the face and the details alone\n");
+	riftwii::wii::SetGcCrashScreen(std::move(screen), wayBack);
 }
 
 // Before a GameCube game starts: its controls the first time, and its
-// crash screen's message. False: Back.
+// crash screen. False: Back.
 static bool ReadyGcStart(const FrontendState& state)
 {
-	if (!SelectedGcGame(state)) return true;
+	const riftwii::wii::ImageGame* game = SelectedGcGame(state);
+	if (!game) return true;
 	if (!ShowGcControlsOnce(state)) return false;
-	MakeGcCrashCard();
+	MakeGcCrashCard(*game);
 	return true;
 }
 

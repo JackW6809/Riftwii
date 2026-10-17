@@ -1384,6 +1384,7 @@ T = {
     "The game stopped. Press A to go back to RiftWii and send a problem report.": ("El juego se ha detenido. Pulsa A para volver a RiftWii y enviar un informe del problema.", "ゲームが止まりました。Aを押すとRiftWiiに戻り、問題の報告を送れます。", "O jogo parou. Prima A para voltar ao RiftWii e enviar um relatório do problema.", "Il gioco si è fermato. Premi A per tornare a RiftWii e inviare una segnalazione del problema."),
     "The game stopped. Press A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Pulsa A para volver al Menú de Wii. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Aを押すとWiiメニューに戻ります。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Prima A para voltar ao Menu Wii. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Premi A per tornare al Menu Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
     "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.": ("El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie.", "ゲームが止まりました。Wiiの電源を切って、もう一度入れてください。次にRiftWiiを起動すると、問題の報告を送るか聞かれます。", "O jogo parou. Desligue a Wii e volte a ligá-la. O RiftWii oferece-se para enviar um relatório do problema da próxima vez que arrancar.", "Il gioco si è fermato. Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."),
+    "{1} at {2}": ("{1} en {2}", "{2}で{1}", "{1} em {2}", "{1} a {2}"),
     "Hold HOME for two seconds to leave the game.": ("Mantén HOME dos segundos para salir del juego.", "HOMEを2秒押し続けるとゲームをやめます。", "Mantenha HOME premido dois segundos para sair do jogo.", "Tieni premuto HOME per due secondi per uscire dal gioco."),
     "1 block": ("1 bloque", "1ブロック", "1 bloco", "1 blocco"),
     "{1} blocks": ("{1} bloques", "{1}ブロック", "{1} blocos", "{1} blocchi"),
@@ -2913,6 +2914,8 @@ KO = {
         "게임이 멈췄습니다. A를 누르면 Wii 메뉴로 돌아갑니다. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
     "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
         "게임이 멈췄습니다. Wii를 껐다가 다시 켜세요. 다음에 RiftWii를 시작하면 문제 보고를 보낼지 묻습니다.",
+    "{1} at {2}":
+        "{2}에서 {1}",
     "Hold HOME for two seconds to leave the game.":
         "HOME을 2초 동안 누르면 게임을 나갑니다.",
     "1 block":
@@ -4634,6 +4637,8 @@ FR = {
         "Le jeu s'est arrêté. Appuyez sur A pour revenir au Menu Wii. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
     "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts.":
         "Le jeu s'est arrêté. Éteignez la Wii puis rallumez-la. RiftWii proposera d'envoyer un rapport de problème à son prochain démarrage.",
+    "{1} at {2}":
+        "{1} à {2}",
     "Hold HOME for two seconds to leave the game.":
         "Maintenez HOME deux secondes pour quitter le jeu.",
     "1 block":

@@ -1512,6 +1512,9 @@ msgstr "Il gioco si è fermato. Premi A per tornare al Menu Wii. RiftWii proporr
 msgid "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
 msgstr "Il gioco si è fermato. Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."
 
+msgid "{1} at {2}"
+msgstr "{1} a {2}"
+
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "Tieni premuto HOME per due secondi per uscire dal gioco."
 

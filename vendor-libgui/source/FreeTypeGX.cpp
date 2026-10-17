@@ -23,7 +23,7 @@
  * GPL-3.0-or-later: charToWideChar decodes UTF-8 (translations, game names); less memory for the menu;
  * InitFreeType takes a font collection's face and says when it can't read it (the Menu font setting);
  * FontHasChar (the Korean menu needs a font with Hangul); RenderTextCoverage (a GameCube game's crash
- * screen, drawn without GX).
+ * screen, drawn without GX: centred or left-aligned, narrowed for 16:9, its widest line measured).
  * Every change is in RiftWii's git history; NOTICE.md lists the origin. */
 
 #include "FreeTypeGX.h"
@@ -98,15 +98,17 @@ void DeinitFreeType()
 
 // RiftWii: through a size of its own, so the face's size, which the GUI's
 // glyph cache goes on using, is as it was afterwards.
-int RenderTextCoverage(const char* text, FT_UInt pixelSize, uint8_t* out, int width, int height)
+int RenderTextCoverage(const char* text, FT_UInt pixelSize, uint8_t* out, int width, int height,
+	FT_UInt pixelWidth, bool centred, int* widest)
 {
+	if (widest) *widest = 0;
 	if (!ftFace || !text || !out || width <= 0 || height <= 0) return 0;
 	FT_Size saved = ftFace->size, mine = nullptr;
 	if (FT_New_Size(ftFace, &mine) != 0) return 0;
 	FT_Activate_Size(mine);
 	// A bitmap-only face without this size: nothing drawn rather than
 	// glyphs at some other size overrunning the card.
-	if (FT_Set_Pixel_Sizes(ftFace, 0, pixelSize) != 0)
+	if (FT_Set_Pixel_Sizes(ftFace, pixelWidth, pixelSize) != 0)
 	{
 		FT_Activate_Size(saved);
 		FT_Done_Size(mine);
@@ -139,7 +141,8 @@ int RenderTextCoverage(const char* text, FT_UInt pixelSize, uint8_t* out, int wi
 			if (*end == L' ') { lastBreak = end; usedAtBreak = used; }
 		}
 		if (*end && *end != L'\n' && lastBreak) { end = lastBreak; used = usedAtBreak; }
-		int pen = (width - used) / 2;
+		int pen = centred ? (width - used) / 2 : 0;
+		if (widest && used > *widest) *widest = used;
 		const int baseline = lines * lineHeight + ascender;
 		for (const wchar_t* c = at; c < end; ++c)
 		{

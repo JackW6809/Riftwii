@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "riftwii/gccrash.hpp"
 
+#include <algorithm>
 #include <cstdio>
 
 #include "gc_rt.h"
@@ -77,6 +78,97 @@ bool describe_gc_crash(const std::vector<std::uint8_t>& trace, const std::string
             " failed), pad reads " + std::to_string(word(crash, GC_TR_PAD_READS)) + ", ARAM transfers " +
             std::to_string(word(crash, GC_TR_AR_DMAS)) + ", memory card reads " +
             std::to_string(word(crash, GC_TR_CARD_READS)) + "\n";
+    return true;
+}
+
+std::string gc_crash_piece_text(unsigned piece) {
+    if (piece < 16) return std::string(1, "0123456789ABCDEF"[piece]);
+    if (piece == GC_CRASH_PIECE_X) return "x";
+    // In gc_crash_name_piece's order. PowerPC's own names, kept in English
+    // like the addresses next to them; RiftWii's words around them are
+    // translated.
+    switch (piece - GC_CRASH_PIECE_NAMES) {
+        case 0: return "Machine check";
+        case 1: return "DSI";
+        case 2: return "ISI";
+        case 3: return "Alignment";
+        case 4: return "Program";
+        case 5: return "Float";
+        case 6: return "Breakpoint";
+        case 7: return "Protection";
+        case 8: return "Stray jump";
+        default: return "";
+    }
+}
+
+void gc_crash_details_layout(const std::string& game_id, const std::string& name_at_address,
+                             const std::string& version, std::vector<std::string>& texts,
+                             std::vector<std::uint8_t>& order) {
+    static const char kDot[] = " \xC2\xB7 ";  // a middle dot between spaces
+    const auto once = [](const std::string& text, const char* mark) {
+        const std::size_t at = text.find(mark);
+        return at != std::string::npos && text.find(mark, at + 1) == std::string::npos;
+    };
+    const bool usable = once(name_at_address, "{1}") && once(name_at_address, "{2}");
+    const std::string pattern = usable ? name_at_address : "{1} at {2}";
+    texts.clear();
+    order.clear();
+    // Words between the two items become one piece each.
+    std::string words = game_id + kDot;
+    const auto flush_words = [&] {
+        if (words.empty()) return;
+        order.push_back(static_cast<std::uint8_t>(GC_CRASH_PIECE_TEXT + texts.size()));
+        texts.push_back(words);
+        words.clear();
+    };
+    std::size_t at = 0;
+    while (at < pattern.size()) {
+        const std::size_t mark = pattern.find('{', at);
+        const bool item = mark != std::string::npos && mark + 2 < pattern.size() && pattern[mark + 2] == '}' &&
+                          (pattern[mark + 1] == '1' || pattern[mark + 1] == '2');
+        if (!item) {
+            const std::size_t end = mark == std::string::npos ? pattern.size() : mark + 1;
+            words += pattern.substr(at, end - at);
+            at = end;
+            continue;
+        }
+        words += pattern.substr(at, mark - at);
+        flush_words();
+        order.push_back(pattern[mark + 1] == '1' ? GC_CRASH_ITEM_NAME : GC_CRASH_ITEM_ADDRESS);
+        at = mark + 3;
+    }
+    words += kDot;
+    words += "RiftWii " + version;
+    flush_words();
+    order.push_back(GC_CRASH_ITEM_END);
+}
+
+void gc_crash_pack(const std::uint8_t* coverage, std::size_t pixels, std::uint8_t* packed) {
+    for (std::size_t i = 0; i < (pixels + 3) / 4; ++i) packed[i] = 0;
+    for (std::size_t i = 0; i < pixels; ++i) {
+        // Four levels: the edges keep some of their smoothing.
+        const unsigned level = (coverage[i] + 42u) / 85u;
+        packed[i / 4] |= static_cast<std::uint8_t>(level << (6 - 2 * (i % 4)));
+    }
+}
+
+bool gc_crash_strip_add(gc_crash_strip& strip, unsigned piece, const std::uint8_t* coverage, unsigned width,
+                        unsigned advance, unsigned& next) {
+    if (piece >= GC_CRASH_PIECES) return false;
+    strip.at[piece] = 0;
+    strip.advance[piece] = 0;
+    // The columns the blob copies: the advance and a little past it.
+    const unsigned columns = std::min(width, advance + GC_CRASH_PIECE_PAD);
+    if (advance == 0 || next + advance + GC_CRASH_PIECE_PAD > GC_CRASH_STRIP_W) return false;
+    for (unsigned y = 0; y < GC_CRASH_STRIP_H; ++y) {
+        for (unsigned x = 0; x < columns; ++x) {
+            const unsigned level = (coverage[y * width + x] + 42u) / 85u;
+            if (level != 0) gc_crash_raise(strip.coverage, GC_CRASH_STRIP_W, next + x, y, level);
+        }
+    }
+    strip.at[piece] = static_cast<std::uint16_t>(next);
+    strip.advance[piece] = static_cast<std::uint16_t>(advance);
+    next += advance + GC_CRASH_PIECE_PAD;
     return true;
 }
 

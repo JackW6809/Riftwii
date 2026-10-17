@@ -1151,10 +1151,11 @@ static u64 way_back_title(GcWayBack& kind, tikview& view) {
     return 0;
 }
 
-// The crash screen's message (SetGcCrashCard), packed as gc_rt.h says.
-static std::vector<std::uint8_t> g_crash_card;
-// Whether that message promises that A goes back (SetGcCrashCard).
-static bool g_crash_card_way_back = false;
+// The crash screen's card and strip (SetGcCrashScreen), as gc_crash.h
+// lays them out.
+static std::vector<std::uint8_t> g_crash_screen;
+// Whether its message promises that A goes back (SetGcCrashScreen).
+static bool g_crash_screen_way_back = false;
 
 GcWayBack FindGcWayBack() {
     GcWayBack kind;
@@ -1163,17 +1164,10 @@ GcWayBack FindGcWayBack() {
     return kind;
 }
 
-void SetGcCrashCard(std::vector<std::uint8_t> coverage, bool way_back) {
-    static_assert(kGcCrashCardW == GC_CRASH_CARD_W && kGcCrashCardH == GC_CRASH_CARD_H, "gc_rt.h's card size");
-    g_crash_card.clear();
-    g_crash_card_way_back = way_back;
-    if (coverage.size() != static_cast<std::size_t>(kGcCrashCardW) * kGcCrashCardH) return;
-    g_crash_card.assign(GC_CRASH_CARD_BYTES, 0);
-    for (std::size_t i = 0; i < coverage.size(); ++i) {
-        // Four levels: the edges keep some of their smoothing.
-        const unsigned level = (coverage[i] + 42u) / 85u;
-        g_crash_card[i / 4] |= static_cast<std::uint8_t>(level << (6 - 2 * (i % 4)));
-    }
+void SetGcCrashScreen(std::vector<std::uint8_t> screen, bool way_back) {
+    g_crash_screen.clear();
+    g_crash_screen_way_back = way_back;
+    if (screen.size() == GC_CRASH_SCREEN_BYTES) g_crash_screen = std::move(screen);
 }
 
 static void prepare_leave(gc_rt_context* ctx, std::uint32_t buf, bool test) {
@@ -1697,7 +1691,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const std::uint32_t stream_addr = mem2_take(sizeof(gc_rt_stream));
     const std::uint32_t trace_addr = mem2_take(512);
     const std::uint32_t bt_addr = mem2_take(sizeof(gc_bt));
-    const std::uint32_t crash_addr = mem2_take(GC_CRASH_CARD_BYTES);
+    const std::uint32_t crash_addr = mem2_take(GC_CRASH_SCREEN_BYTES);  // the card, then the strip
     const std::uint32_t runs_addr = mem2_take(runs_bytes);
     // An RVZ's reader: its state and the pieces of the RVZ on the card.
     const std::uint32_t rvz_state_bytes =
@@ -1763,9 +1757,9 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
              arena_hi, bi2_addr, di_regs, blob_addr, static_cast<unsigned>(h.size), blob_addr + h.context_offset,
              card_addr, leave_addr, moved_addr, stubs_addr, fst_addr, static_cast<unsigned>(fst_max));
         logf("GameCube: MEM2 0x%08x (%u bytes): bounce 0x%08x, stream 0x%08x (ring 0x%08x), trace 0x%08x, Wii "
-             "Remotes 0x%08x, crash message 0x%08x, %u run(s) 0x%08x\n",
+             "Remotes 0x%08x, crash screen 0x%08x (strip 0x%08x), %u run(s) 0x%08x\n",
              kGcMem2Data, static_cast<unsigned>(mem2_bytes), bounce_addr, stream_addr, adp_addr, trace_addr, bt_addr,
-             crash_addr, static_cast<unsigned>(placed.size()), runs_addr);
+             crash_addr, crash_addr + GC_CRASH_CARD_BYTES, static_cast<unsigned>(placed.size()), runs_addr);
         if (rvz)
             logf("GameCube: RVZ reader 0x%08x (%u bytes); buffers 0x%08x (%u bytes): decoder 0x%08x, stored group "
                  "0x%08x (%u bytes), the game's group 0x%08x and the stream's 0x%08x (%u bytes each)\n",
@@ -1981,13 +1975,13 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     prepare_leave(ctx, leave_addr, test_leave);
     ctx->crash_card = 0;
     // A message promising that A goes back is left out when there is no
-    // way back after all (/dev/es did not open): a white screen beats a
-    // promise A cannot keep.
-    const bool broken_promise = g_crash_card_way_back && ctx->leave_buf == 0;
-    if (broken_promise && !g_crash_card.empty())
+    // way back after all (/dev/es did not open): a plain blue screen beats
+    // a promise A cannot keep.
+    const bool broken_promise = g_crash_screen_way_back && ctx->leave_buf == 0;
+    if (broken_promise && !g_crash_screen.empty())
         logf("GameCube: the crash screen's message is left out, as it promises a way back there is not\n");
-    if (g_crash_card.size() == GC_CRASH_CARD_BYTES && !broken_promise) {
-        std::memcpy(staged(crash_addr), g_crash_card.data(), GC_CRASH_CARD_BYTES);
+    if (g_crash_screen.size() == GC_CRASH_SCREEN_BYTES && !broken_promise) {
+        std::memcpy(staged(crash_addr), g_crash_screen.data(), GC_CRASH_SCREEN_BYTES);
         ctx->crash_card = crash_addr;
     }
     ctx->runs = runs_addr;
@@ -2236,7 +2230,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
 
     LogClose();
     // The frame stays on screen until the game sets up its own video; a
-    // crash turns it white (gc_on_fatal).
+    // crash turns it blue (gc_on_fatal) when the VI's registers give none.
     const std::uint32_t xfb = reinterpret_cast<std::uint32_t>(VIDEO_GetCurrentFramebuffer());
     const std::uint32_t xfb_bytes = 640 * 480 * 2;
     ctx->xfb = xfb;

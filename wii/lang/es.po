@@ -1512,6 +1512,9 @@ msgstr "El juego se ha detenido. Pulsa A para volver al Menú de Wii. RiftWii of
 msgid "The game stopped. Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
 msgstr "El juego se ha detenido. Apaga la Wii y vuelve a encenderla. RiftWii ofrecerá enviar un informe del problema la próxima vez que se inicie."
 
+msgid "{1} at {2}"
+msgstr "{1} en {2}"
+
 msgid "Hold HOME for two seconds to leave the game."
 msgstr "Mantén HOME dos segundos para salir del juego."
 
