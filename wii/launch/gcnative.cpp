@@ -1347,6 +1347,11 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     const bool test_stream_only = stat("sd:/riftwii/gc/streamonly", &st_press) == 0;
     // And of 16:9's hook without the widening (GC_FLAG_WIDEN).
     const bool test_no_widen = stat("sd:/riftwii/gc/nowiden", &st_press) == 0;
+    // And of the ARAM addresses left as the SDK gives them in any game
+    // (sd:/riftwii/gc/keeparam), as gc_keeps_aram_addresses does for its
+    // list: tells whether a game's crash comes from the raised addresses
+    // without a build for it.
+    const bool test_keep_aram = stat("sd:/riftwii/gc/keeparam", &st_press) == 0;
     Fat32File file;
     if (!resolve_sd_file(image.path, file, error)) return false;
     // The game's view of the disc: the image, then the packs' window
@@ -1459,6 +1464,13 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     // Developer arguments left in bi2.bin move the game's ArenaHi (see the
     // layout above): worth a line, as a disc with them clears up to there.
     const std::uint32_t bi2_arg_offset = be32(&bi2[8]);
+    // What else of bi2.bin the game's start-up reads: the debug flag (2 or
+    // 3 has __start start the MetroTRK debugger), the simulated memory
+    // size and the controllers' spec, which a disc left with developer
+    // settings may hold too.
+    logf("GameCube: bi2 simulated memory 0x%08x, argument offset 0x%x, debug flag %u, pad spec %u\n",
+         static_cast<unsigned>(be32(&bi2[4])), static_cast<unsigned>(bi2_arg_offset),
+         static_cast<unsigned>(be32(&bi2[0xC])), static_cast<unsigned>(be32(&bi2[0x24])));
     if (bi2_arg_offset != 0)
         logf("GameCube: bi2 argument offset 0x%x: the game's __start sets ArenaHi from it (0x%08x), below the blob\n",
              static_cast<unsigned>(bi2_arg_offset), static_cast<unsigned>((bi2_addr + bi2_arg_offset + 4) & ~31u));
@@ -1733,7 +1745,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     std::vector<std::uint32_t> stub_words;
     // A game whose own checks need the SDK's ARAM addresses keeps them
     // (gxpatches.hpp's gc_keeps_aram_addresses).
-    const bool keep_aram = gc_keeps_aram_addresses(image.id);
+    const bool keep_aram = gc_keeps_aram_addresses(image.id) || test_keep_aram;
     const unsigned aram_raised =
         dsp_patched || keep_aram ? 0 : raise_aram_base(code, find_aram_check(code), stubs_addr, stub_words);
     for (std::size_t i = 0; i < stub_words.size(); ++i) store32(stubs_addr + 4 * i, stub_words[i]);
@@ -1741,6 +1753,9 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
     ICInvalidateRange(reinterpret_cast<void*>(stubs_addr), kStubBytes);
     if (dsp_patched)
         logf("GameCube: %u sound program(s) patched to read ARAM from MEM2 (a Wii)\n", dsp_patched);
+    else if (keep_aram && !gc_keeps_aram_addresses(image.id))
+        logf("GameCube: ARAM addresses left as the SDK gives them, as sd:/riftwii/gc/keeparam asks (the sound "
+             "may play wrong)\n");
     else if (keep_aram)
         logf("GameCube: ARAM addresses left as the SDK gives them: %s checks them against its own limit "
              "(its sound may play wrong)\n", image.id.c_str());

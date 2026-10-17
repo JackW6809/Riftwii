@@ -1189,6 +1189,10 @@ uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type
 
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
     const uint32_t n = ctx->pad_reads++;
+    /* The four PADStatus (12 bytes each) the game asked for, read and
+     * written below: anything else (a function found as PADRead that takes
+     * other arguments) is left alone rather than followed. */
+    if (status < 0x80000000u || status > 0x81800000u - 4u * 12u || (status & 1u) != 0) status = 0;
     gc_guard(ctx);  /* once a frame: IOS rewrites its counter there all the time */
     gc_stream_fetch(ctx);  /* the music ring's top-up, once a frame */
     if (ctx->bt && status != 0) {
