@@ -56,6 +56,12 @@ std::vector<std::string> parse_home_order(const std::string& text) {
     return order;
 }
 
+std::string home_order_whole_lines(const std::string& head, bool cut) {
+    if (!cut) return head;
+    const std::size_t lastNewline = head.rfind('\n');
+    return lastNewline == std::string::npos ? std::string() : head.substr(0, lastNewline + 1);
+}
+
 std::string serialize_home_order(const std::vector<std::string>& order) {
     std::string out = "# RiftWii Home order: one game a line (drive:ID), the first tile first\n";
     const std::size_t count = std::min(order.size(), kHomeOrderMaxGames);

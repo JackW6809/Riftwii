@@ -1590,6 +1590,16 @@ T = {
         "1: 表示   2: 設定   -/+: ページ   B+A: 動かす",
         "1: visão   2: configurações   -/+: páginas   B+A: mover",
         "1: vista   2: impostazioni   -/+: pagine   B+A: sposta"),
+    "1: view  2: settings  -/+: pages  B: A to Z  B+A: move": (
+        "1: vista  2: ajustes  -/+: páginas  B: A-Z  B+A: mover",
+        "1: 表示  2: 設定  -/+: ページ  B: A〜Z  B+A: 動かす",
+        "1: visão  2: config.  -/+: páginas  B: A-Z  B+A: mover",
+        "1: vista  2: impost.  -/+: pagine  B: A-Z  B+A: sposta"),
+    "1: view   2: settings   -/+: pages": (
+        "1: vista   2: ajustes   -/+: páginas",
+        "1: 表示   2: 設定   -/+: ページ",
+        "1: visão   2: configurações   -/+: páginas",
+        "1: vista   2: impostazioni   -/+: pagine"),
     "The values were not saved: {1}": (
         "Los valores no se guardaron: {1}",
         "値は保存されませんでした: {1}",
@@ -2889,6 +2899,10 @@ KO = {
         "십자 버튼: 이동   A: 내려놓기   B: 되돌리기",
     "1: view   2: settings   -/+: pages   B+A: move":
         "1: 보기   2: 설정   -/+: 페이지   B+A: 이동",
+    "1: view  2: settings  -/+: pages  B: A to Z  B+A: move":
+        "1: 보기  2: 설정  -/+: 페이지  B: 가나다순  B+A: 이동",
+    "1: view   2: settings   -/+: pages":
+        "1: 보기   2: 설정   -/+: 페이지",
     "The values were not saved: {1}":
         "값이 저장되지 않았습니다: {1}",
     "This cheat has values to fill in (the X's): press A to set them.":
@@ -4156,6 +4170,10 @@ FR = {
         "Croix : déplacer   A : poser   B : remettre",
     "1: view   2: settings   -/+: pages   B+A: move":
         "1 : vue   2 : paramètres   -/+ : pages   B+A : déplacer",
+    "1: view  2: settings  -/+: pages  B: A to Z  B+A: move":
+        "1 : vue  2 : réglages  -/+ : pages  B : A-Z  B+A : déplacer",
+    "1: view   2: settings   -/+: pages":
+        "1 : vue   2 : paramètres   -/+ : pages",
     "The values were not saved: {1}":
         "Les valeurs n'ont pas été enregistrées : {1}",
     "This cheat has values to fill in (the X's): press A to set them.":

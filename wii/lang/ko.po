@@ -1590,6 +1590,12 @@ msgstr "십자 버튼: 이동   A: 내려놓기   B: 되돌리기"
 msgid "1: view   2: settings   -/+: pages   B+A: move"
 msgstr "1: 보기   2: 설정   -/+: 페이지   B+A: 이동"
 
+msgid "1: view  2: settings  -/+: pages  B: A to Z  B+A: move"
+msgstr "1: 보기  2: 설정  -/+: 페이지  B: 가나다순  B+A: 이동"
+
+msgid "1: view   2: settings   -/+: pages"
+msgstr "1: 보기   2: 설정   -/+: 페이지"
+
 msgid "The values were not saved: {1}"
 msgstr "값이 저장되지 않았습니다: {1}"
 

@@ -1590,6 +1590,12 @@ msgstr "十字ボタン: 動かす   A: 置く   B: 元に戻す"
 msgid "1: view   2: settings   -/+: pages   B+A: move"
 msgstr "1: 表示   2: 設定   -/+: ページ   B+A: 動かす"
 
+msgid "1: view  2: settings  -/+: pages  B: A to Z  B+A: move"
+msgstr "1: 表示  2: 設定  -/+: ページ  B: A〜Z  B+A: 動かす"
+
+msgid "1: view   2: settings   -/+: pages"
+msgstr "1: 表示   2: 設定   -/+: ページ"
+
 msgid "The values were not saved: {1}"
 msgstr "値は保存されませんでした: {1}"
 

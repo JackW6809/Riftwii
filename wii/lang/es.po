@@ -1590,6 +1590,12 @@ msgstr "Cruceta: mover   A: dejarlo   B: devolverlo"
 msgid "1: view   2: settings   -/+: pages   B+A: move"
 msgstr "1: vista   2: ajustes   -/+: páginas   B+A: mover"
 
+msgid "1: view  2: settings  -/+: pages  B: A to Z  B+A: move"
+msgstr "1: vista  2: ajustes  -/+: páginas  B: A-Z  B+A: mover"
+
+msgid "1: view   2: settings   -/+: pages"
+msgstr "1: vista   2: ajustes   -/+: páginas"
+
 msgid "The values were not saved: {1}"
 msgstr "Los valores no se guardaron: {1}"
 

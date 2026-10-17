@@ -947,11 +947,19 @@ static bool MoveHomeGame(const FrontendState& state, std::vector<GridItem>& item
 }
 
 // Games can be moved where the tiles are the drives' in Home's order:
-// not in a search, nor in Recently played (always latest first).
+// not in a search, nor in Recently played (always latest first), nor on
+// the shelf views, which have no grid to move them in.
+static bool HomeCanMove()
+{
+	const std::string& tiles = riftwii::wii::Settings().home_tiles;
+	const bool shelf = tiles == "shelf" || tiles == "carousel" || tiles == "covers3d";
+	return g_search.empty() && g_filter != Filter::Recent && !shelf;
+}
+
 static void SetHomeMovable(GuiGameGrid& grid, const std::vector<HomeEntry>& entries)
 {
 	const bool discFirst = !entries.empty() && entries[0].kind == HomeEntry::Kind::Disc;
-	grid.SetMovable(g_search.empty() && g_filter != Filter::Recent, discFirst ? 1 : 0);
+	grid.SetMovable(HomeCanMove(), discFirst ? 1 : 0);
 }
 
 // The bottom bar with the clock's bump.
@@ -1623,9 +1631,14 @@ static std::string HomeStatusLines(const FrontendState& state, const std::vector
 		return tr("No favourite is on these drives. Mark games on their page. Press 1 for all games.");
 	if (games == 0) return "No games found (usb:/wbfs, usb:/games, sd:/wbfs, sd:/games)";
 	const std::string count = games == 1 ? std::string(tr("1 game")) : tr("{1} games", {std::to_string(games)});
-	// B goes by letters in A to Z only; in another order, it picks a game up (with A).
-	const char* keys = riftwii::wii::Settings().home_sort == "az" ? tr("1: view   2: settings   -/+: pages   B: A to Z")
-		: tr("1: view   2: settings   -/+: pages   B+A: move");
+	// What B does here: letters in A to Z order (GuiGameGrid::LetterKeys),
+	// and with A it picks a game up where games can be moved.
+	const bool letters = riftwii::wii::Settings().home_sort == "az";
+	const bool moving = HomeCanMove();
+	const char* keys = letters && moving ? tr("1: view  2: settings  -/+: pages  B: A to Z  B+A: move")
+		: letters ? tr("1: view   2: settings   -/+: pages   B: A to Z")
+		: moving ? tr("1: view   2: settings   -/+: pages   B+A: move")
+		: tr("1: view   2: settings   -/+: pages");
 	return std::string(tr(FilterLabel(g_filter))) + ": " + count + "\n" + keys;
 }
 

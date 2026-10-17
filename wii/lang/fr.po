@@ -1590,6 +1590,12 @@ msgstr "Croix : déplacer   A : poser   B : remettre"
 msgid "1: view   2: settings   -/+: pages   B+A: move"
 msgstr "1 : vue   2 : paramètres   -/+ : pages   B+A : déplacer"
 
+msgid "1: view  2: settings  -/+: pages  B: A to Z  B+A: move"
+msgstr "1 : vue  2 : réglages  -/+ : pages  B : A-Z  B+A : déplacer"
+
+msgid "1: view   2: settings   -/+: pages"
+msgstr "1 : vue   2 : paramètres   -/+ : pages"
+
 msgid "The values were not saved: {1}"
 msgstr "Les valeurs n'ont pas été enregistrées : {1}"
 

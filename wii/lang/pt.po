@@ -1590,6 +1590,12 @@ msgstr "Direcional: mover   A: deixar   B: devolver"
 msgid "1: view   2: settings   -/+: pages   B+A: move"
 msgstr "1: visão   2: configurações   -/+: páginas   B+A: mover"
 
+msgid "1: view  2: settings  -/+: pages  B: A to Z  B+A: move"
+msgstr "1: visão  2: config.  -/+: páginas  B: A-Z  B+A: mover"
+
+msgid "1: view   2: settings   -/+: pages"
+msgstr "1: visão   2: configurações   -/+: páginas"
+
 msgid "The values were not saved: {1}"
 msgstr "Os valores não foram salvos: {1}"
 
