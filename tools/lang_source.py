@@ -1431,11 +1431,11 @@ T = {
     "Loading speed": ("Carga", "読み込み速度", "Carregamento", "Caricamento"),
     "Fast": ("Rápida", "高速", "Rápida", "Veloce"),
     "As on a GameCube (slower)": ("Como en una GameCube (más lenta)", "ゲームキューブと同じ (遅い)", "Como numa GameCube (mais lenta)", "Come su un GameCube (più lenta)"),
-    "Sharper picture": ("Imagen más nítida", "くっきりした画面", "Imagem mais nítida", "Immagine più nitida"),
+    "480p picture": ("Imagen en 480p", "480pの映像", "Imagem em 480p", "Immagine in 480p"),
     "On (480p)": ("Sí (480p)", "オン (480p)", "Sim (480p)", "Sì (480p)"),
     "Widescreen": ("Panorámico", "ワイド画面", "Widescreen", "Panoramico"),
     "480p is for US and Japanese games; this European game keeps its own picture.": ("480p es para juegos de EE. UU. y Japón; este juego europeo mantiene su propia imagen.", "480pはアメリカと日本のゲーム用で、このヨーロッパのゲームはゲームのままの映像になります。", "480p é para jogos dos EUA e do Japão; este jogo europeu mantém a sua própria imagem.", "Il 480p è per i giochi americani e giapponesi; questo gioco europeo mantiene la sua immagine."),
-    "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first.": ("Da una imagen más nítida y estable con un cable por componentes o HDMI, incluso en juegos sin modo 480p, y algunos preguntan antes.", "コンポーネントケーブルかHDMIケーブルで、くっきり安定した映像にします (480pのないゲームも対象で、先に確認を求めるゲームもあります)。", "Dá uma imagem mais nítida e estável com cabo componente ou HDMI, mesmo em jogos sem modo 480p, e alguns perguntam antes.", "Dà un'immagine più nitida e stabile con un cavo component o HDMI, anche nei giochi senza modo 480p, e alcuni chiedono prima."),
+    "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first.": ("Da una imagen más nítida y estable con un cable por componentes, incluso en juegos sin modo 480p; algunos preguntan antes.", "コンポーネントケーブルで、くっきり安定した映像にします。480pのないゲームも対象で、先に確認を求めるゲームもあります。", "Dá uma imagem mais nítida e estável com cabo componente, mesmo em jogos sem modo 480p; alguns perguntam antes.", "Dà un'immagine più nitida e stabile con un cavo component, anche nei giochi senza modo 480p; alcuni chiedono prima."),
     "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.": ("Experimental: llena una TV panorámica con el mundo del juego mientras los menús y el texto siguen estirados, y en una Wii algunos juegos muestran colores erróneos o una imagen doble.", "試験的: メニューと文字は横に伸びたまま、ゲームの世界をワイドテレビいっぱいに広げます (Wiiでは一部のゲームで色がおかしくなったり、画面が二重になったりします)。", "Experimental: preenche uma TV widescreen com o mundo do jogo, enquanto menus e texto continuam esticados, e numa Wii alguns jogos mostram cores erradas ou imagem dupla.", "Sperimentale: riempie una TV panoramica con il mondo di gioco, mentre menu e testi restano allungati, e su una Wii alcuni giochi mostrano colori sbagliati o un'immagine doppia."),
     "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).": ("El idioma en que se juega este juego, sin cambiar el ajuste de la Wii (la mayoría de los juegos de EE. UU. y Japón tienen solo uno).", "このゲームを遊ぶ言語で、Wii本体の設定は変わりません (アメリカと日本のゲームの多くは1言語だけです)。", "O idioma em que este jogo é jogado, sem mudar a configuração da Wii (a maioria dos jogos dos EUA e do Japão tem só um).", "La lingua in cui si gioca questo gioco, senza cambiare l'impostazione della Wii (la maggior parte dei giochi americani e giapponesi ne ha una sola)."),
     "Controls": ("Controles", "操作", "Controlos", "Comandi"),
@@ -3007,16 +3007,16 @@ KO = {
         "빠르게",
     "As on a GameCube (slower)":
         "게임큐브처럼 (느림)",
-    "Sharper picture":
-        "더 선명한 화면",
+    "480p picture":
+        "480p 화면",
     "On (480p)":
         "켬 (480p)",
     "Widescreen":
         "와이드 화면",
     "480p is for US and Japanese games; this European game keeps its own picture.":
         "480p는 미국과 일본 게임용이며, 이 유럽 게임은 원래 화면을 그대로 씁니다.",
-    "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first.":
-        "컴포넌트 또는 HDMI 케이블에서 더 선명하고 안정적인 화면을 보여 주며, 480p가 없는 게임도 해당되고 일부 게임은 먼저 물어봅니다.",
+    "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first.":
+        "컴포넌트 케이블에서 더 선명하고 안정적인 화면을 보여 주며, 480p가 없는 게임도 해당됩니다. 일부 게임은 먼저 물어봅니다.",
     "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.":
         "실험적: 메뉴와 글자는 늘어난 채로 게임 세계를 와이드 TV에 가득 채우며, Wii에서는 일부 게임에서 색이 잘못되거나 화면이 겹쳐 보일 수 있습니다.",
     "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).":
@@ -4728,16 +4728,16 @@ FR = {
         "Rapide",
     "As on a GameCube (slower)":
         "Comme sur une GameCube (plus lente)",
-    "Sharper picture":
-        "Image plus nette",
+    "480p picture":
+        "Image en 480p",
     "On (480p)":
         "Activé (480p)",
     "Widescreen":
         "Écran large",
     "480p is for US and Japanese games; this European game keeps its own picture.":
         "Le 480p est pour les jeux américains et japonais ; ce jeu européen garde sa propre image.",
-    "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first.":
-        "Donne une image plus nette et plus stable avec un câble composante ou HDMI, même dans les jeux sans mode 480p, et certains posent d'abord la question.",
+    "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first.":
+        "Donne une image plus nette et plus stable avec un câble composante, même dans les jeux sans mode 480p ; certains posent d'abord la question.",
     "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.":
         "Expérimental : remplit une TV grand écran avec le monde du jeu pendant que les menus et le texte restent étirés, et sur une Wii certains jeux montrent des couleurs fausses ou une image doublée.",
     "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).":

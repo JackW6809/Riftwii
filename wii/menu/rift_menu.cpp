@@ -4338,7 +4338,7 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		refs.push_back({W::GcCard});
 		FlowRow progressive;
 		progressive.kind = FlowRow::Kind::Option;
-		progressive.label = tr("Sharper picture");
+		progressive.label = tr("480p picture");
 		// "global" is shown as what it comes to now, as a Wii game's rows
 		// show Settings' choice.
 		const riftwii::GcConsoleSettings console = riftwii::wii::GcConsoleNow();
@@ -4357,7 +4357,7 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 		widescreen.label = tr("Widescreen");
 		widescreen.on = game.gc_widescreen != "global";
 		const std::string widescreenNow = riftwii::gc_widescreen_on(game, console)
-			? std::string("16:9") : std::string("4:3");
+			? std::string("16:9") : std::string(tr("Game's own"));
 		widescreen.value = game.gc_widescreen == "global" ? tr("Default ({1})", {widescreenNow}) : widescreenNow;
 		rows.push_back(widescreen);
 		refs.push_back({W::GcWidescreen});
@@ -4913,7 +4913,7 @@ static bool AskGc480p()
 {
 	const std::string body = std::string(tr("Only with a component or HDMI cable: without one the picture stays black.")) +
 		" " + GcLeaveLine();
-	return ShowPopup(tr("Sharper picture"), body, tr("Turn on"), tr("Cancel")) == 0;
+	return ShowPopup(tr("480p picture"), body, tr("Turn on"), tr("Cancel")) == 0;
 }
 
 // The controls before the first GameCube game starts from this card
@@ -7156,7 +7156,7 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id))
 				say(tr("480p is for US and Japanese games; this European game keeps its own picture."));
 			else if (ref.what == RowRef::What::GcProgressive)
-				say(tr("Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first."));
+				say(tr("Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first."));
 			else if (ref.what == RowRef::What::GcWidescreen)
 				say(tr("Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."));
 			else if (ref.what == RowRef::What::GcLanguage)

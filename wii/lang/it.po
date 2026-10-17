@@ -1653,8 +1653,8 @@ msgstr "Veloce"
 msgid "As on a GameCube (slower)"
 msgstr "Come su un GameCube (più lenta)"
 
-msgid "Sharper picture"
-msgstr "Immagine più nitida"
+msgid "480p picture"
+msgstr "Immagine in 480p"
 
 msgid "On (480p)"
 msgstr "Sì (480p)"
@@ -1665,8 +1665,8 @@ msgstr "Panoramico"
 msgid "480p is for US and Japanese games; this European game keeps its own picture."
 msgstr "Il 480p è per i giochi americani e giapponesi; questo gioco europeo mantiene la sua immagine."
 
-msgid "Gives a sharper, steadier picture on a component or HDMI cable, even in games with no 480p mode, and some games ask first."
-msgstr "Dà un'immagine più nitida e stabile con un cavo component o HDMI, anche nei giochi senza modo 480p, e alcuni chiedono prima."
+msgid "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first."
+msgstr "Dà un'immagine più nitida e stabile con un cavo component, anche nei giochi senza modo 480p; alcuni chiedono prima."
 
 msgid "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."
 msgstr "Sperimentale: riempie una TV panoramica con il mondo di gioco, mentre menu e testi restano allungati, e su una Wii alcuni giochi mostrano colori sbagliati o un'immagine doppia."
