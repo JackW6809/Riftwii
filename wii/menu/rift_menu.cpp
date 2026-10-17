@@ -2001,6 +2001,21 @@ public:
 		return -1;
 	}
 	void SetTitle(const std::string& title) { titleTxt.SetText(title.c_str()); }
+	// A title too long for the band at 24 points (a controller's name on
+	// the GameCube controls) is drawn smaller, down to 18, rather than
+	// cut short.
+	void SetTitleFitted(const std::string& title)
+	{
+		const int room = 528 + 2 * extra;
+		titleTxt.SetText(title.c_str());
+		int size = 24;
+		titleTxt.SetFontSize(size);
+		while (size > 18 && titleTxt.GetTextWidth() > room) {
+			size -= 2;
+			titleTxt.SetFontSize(size);
+		}
+		titleTxt.SetMaxWidth(room);  // also drops the text drawn at the old size
+	}
 private:
 	// Centred, it sits in the middle of the room between the title band
 	// and the buttons, as the Wii's message does (libwiigui measures
@@ -2163,14 +2178,16 @@ class ProgressPanel {
 public:
 	ProgressPanel(PopupBox& box, const std::string& coverId)
 		: left(56 - box.Extra()), right(584 + box.Extra()),
-		  cover(coverId, left, 160, kCoverW, kCoverH), percentTxt("0%", 36, skin::kInk),
-		  bar(left + kCoverW + 24, 208, right - (left + kCoverW + 24)), timeTxt("", 15, skin::kInkSoft),
+		  cover(coverId, left, PopupBox::kBodyY, kCoverW, kCoverH), percentTxt("0%", 36, skin::kInk),
+		  bar(left + kCoverW + 24, PopupBox::kBodyY + 46, right - (left + kCoverW + 24)), timeTxt("", 15, skin::kInkSoft),
 		  stageTxt("", 15, skin::kInkSoft), start(gettime())
 	{
+		// From the body's top down; the stage's two lines end above the
+		// buttons (PopupBox::kButtonY), which they touched at 4:3.
 		const int textX = left + kCoverW + 24;
-		Place(percentTxt, textX, 160);
-		Place(timeTxt, textX, 230);
-		Place(stageTxt, textX, 256);
+		Place(percentTxt, textX, PopupBox::kBodyY);
+		Place(timeTxt, textX, PopupBox::kBodyY + 66);
+		Place(stageTxt, textX, PopupBox::kBodyY + 90);
 		stageTxt.SetWrap(true, right - textX, 2);
 		box.Append(&cover);
 		box.Append(&percentTxt);
@@ -4547,12 +4564,13 @@ static bool AskGcBuild(const std::string& name, const std::string& originalName,
 	PopupBox box(title, body, canBuild ? tr("Build it") : tr("OK"), canBuild ? tr("Not now") : "");
 	// The covers on the right, the text beside them.
 	const int coversX = 584 + box.Extra() - 2 * 64 - 28;
-	SmallCover from(originalId, coversX, 164, 64, 90);
-	SmallCover to(id, coversX + 64 + 28, 164, 64, 90);
+	const int coversY = PopupBox::kBodyY + 6;
+	SmallCover from(originalId, coversX, coversY, 64, 90);
+	SmallCover to(id, coversX + 64 + 28, coversY, 64, 90);
 	// The theme's own right arrow (the banner view's), at about the gap's
 	// width; skin::Draw scales about the picture's middle, so its 44x44 box
 	// is placed with its middle on the gap's and the covers' middles.
-	SkinMark arrow(skin::arrowRight, coversX + 64 + 14 - 22, 164 + 45 - 22, 0.6f);
+	SkinMark arrow(skin::arrowRight, coversX + 64 + 14 - 22, coversY + 45 - 22, 0.6f);
 	// The text runs from 56 - Extra() to 16 short of the covers; Add counts
 	// Extra() in itself.
 	box.Add(&from, coversX - 16 - 56);
@@ -4686,7 +4704,13 @@ public:
 			names[i]->Draw();
 		}
 	}
-	static constexpr int kBadge = 24, kTop = 162, kRow = 26;
+	// Five rows (a Classic Controller's ten buttons) and the leave line
+	// under them fit the popup's body, from its top (PopupBox::kBodyY) to
+	// kLeaveY: rows a little closer than the pictures' 24 (they have a
+	// clear margin of their own). A picture smaller than 24 would be too
+	// small to read, and GX takes no size that is not a multiple of 4.
+	static constexpr int kBadge = 24, kTop = PopupBox::kBodyY, kRow = 23;
+	static constexpr int kLeaveY = PopupBox::kButtonY - 10 - 18;  // its 15-point line ends above the buttons
 private:
 	std::vector<Pair> pairs;
 	std::vector<std::unique_ptr<GuiText>> labels, names;
@@ -4748,23 +4772,28 @@ static bool ShowGcControls(bool starting)
 	const auto title = [&](std::size_t i) { return std::string(tr("GameCube controls: {1}", {cards[i].title})); };
 	const auto body = [&](std::size_t i) { return cards[i].pairs.empty() ? ownButtons : std::string(); };
 	PopupBox box(title(0), body(0), starting ? tr("Play") : tr("OK"), starting ? tr("Back") : "");
+	const int left = 56 - box.Extra(), right = 584 + box.Extra();
 	// Every card's table and leave line made at once; only the shown
 	// card's are visible.
 	std::vector<std::unique_ptr<GcControlsTable>> tables;
 	std::vector<std::unique_ptr<GuiText>> leaves;
 	for (const GcControlsCard& card : cards) {
-		tables.emplace_back(new GcControlsTable(card.pairs, 56 - box.Extra(), 584 + box.Extra()));
+		tables.emplace_back(new GcControlsTable(card.pairs, left, right));
 		leaves.emplace_back(new GuiText(card.leave.c_str(), 15, skin::kInkSoft));
-		Place(*leaves.back(), 56 - box.Extra(), 290);
+		Place(*leaves.back(), left, GcControlsTable::kLeaveY);
 		box.Append(tables.back().get());
 		box.Append(leaves.back().get());
 	}
+	// The dots in the body's top right corner, beside the table's short
+	// first row: in the title band they ran into a long title.
 	GuiText dots(CardDots(cards.size(), 0).c_str(), 14, skin::kInkSoft);
 	dots.SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
-	dots.SetPosition(-(56 - box.Extra()), 126);
-	SkinButton prevBtn(skin::arrowLeft, skin::arrowLeftOver, 2, 2 - box.Extra(), 200, nullptr,
+	dots.SetPosition(-left, PopupBox::kBodyY);
+	// The arrows on the box's sides, level with the middle of its body.
+	const int arrowY = (PopupBox::kBodyY + PopupBox::kButtonY - 10) / 2 - skin::arrowLeft.h / 2;
+	SkinButton prevBtn(skin::arrowLeft, skin::arrowLeftOver, 2, 2 - box.Extra(), arrowY, nullptr,
 		WPAD_BUTTON_LEFT | WPAD_CLASSIC_BUTTON_LEFT, PAD_BUTTON_LEFT, WIIDRC_BUTTON_LEFT);
-	SkinButton nextBtn(skin::arrowRight, skin::arrowRightOver, 2, 594 + box.Extra(), 200, nullptr,
+	SkinButton nextBtn(skin::arrowRight, skin::arrowRightOver, 2, 594 + box.Extra(), arrowY, nullptr,
 		WPAD_BUTTON_RIGHT | WPAD_CLASSIC_BUTTON_RIGHT, PAD_BUTTON_RIGHT, WIIDRC_BUTTON_RIGHT);
 	if (cards.size() > 1) {
 		box.Append(&dots);
@@ -4778,7 +4807,7 @@ static bool ShowGcControls(bool starting)
 			tables[c]->SetVisible(c == i);
 			leaves[c]->SetVisible(c == i);
 		}
-		box.SetTitle(title(i));
+		box.SetTitleFitted(title(i));
 		box.SetBody(body(i));
 		dots.SetText(CardDots(cards.size(), i).c_str());
 	};
@@ -5039,9 +5068,11 @@ static int ChooseTwo(const std::string& title, const std::string& body, const st
 	tiles[0].x = 56;
 	tiles[1].x = 332;
 	for (TileSpec& t : tiles) {
-		t.y = 238;
 		t.w = 252;
 		t.h = 64;
+		// Just above the buttons, as the code mod's start choice: at 238
+		// they touched Back.
+		t.y = PopupBox::kButtonY - 14 - t.h;
 	}
 	tiles[0].label = label0;
 	tiles[0].value = value0;
