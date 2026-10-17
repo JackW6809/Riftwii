@@ -35,6 +35,7 @@
 #include "menuios.hpp"
 #include "log.hpp"
 #include "memlimits.hpp"
+#include "menumusic.hpp"
 #include "netsock.hpp"
 #include "riftwii/mempatch.hpp"
 #include "riftwii/nandcheck.hpp"
@@ -2916,6 +2917,9 @@ bool boot_game(const DiscProbe& probe, BootOptions options, std::string& error) 
         }
     }
 
+    // The menu's music ends here, while the log is still open to say so:
+    // past this point IOS is reloaded or the game loads over RiftWii.
+    LaunchMusicEnd("the game is loaded next");
     // Everything IOS holds for us dies with a reload: the Wii Remote stack
     // (which also saves its pairings to NAND on shutdown, so it must go
     // while IPC is still alive), the log, DI and the SD card. With the

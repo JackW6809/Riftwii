@@ -43,6 +43,7 @@
 #include "riftwii/wiicrypt.hpp"
 #include "otpkey.hpp"
 #include "memlimits.hpp"
+#include "menumusic.hpp"
 #include "umsdev.hpp"
 #include "gcadapter.hpp"
 #include "netsock.hpp"
@@ -1811,6 +1812,7 @@ bool activate_disc_cios(int cios_slot, const char* log_path, std::string& error,
         }
         logf("Disc: reload IOS%d for %s; releasing Wii Remotes, USB, SD and DI\n", slot, purpose);
         mem::CheckHeap("before the cIOS reload");
+        LaunchMusicEnd("the disc's cIOS is loaded next");
         LogClose();
         const std::string released = release_for_reload();
         const ReloadResult r = reload_ios(slot, error, true);
@@ -1926,6 +1928,7 @@ bool activate_image_game(const ImageGame& game, int cios_slot, void*& storage, s
     // hardware access, which an IOS reload ends: the running IOS's ES is
     // told to leave it on for the cIOS.
     if (block_ios_reload) keep_hardware_access(device_name(game.device));
+    LaunchMusicEnd("the game's cIOS is loaded next");
     LogClose();
     const std::string released = release_for_reload();
     const PadPairings pads_before = ReadPadPairings();

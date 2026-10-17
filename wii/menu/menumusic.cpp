@@ -3,11 +3,14 @@
 #include "menumusic.hpp"
 
 #include <gccore.h>
+#include <ogc/lwp_watchdog.h>
+#include <unistd.h>
 
 #include <cstdio>
 #include <string>
 #include <vector>
 
+#include "audio.h"
 #include "loadersettings.hpp"
 #include "log.hpp"
 #include "menutheme.hpp"
@@ -19,6 +22,10 @@ namespace {
 
 constexpr long kMaxMusicBytes = 6 * 1024 * 1024;
 constexpr int kVolume = 110;  // of 255: under the clicks, not over them
+// The fade at the end of a launch: half a second, in 25 steps of 20 ms,
+// each too small a drop in volume to be heard as a step.
+constexpr int kFadeSteps = 25;
+constexpr int kFadeStepUs = 20000;
 
 const char* const kMusicFiles[] = {"sd:/riftwii/music.ogg", "sd:/apps/riftwii/music.ogg"};
 
@@ -26,6 +33,7 @@ u8* g_music = nullptr;
 long g_bytes = 0;
 bool g_tried = false;
 bool g_playing = false;
+bool g_kept_for_launch = false;
 
 // Reads the first music file there is into MEM2 (not the MEM1 heap,
 // which packs and scans need).
@@ -77,6 +85,7 @@ void MenuMusicStart() {
 }
 
 void MenuMusicStop() {
+    g_kept_for_launch = false;
     if (!g_playing) return;
     StopOgg();
     g_playing = false;
@@ -85,6 +94,32 @@ void MenuMusicStop() {
 bool MenuMusicFound() {
     Load();
     return g_music != nullptr;
+}
+
+bool MenuMusicKeepForLaunch() {
+    if (!g_playing) return false;
+    // The decoder runs on its own thread from the file in MEM2 and the
+    // mixer on the audio interrupt, so neither needs the GUI thread, which
+    // is halted from here on, nor the card, which the launch reads.
+    g_kept_for_launch = true;
+    return true;
+}
+
+void LaunchMusicEnd(const char* why) {
+    if (!g_kept_for_launch) return;
+    g_kept_for_launch = false;
+    const u64 start = gettime();
+    for (int step = kFadeSteps - 1; step >= 0; --step) {
+        SetVolumeOgg(kVolume * step / kFadeSteps);
+        usleep(kFadeStepUs);
+    }
+    // The decoder's thread is joined and Tremor's memory freed here; the
+    // mixer goes with the audio, before anything the next IOS or the game
+    // could find still running.
+    MenuMusicStop();
+    ShutdownAudio();
+    logf("Menu music: faded out in %u ms (%s)\n",
+         static_cast<unsigned>(ticks_to_millisecs(gettime() - start)), why);
 }
 
 }  // namespace riftwii::wii
