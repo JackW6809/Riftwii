@@ -1571,10 +1571,13 @@ static std::string HomeStatus(const FrontendState& state, const std::vector<Grid
 static std::string HomeStatusLines(const FrontendState& state, const std::vector<GridItem>& items)
 {
 	if (!g_homeNotice.empty()) return g_homeNotice;
-	// The games shown: the disc drive's tile, when it is there, is not one.
-	std::size_t games = 0;
-	// Games, not tiles: a profile is one of its game's.
-	for (const GridItem& item : items) games += item.badge != "DISC" && !item.profile;
+	// The games shown: the disc drive's tile, when it is there, is not one,
+	// and a game's tiles (its own and its profiles') are one game. A view
+	// showing only a game's profiles is not empty.
+	std::set<std::string> shownGames;
+	for (const GridItem& item : items)
+		if (item.badge != "DISC") shownGames.insert(item.id);
+	const std::size_t games = shownGames.size();
 	std::string status;
 	for (const std::string& p : {ShortSourceProblem("SD", state.sd_catalog), ShortSourceProblem("USB", state.usb_catalog)}) {
 		if (p.empty()) continue;
