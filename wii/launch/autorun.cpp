@@ -18,7 +18,6 @@
 #include <sstream>
 
 #include "boot.hpp"
-#include "menumusic.hpp"
 #include "channel.hpp"
 #include "di.hpp"
 #include "frontend.hpp"
@@ -27,6 +26,7 @@
 #include "log.hpp"
 #include "memlimits.hpp"
 #include "menuios.hpp"
+#include "menumusic.hpp"
 #include "modplan.hpp"
 #include "netpacks.hpp"
 #include "sdfile.hpp"
