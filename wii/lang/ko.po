@@ -1554,26 +1554,11 @@ msgstr "고른 날의 저장 데이터 상태로 되돌립니다."
 msgid "Go back to how the shared memory card was on a day you pick, for every game on it."
 msgstr "고른 날의 공유 메모리 카드 상태로 되돌립니다. 카드의 모든 게임이 되돌아갑니다."
 
-msgid "No older saves yet"
-msgstr "아직 이전 저장 데이터가 없습니다"
-
-msgid "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."
-msgstr "설정에서 저장 데이터 백업이 켜져 있으면 게임을 시작할 때마다 메모리 카드 복사본이 남습니다."
-
 msgid "Press A to put this game's save back to how it was then."
 msgstr "A 버튼을 누르면 이 게임의 저장 데이터를 그때 상태로 되돌립니다."
 
 msgid "Press A to put the shared memory card back to how it was then, for every game on it."
 msgstr "A 버튼을 누르면 공유 메모리 카드를 그때 상태로 되돌립니다. 카드의 모든 게임이 되돌아갑니다."
-
-msgid "Restore the save from {1}?"
-msgstr "{1}의 저장 데이터로 되돌릴까요?"
-
-msgid "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it."
-msgstr "저장 데이터가 그때 상태로 되돌아갑니다. 지금의 저장 데이터는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다."
-
-msgid "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them."
-msgstr "공유 메모리 카드에 있는 모든 게임의 저장 데이터가 그때 상태로 되돌아갑니다. 지금 상태는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다."
 
 msgid "Restore"
 msgstr "되돌리기"
@@ -1599,11 +1584,35 @@ msgstr "RiftWii가 지금의 저장 데이터 복사본을 남기지 못해 저�
 msgid "RiftWii could not write the memory card: {1}"
 msgstr "RiftWii가 메모리 카드에 쓰지 못했습니다: {1}"
 
-msgid "The memory card is full: this game can't save."
-msgstr "메모리 카드가 가득 찼습니다. 이 게임은 저장할 수 없습니다."
-
 msgid "Memory card full"
 msgstr "카드 가득 참"
+
+msgid "Restore this save?"
+msgstr "이 저장 데이터로 되돌릴까요?"
+
+msgid "Your save goes back to how it was on {1}. Your save as it is now is kept as a copy first, so you can come back to it."
+msgstr "저장 데이터가 {1}의 상태로 되돌아갑니다. 지금의 저장 데이터는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다."
+
+msgid "Every game's save on the shared memory card goes back to how it was on {1}. How they are now is kept as a copy first, so you can come back to them."
+msgstr "공유 메모리 카드에 있는 모든 게임의 저장 데이터가 {1}의 상태로 되돌아갑니다. 지금 상태는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다."
+
+msgid "(before you restored)"
+msgstr "(되돌리기 전)"
+
+msgid "1 save"
+msgstr "저장 데이터 1개"
+
+msgid "{1} saves"
+msgstr "저장 데이터 {1}개"
+
+msgid "RiftWii keeps a copy each time you start the game."
+msgstr "게임을 시작할 때마다 RiftWii가 복사본을 남깁니다."
+
+msgid "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room."
+msgstr "메모리 카드가 가득 차서 저장할 수 없습니다. 메모리 카드 페이지에서 공간을 만드세요."
+
+msgid "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card."
+msgstr "카드가 가득 차서 저장할 수 없습니다. 공간을 만들거나 전용 카드로 바꾸세요."
 
 msgid "Shared Memory Card"
 msgstr "공유 메모리 카드"

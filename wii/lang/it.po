@@ -1554,26 +1554,11 @@ msgstr "Riporta il salvataggio a com'era nel giorno che scegli."
 msgid "Go back to how the shared memory card was on a day you pick, for every game on it."
 msgstr "Riporta la Memory Card condivisa a com'era nel giorno che scegli, per tutti i giochi che contiene."
 
-msgid "No older saves yet"
-msgstr "Ancora nessun salvataggio precedente"
-
-msgid "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."
-msgstr "Una copia della Memory Card viene conservata a ogni avvio del gioco, finché Backup dei salvataggi è attivo nelle Impostazioni."
-
 msgid "Press A to put this game's save back to how it was then."
 msgstr "Premi A per riportare il salvataggio di questo gioco a com'era allora."
 
 msgid "Press A to put the shared memory card back to how it was then, for every game on it."
 msgstr "Premi A per riportare la Memory Card condivisa a com'era allora, per tutti i giochi che contiene."
-
-msgid "Restore the save from {1}?"
-msgstr "Ripristinare il salvataggio del {1}?"
-
-msgid "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it."
-msgstr "Il salvataggio torna a com'era allora. Prima viene conservata una copia del salvataggio attuale, così puoi tornarci."
-
-msgid "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them."
-msgstr "I salvataggi di tutti i giochi sulla Memory Card condivisa tornano a com'erano allora. Prima viene conservata una copia di come sono ora, così puoi tornarci."
 
 msgid "Restore"
 msgstr "Ripristina"
@@ -1599,11 +1584,35 @@ msgstr "RiftWii non è riuscito a conservare una copia del salvataggio attuale, 
 msgid "RiftWii could not write the memory card: {1}"
 msgstr "RiftWii non è riuscito a scrivere la Memory Card: {1}"
 
-msgid "The memory card is full: this game can't save."
-msgstr "La Memory Card è piena: questo gioco non può salvare."
-
 msgid "Memory card full"
 msgstr "Scheda piena"
+
+msgid "Restore this save?"
+msgstr "Ripristinare questo salvataggio?"
+
+msgid "Your save goes back to how it was on {1}. Your save as it is now is kept as a copy first, so you can come back to it."
+msgstr "Il salvataggio torna a com'era il {1}. Prima viene conservata una copia del salvataggio attuale, così puoi tornarci."
+
+msgid "Every game's save on the shared memory card goes back to how it was on {1}. How they are now is kept as a copy first, so you can come back to them."
+msgstr "I salvataggi di tutti i giochi sulla Memory Card condivisa tornano a com'erano il {1}. Prima viene conservata una copia di come sono ora, così puoi tornarci."
+
+msgid "(before you restored)"
+msgstr "(prima del ripristino)"
+
+msgid "1 save"
+msgstr "1 salvataggio"
+
+msgid "{1} saves"
+msgstr "{1} salvataggi"
+
+msgid "RiftWii keeps a copy each time you start the game."
+msgstr "RiftWii conserva una copia ogni volta che avvii il gioco."
+
+msgid "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room."
+msgstr "La Memory Card è piena: questo gioco non può salvare. Fai spazio nella pagina Memory Card."
+
+msgid "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card."
+msgstr "Scheda piena: questo gioco non può salvare. Fai spazio o dagli una scheda propria."
 
 msgid "Shared Memory Card"
 msgstr "Memory Card condivisa"

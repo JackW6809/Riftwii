@@ -25,6 +25,7 @@ struct FlowRow {
     Kind kind = Kind::Info;
     std::string label;
     std::string value;     // the control's text (Toggle: "On"/"Off" beside the switch)
+    std::string detail;    // a smaller second line under the label (a backup's "2 saves · 4 blocks"); empty for none
     bool on = false;       // accent colour; a Toggle's state
     bool dim = false;      // greyed and fixed (broken pack, notes, unavailable)
     bool heading = false;  // larger label (a pack)
@@ -105,6 +106,7 @@ private:
     int CardRight() const;
     GuiText* label[kMaxVisible + 1];
     GuiText* value[kMaxVisible + 1];
+    GuiText* detail[kMaxVisible + 1];
     GuiSound* soundOver;
     GuiSound* soundClick;
 };

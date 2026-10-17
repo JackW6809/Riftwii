@@ -1554,26 +1554,11 @@ msgstr "選んだ日のセーブの状態に戻します。"
 msgid "Go back to how the shared memory card was on a day you pick, for every game on it."
 msgstr "選んだ日の共有メモリーカードの状態に戻します。カードのすべてのゲームが戻ります。"
 
-msgid "No older saves yet"
-msgstr "前のセーブはまだありません"
-
-msgid "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."
-msgstr "設定の「セーブのバックアップ」がオンのあいだ、ゲームを起動するたびにメモリーカードのコピーが残ります。"
-
 msgid "Press A to put this game's save back to how it was then."
 msgstr "Aボタンで、このゲームのセーブをその時の状態に戻します。"
 
 msgid "Press A to put the shared memory card back to how it was then, for every game on it."
 msgstr "Aボタンで、共有メモリーカードをその時の状態に戻します。カードのすべてのゲームが戻ります。"
-
-msgid "Restore the save from {1}?"
-msgstr "{1}のセーブに戻しますか?"
-
-msgid "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it."
-msgstr "セーブがその時の状態に戻ります。今のセーブは先にコピーとして残るので、あとで戻せます。"
-
-msgid "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them."
-msgstr "共有メモリーカードのすべてのゲームのセーブがその時の状態に戻ります。今の状態は先にコピーとして残るので、あとで戻せます。"
 
 msgid "Restore"
 msgstr "戻す"
@@ -1599,11 +1584,35 @@ msgstr "RiftWiiは今のセーブのコピーを残せなかったため、セ�
 msgid "RiftWii could not write the memory card: {1}"
 msgstr "RiftWiiはメモリーカードに書き込めませんでした: {1}"
 
-msgid "The memory card is full: this game can't save."
-msgstr "メモリーカードがいっぱいです。このゲームはセーブできません。"
-
 msgid "Memory card full"
 msgstr "カードがいっぱい"
+
+msgid "Restore this save?"
+msgstr "このセーブに戻しますか?"
+
+msgid "Your save goes back to how it was on {1}. Your save as it is now is kept as a copy first, so you can come back to it."
+msgstr "セーブが{1}の状態に戻ります。今のセーブは先にコピーとして残るので、あとで戻せます。"
+
+msgid "Every game's save on the shared memory card goes back to how it was on {1}. How they are now is kept as a copy first, so you can come back to them."
+msgstr "共有メモリーカードのすべてのゲームのセーブが{1}の状態に戻ります。今の状態は先にコピーとして残るので、あとで戻せます。"
+
+msgid "(before you restored)"
+msgstr "(戻す前)"
+
+msgid "1 save"
+msgstr "セーブ1個"
+
+msgid "{1} saves"
+msgstr "セーブ{1}個"
+
+msgid "RiftWii keeps a copy each time you start the game."
+msgstr "ゲームを起動するたびに、RiftWiiがコピーを残します。"
+
+msgid "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room."
+msgstr "カードがいっぱいで、セーブできません。メモリーカードのページで空きを作ってください。"
+
+msgid "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card."
+msgstr "カードがいっぱいで、セーブできません。空きを作るか、専用のカードにしてください。"
 
 msgid "Shared Memory Card"
 msgstr "共有メモリーカード"

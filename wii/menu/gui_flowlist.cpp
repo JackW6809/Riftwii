@@ -69,6 +69,9 @@ GuiFlowList::GuiFlowList(int x, int y, int w, int n)
         value[i] = new GuiText(nullptr, 16, skin::kInkSoft);
         value[i]->SetParent(this);
         value[i]->SetAlignment(ALIGN_H::LEFT, ALIGN_V::TOP);
+        detail[i] = new GuiText(nullptr, 13, skin::kInkSoft);
+        detail[i]->SetParent(this);
+        detail[i]->SetAlignment(ALIGN_H::LEFT, ALIGN_V::TOP);
     }
     soundOver = new GuiSound(button_over_pcm, button_over_pcm_size, SOUND::PCM);
     soundClick = new GuiSound(button_click_pcm, button_click_pcm_size, SOUND::PCM);
@@ -78,6 +81,7 @@ GuiFlowList::~GuiFlowList() {
     for (int i = 0; i <= kMaxVisible; ++i) {
         delete label[i];
         delete value[i];
+        delete detail[i];
     }
     delete soundOver;
     delete soundClick;
@@ -222,6 +226,10 @@ void GuiFlowList::Draw() {
             const int control = ControlWidth(r);
             label[i]->SetMaxWidth(ControlsRight() - x0 - kPad - (r.indent ? 22 : 0) - (r.icon_column ? kIconRoom : 0) -
                                   (control ? control + kPad : 0));
+            detail[i]->SetText(r.detail.empty() ? nullptr : r.detail.c_str());
+            detail[i]->SetColor(r.dim ? skin::kInkDim : skin::kInkSoft);
+            detail[i]->SetMaxWidth(ControlsRight() - x0 - kPad - (r.indent ? 22 : 0) - (r.icon_column ? kIconRoom : 0) -
+                                   (control ? control + kPad : 0));
             // GuiText translates what it is given, but an action's value
             // gets the arrow first, and "Rescan  >" is no catalog key: the
             // value is translated here, before the arrow (issue 84). A value
@@ -318,8 +326,18 @@ void GuiFlowList::Draw() {
         if (r.icon)
             skin::DrawRgb5a3(r.icon, kIconSide, kIconSide, static_cast<float>(labelX), static_cast<float>(y + (kRowHeight - kIconSide) / 2),
                              r.dim ? alpha / 2 : alpha);
-        label[i]->SetPosition(labelX + (r.icon_column ? kIconRoom : 0), y + (kRowHeight - labelH) / 2 - 2);
-        label[i]->Draw();
+        // With a second line the two share the row's height, the label
+        // above, the detail under it.
+        const int textLeft = labelX + (r.icon_column ? kIconRoom : 0);
+        if (r.detail.empty()) {
+            label[i]->SetPosition(textLeft, y + (kRowHeight - labelH) / 2 - 2);
+            label[i]->Draw();
+        } else {
+            label[i]->SetPosition(textLeft, y + 4);
+            label[i]->Draw();
+            detail[i]->SetPosition(textLeft, y + 24);
+            detail[i]->Draw();
+        }
 
         const int cy = y + (kRowHeight - kChipH) / 2;  // controls' top
         const int textY = y + (kRowHeight - 15) / 2 - 2;

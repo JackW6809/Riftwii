@@ -1406,13 +1406,8 @@ T = {
     "Restore an older save": ("Restaurar una partida anterior", "前のセーブに戻す", "Restaurar um save anterior", "Ripristina un salvataggio precedente"),
     "Go back to how your save was on a day you pick.": ("Vuelve a tu partida tal como estaba el día que elijas.", "選んだ日のセーブの状態に戻します。", "Volte o seu save para como estava no dia que você escolher.", "Riporta il salvataggio a com'era nel giorno che scegli."),
     "Go back to how the shared memory card was on a day you pick, for every game on it.": ("Vuelve a la tarjeta de memoria compartida tal como estaba el día que elijas, para todos sus juegos.", "選んだ日の共有メモリーカードの状態に戻します。カードのすべてのゲームが戻ります。", "Volte o cartão de memória compartilhado para como estava no dia que você escolher, para todos os jogos nele.", "Riporta la Memory Card condivisa a com'era nel giorno che scegli, per tutti i giochi che contiene."),
-    "No older saves yet": ("Aún no hay partidas anteriores", "前のセーブはまだありません", "Ainda não há saves anteriores", "Ancora nessun salvataggio precedente"),
-    "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings.": ("Cada vez que arranca el juego se guarda una copia de la tarjeta de memoria, mientras Copia de seguridad de partidas esté activada en Ajustes.", "設定の「セーブのバックアップ」がオンのあいだ、ゲームを起動するたびにメモリーカードのコピーが残ります。", "Uma cópia do cartão de memória é guardada sempre que o jogo inicia, enquanto Backup dos saves estiver ligado nas Configurações.", "Una copia della Memory Card viene conservata a ogni avvio del gioco, finché Backup dei salvataggi è attivo nelle Impostazioni."),
     "Press A to put this game's save back to how it was then.": ("Pulsa A para devolver la partida de este juego a como estaba entonces.", "Aボタンで、このゲームのセーブをその時の状態に戻します。", "Aperte A para voltar o save deste jogo para como estava então.", "Premi A per riportare il salvataggio di questo gioco a com'era allora."),
     "Press A to put the shared memory card back to how it was then, for every game on it.": ("Pulsa A para devolver la tarjeta de memoria compartida a como estaba entonces, para todos sus juegos.", "Aボタンで、共有メモリーカードをその時の状態に戻します。カードのすべてのゲームが戻ります。", "Aperte A para voltar o cartão de memória compartilhado para como estava então, para todos os jogos nele.", "Premi A per riportare la Memory Card condivisa a com'era allora, per tutti i giochi che contiene."),
-    "Restore the save from {1}?": ("¿Restaurar la partida del {1}?", "{1}のセーブに戻しますか?", "Restaurar o save de {1}?", "Ripristinare il salvataggio del {1}?"),
-    "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it.": ("Tu partida vuelve a como estaba entonces. Antes se guarda una copia de tu partida tal como está ahora, para que puedas volver a ella.", "セーブがその時の状態に戻ります。今のセーブは先にコピーとして残るので、あとで戻せます。", "O seu save volta a ser como era então. O save como está agora é guardado antes como cópia, para você poder voltar a ele.", "Il salvataggio torna a com'era allora. Prima viene conservata una copia del salvataggio attuale, così puoi tornarci."),
-    "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them.": ("Las partidas de todos los juegos de la tarjeta de memoria compartida vuelven a como estaban entonces. Antes se guarda una copia de cómo están ahora, para que puedas volver a ellas.", "共有メモリーカードのすべてのゲームのセーブがその時の状態に戻ります。今の状態は先にコピーとして残るので、あとで戻せます。", "Os saves de todos os jogos no cartão de memória compartilhado voltam a ser como eram então. Como estão agora é guardado antes como cópia, para você poder voltar a eles.", "I salvataggi di tutti i giochi sulla Memory Card condivisa tornano a com'erano allora. Prima viene conservata una copia di come sono ora, così puoi tornarci."),
     "Restore": ("Restaurar", "戻す", "Restaurar", "Ripristina"),
     "Save restored": ("Partida restaurada", "セーブを戻しました", "Save restaurado", "Salvataggio ripristinato"),
     "The memory card is as it was on {1}. The save from before is kept among the older saves, so you can go back to it.": ("La tarjeta de memoria está como el {1}. La partida de antes se guarda entre las partidas anteriores, para que puedas volver a ella.", "メモリーカードは{1}の状態になりました。戻す前のセーブは前のセーブの一覧に残るので、あとで戻せます。", "O cartão de memória está como era em {1}. O save de antes fica entre os saves anteriores, para você poder voltar a ele.", "La Memory Card è com'era il {1}. Il salvataggio di prima resta tra i salvataggi precedenti, così puoi tornarci."),
@@ -1421,8 +1416,16 @@ T = {
     "That copy is damaged, so your save was not changed.": ("Esa copia está dañada, así que tu partida no ha cambiado.", "そのコピーは壊れているため、セーブは変わっていません。", "Essa cópia está danificada, então o seu save não foi alterado.", "Quella copia è danneggiata, quindi il salvataggio non è cambiato."),
     "RiftWii could not keep a copy of the save as it is now, so it was not changed: {1}": ("RiftWii no ha podido guardar una copia de la partida tal como está ahora, así que no ha cambiado: {1}", "RiftWiiは今のセーブのコピーを残せなかったため、セーブは変わっていません: {1}", "O RiftWii não conseguiu guardar uma cópia do save como está agora, então ele não foi alterado: {1}", "RiftWii non è riuscito a conservare una copia del salvataggio attuale, quindi non è cambiato: {1}"),
     "RiftWii could not write the memory card: {1}": ("RiftWii no ha podido escribir la tarjeta de memoria: {1}", "RiftWiiはメモリーカードに書き込めませんでした: {1}", "O RiftWii não conseguiu gravar o cartão de memória: {1}", "RiftWii non è riuscito a scrivere la Memory Card: {1}"),
-    "The memory card is full: this game can't save.": ("La tarjeta de memoria está llena: este juego no puede guardar.", "メモリーカードがいっぱいです。このゲームはセーブできません。", "O cartão de memória está cheio: este jogo não pode salvar.", "La Memory Card è piena: questo gioco non può salvare."),
     "Memory card full": ("Tarjeta llena", "カードがいっぱい", "Cartão cheio", "Scheda piena"),
+    "Restore this save?": ("¿Restaurar esta partida?", "このセーブに戻しますか?", "Restaurar este save?", "Ripristinare questo salvataggio?"),
+    "Your save goes back to how it was on {1}. Your save as it is now is kept as a copy first, so you can come back to it.": ("Tu partida vuelve a como estaba el {1}. Antes se guarda una copia de tu partida tal como está ahora, para que puedas volver a ella.", "セーブが{1}の状態に戻ります。今のセーブは先にコピーとして残るので、あとで戻せます。", "Seu save volta a ser como era em {1}. O save como está agora é guardado antes como cópia, para você poder voltar a ele.", "Il salvataggio torna a com'era il {1}. Prima viene conservata una copia del salvataggio attuale, così puoi tornarci."),
+    "Every game's save on the shared memory card goes back to how it was on {1}. How they are now is kept as a copy first, so you can come back to them.": ("Las partidas de todos los juegos de la tarjeta de memoria compartida vuelven a como estaban el {1}. Antes se guarda una copia de cómo están ahora, para que puedas volver a ellas.", "共有メモリーカードのすべてのゲームのセーブが{1}の状態に戻ります。今の状態は先にコピーとして残るので、あとで戻せます。", "Os saves de todos os jogos no cartão de memória compartilhado voltam a ser como eram em {1}. Como estão agora é guardado antes como cópia, para você poder voltar a eles.", "I salvataggi di tutti i giochi sulla Memory Card condivisa tornano a com'erano il {1}. Prima viene conservata una copia di come sono ora, così puoi tornarci."),
+    "(before you restored)": ("(antes de restaurar)", "(戻す前)", "(antes de restaurar)", "(prima del ripristino)"),
+    "1 save": ("1 partida", "セーブ1個", "1 save", "1 salvataggio"),
+    "{1} saves": ("{1} partidas", "セーブ{1}個", "{1} saves", "{1} salvataggi"),
+    "RiftWii keeps a copy each time you start the game.": ("RiftWii guarda una copia cada vez que inicias el juego.", "ゲームを起動するたびに、RiftWiiがコピーを残します。", "O RiftWii guarda uma cópia toda vez que você inicia o jogo.", "RiftWii conserva una copia ogni volta che avvii il gioco."),
+    "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room.": ("Tarjeta llena: este juego no puede guardar. Haz sitio en la página Tarjeta de memoria.", "カードがいっぱいで、セーブできません。メモリーカードのページで空きを作ってください。", "Cartão cheio: este jogo não consegue salvar. Libere espaço na página Cartão de memória.", "La Memory Card è piena: questo gioco non può salvare. Fai spazio nella pagina Memory Card."),
+    "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card.": ("Tarjeta llena: este juego no puede guardar. Haz sitio o dale su propia tarjeta.", "カードがいっぱいで、セーブできません。空きを作るか、専用のカードにしてください。", "Cartão cheio: este jogo não consegue salvar. Libere espaço ou dê a ele um cartão próprio.", "Scheda piena: questo gioco non può salvare. Fai spazio o dagli una scheda propria."),
     "Shared Memory Card": ("Tarjeta de memoria compartida", "共有メモリーカード", "Cartão de memória compartilhado", "Memory Card condivisa"),
     "The shared memory card is made the first time a game that uses it starts: {1}.": ("La tarjeta de memoria compartida se crea la primera vez que arranca un juego que la usa: {1}.", "共有メモリーカードは、それを使うゲームを初めて起動したときに作られます: {1}", "O cartão de memória compartilhado é criado na primeira vez que um jogo que o usa é iniciado: {1}.", "La Memory Card condivisa viene creata la prima volta che si avvia un gioco che la usa: {1}."),
     "Saves go to the shared memory card on the SD card: {1}.": ("Las partidas van a la tarjeta de memoria compartida de la tarjeta SD: {1}.", "セーブはSDカード上の共有メモリーカードに保存されます: {1}", "Os saves vão para o cartão de memória compartilhado no cartão SD: {1}.", "I salvataggi vanno nella Memory Card condivisa sulla scheda SD: {1}."),
@@ -2975,20 +2978,10 @@ KO = {
         "고른 날의 저장 데이터 상태로 되돌립니다.",
     "Go back to how the shared memory card was on a day you pick, for every game on it.":
         "고른 날의 공유 메모리 카드 상태로 되돌립니다. 카드의 모든 게임이 되돌아갑니다.",
-    "No older saves yet":
-        "아직 이전 저장 데이터가 없습니다",
-    "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings.":
-        "설정에서 저장 데이터 백업이 켜져 있으면 게임을 시작할 때마다 메모리 카드 복사본이 남습니다.",
     "Press A to put this game's save back to how it was then.":
         "A 버튼을 누르면 이 게임의 저장 데이터를 그때 상태로 되돌립니다.",
     "Press A to put the shared memory card back to how it was then, for every game on it.":
         "A 버튼을 누르면 공유 메모리 카드를 그때 상태로 되돌립니다. 카드의 모든 게임이 되돌아갑니다.",
-    "Restore the save from {1}?":
-        "{1}의 저장 데이터로 되돌릴까요?",
-    "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it.":
-        "저장 데이터가 그때 상태로 되돌아갑니다. 지금의 저장 데이터는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다.",
-    "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them.":
-        "공유 메모리 카드에 있는 모든 게임의 저장 데이터가 그때 상태로 되돌아갑니다. 지금 상태는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다.",
     "Restore":
         "되돌리기",
     "Save restored":
@@ -3005,10 +2998,26 @@ KO = {
         "RiftWii가 지금의 저장 데이터 복사본을 남기지 못해 저장 데이터는 바뀌지 않았습니다: {1}",
     "RiftWii could not write the memory card: {1}":
         "RiftWii가 메모리 카드에 쓰지 못했습니다: {1}",
-    "The memory card is full: this game can't save.":
-        "메모리 카드가 가득 찼습니다. 이 게임은 저장할 수 없습니다.",
     "Memory card full":
         "카드 가득 참",
+    "Restore this save?":
+        "이 저장 데이터로 되돌릴까요?",
+    "Your save goes back to how it was on {1}. Your save as it is now is kept as a copy first, so you can come back to it.":
+        "저장 데이터가 {1}의 상태로 되돌아갑니다. 지금의 저장 데이터는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다.",
+    "Every game's save on the shared memory card goes back to how it was on {1}. How they are now is kept as a copy first, so you can come back to them.":
+        "공유 메모리 카드에 있는 모든 게임의 저장 데이터가 {1}의 상태로 되돌아갑니다. 지금 상태는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다.",
+    "(before you restored)":
+        "(되돌리기 전)",
+    "1 save":
+        "저장 데이터 1개",
+    "{1} saves":
+        "저장 데이터 {1}개",
+    "RiftWii keeps a copy each time you start the game.":
+        "게임을 시작할 때마다 RiftWii가 복사본을 남깁니다.",
+    "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room.":
+        "메모리 카드가 가득 차서 저장할 수 없습니다. 메모리 카드 페이지에서 공간을 만드세요.",
+    "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card.":
+        "카드가 가득 차서 저장할 수 없습니다. 공간을 만들거나 전용 카드로 바꾸세요.",
     "Shared Memory Card":
         "공유 메모리 카드",
     "The shared memory card is made the first time a game that uses it starts: {1}.":
@@ -4748,20 +4757,10 @@ FR = {
         "Remettez votre sauvegarde dans l'état d'un jour de votre choix.",
     "Go back to how the shared memory card was on a day you pick, for every game on it.":
         "Remettez la carte mémoire partagée dans l'état d'un jour de votre choix, pour tous ses jeux.",
-    "No older saves yet":
-        "Pas encore d'ancienne sauvegarde",
-    "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings.":
-        "Une copie de la carte mémoire est gardée à chaque lancement du jeu, tant que Sauvegarder les parties est activé dans les Paramètres.",
     "Press A to put this game's save back to how it was then.":
         "Appuyez sur A pour remettre la sauvegarde de ce jeu dans cet état.",
     "Press A to put the shared memory card back to how it was then, for every game on it.":
         "Appuyez sur A pour remettre la carte mémoire partagée dans cet état, pour tous ses jeux.",
-    "Restore the save from {1}?":
-        "Restaurer la sauvegarde du {1} ?",
-    "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it.":
-        "Votre sauvegarde revient à cet état. Une copie de la sauvegarde actuelle est gardée avant, pour pouvoir y revenir.",
-    "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them.":
-        "Les sauvegardes de tous les jeux de la carte mémoire partagée reviennent à cet état. Une copie de leur état actuel est gardée avant, pour pouvoir y revenir.",
     "Restore":
         "Restaurer",
     "Save restored":
@@ -4778,10 +4777,26 @@ FR = {
         "RiftWii n'a pas pu garder une copie de la sauvegarde actuelle, elle n'a donc pas changé : {1}",
     "RiftWii could not write the memory card: {1}":
         "RiftWii n'a pas pu écrire la carte mémoire : {1}",
-    "The memory card is full: this game can't save.":
-        "La carte mémoire est pleine : ce jeu ne peut pas sauvegarder.",
     "Memory card full":
         "Carte pleine",
+    "Restore this save?":
+        "Restaurer cette sauvegarde ?",
+    "Your save goes back to how it was on {1}. Your save as it is now is kept as a copy first, so you can come back to it.":
+        "Votre sauvegarde revient à son état du {1}. Une copie de la sauvegarde actuelle est gardée avant, pour pouvoir y revenir.",
+    "Every game's save on the shared memory card goes back to how it was on {1}. How they are now is kept as a copy first, so you can come back to them.":
+        "Les sauvegardes de tous les jeux de la carte mémoire partagée reviennent à leur état du {1}. Une copie de leur état actuel est gardée avant, pour pouvoir y revenir.",
+    "(before you restored)":
+        "(avant restauration)",
+    "1 save":
+        "1 sauvegarde",
+    "{1} saves":
+        "{1} sauvegardes",
+    "RiftWii keeps a copy each time you start the game.":
+        "RiftWii garde une copie à chaque lancement du jeu.",
+    "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room.":
+        "Carte mémoire pleine : ce jeu ne peut pas sauvegarder. Faites de la place dans la page Carte mémoire.",
+    "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card.":
+        "Carte pleine : impossible de sauvegarder. Faites de la place ou donnez-lui sa propre carte.",
     "Shared Memory Card":
         "Carte mémoire partagée",
     "The shared memory card is made the first time a game that uses it starts: {1}.":

@@ -4991,9 +4991,9 @@ static std::string GcCardPath(const FrontendState& state)
 // left (riftwii::GcCardSpace::full), read from its first five blocks so
 // the game page opens as fast as before. False without a card yet, or
 // with one that cannot be read (its own page says why).
-static bool GcCardFull(const FrontendState& state)
+static bool ReadGcCardSpace(const std::string& path, riftwii::GcCardSpace& space)
 {
-	FILE* f = std::fopen(GcCardPath(state).c_str(), "rb");
+	FILE* f = std::fopen(path.c_str(), "rb");
 	if (!f) return false;
 	std::fseek(f, 0, SEEK_END);
 	const long size = std::ftell(f);
@@ -5001,9 +5001,24 @@ static bool GcCardFull(const FrontendState& state)
 	std::vector<std::uint8_t> head(riftwii::kGcCardSystemBlocks * riftwii::kGcCardBlockBytes);
 	const bool read = size >= static_cast<long>(head.size()) && std::fread(head.data(), 1, head.size(), f) == head.size();
 	std::fclose(f);
-	riftwii::GcCardSpace space;
 	std::string why;
-	return read && riftwii::gc_card_space(head, static_cast<std::uint64_t>(size), space, why) && space.full();
+	return read && riftwii::gc_card_space(head, static_cast<std::uint64_t>(size), space, why);
+}
+
+static bool GcCardFull(const FrontendState& state)
+{
+	riftwii::GcCardSpace space;
+	return ReadGcCardSpace(GcCardPath(state), space) && space.full();
+}
+
+// What the game page says about a full card: that the game can't save, and
+// how to make room (on a shared card, also the way out to its own card).
+// Both fit the page's two note lines at 16:9, beside the button hints.
+static std::string GcCardFullNote(const FrontendState& state)
+{
+	return GcCardShared(state)
+		? tr("The memory card is full: this game can't save. Make room on the Memory Card page or use its own card.")
+		: tr("The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room.");
 }
 
 // The icons of a card's saves as textures (32x32 RGB5A3, 2 KB each) for
@@ -5404,7 +5419,10 @@ static bool RestoreGcBackup(const std::string& cardPath, const std::string& fold
 	const time_t now = time(nullptr);
 	struct tm local;
 	localtime_r(&now, &local);
-	const riftwii::GcBackupResult before = riftwii::gc_backup_card(cardPath, folder, riftwii::gc_backup_stamp(local));
+	// Marked as the undo copy, which the list names "before you restored".
+	riftwii::GcBackupStamp stamp = riftwii::gc_backup_stamp(local);
+	stamp.undo = true;
+	const riftwii::GcBackupResult before = riftwii::gc_backup_card(cardPath, folder, stamp);
 	if (before.what == riftwii::GcBackupResult::What::Failed) {
 		logf("GameCube card %s: not restored, as the card as it is now could not be backed up: %s\n", cardPath.c_str(),
 			before.error.c_str());
@@ -5441,21 +5459,28 @@ static bool MenuGcRestore(FrontendState& state)
 	const std::string cardPath = GcCardPath(state);
 	const std::string folder = riftwii::gc_backup_folder(state.game_id, shared);
 	const std::vector<std::string> names = riftwii::gc_backup_list(folder);
-	if (names.empty()) {
-		ShowPopup(tr("No older saves yet"),
-			tr("A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."), tr("OK"));
-		return false;
-	}
+	// The Saves page offers this only with backups there; none: nothing to show.
+	if (names.empty()) return false;
 	std::vector<FlowRow> rows;
-	std::vector<std::string> whens, dates;
+	std::vector<std::string> whens;
 	for (const std::string& name : names) {
 		riftwii::GcBackupStamp stamp;
 		riftwii::gc_backup_parse(name, stamp);
 		whens.push_back(GcBackupWhen(stamp));
-		dates.push_back(GcBackupDate(stamp));
 		FlowRow row;
 		row.kind = FlowRow::Kind::Action;
 		row.label = whens.back();
+		// The copy a restore made: picking it undoes that restore.
+		if (stamp.undo) row.label += std::string(" ") + tr("(before you restored)");
+		// What the copy holds, on the row's second line, read from its
+		// directory alone so the list opens fast: "2 saves · 4 blocks".
+		riftwii::GcCardSpace space;
+		if (ReadGcCardSpace(folder + "/" + name, space)) {
+			const unsigned saves = riftwii::kGcCardMaxEntries - space.free_entries;
+			const unsigned used = space.blocks - riftwii::kGcCardSystemBlocks - space.free_blocks;
+			row.detail = (saves == 1 ? std::string(tr("1 save")) : tr("{1} saves", {std::to_string(saves)})) +
+				" \xC2\xB7 " + (used == 1 ? std::string(tr("1 block")) : tr("{1} blocks", {std::to_string(used)}));
+		}
 		rows.push_back(row);
 	}
 	bool restored = false;
@@ -5466,13 +5491,13 @@ static bool MenuGcRestore(FrontendState& state)
 	const auto act = [&](int row, const PageAside&) {
 		const std::size_t at = static_cast<std::size_t>(row);
 		const std::string& when = whens[at];
-		// The title has room for the date alone; the row named the time.
-		// Cancel is the second button, the one B and HOME press, so backing
-		// out never changes a save.
+		// The question in the title, short in every language; the date and
+		// time in the body. Cancel is the second button, the one B and HOME
+		// press, so backing out never changes a save.
 		const std::string body = shared
-			? tr("Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them.")
-			: tr("Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it.");
-		if (ShowPopup(tr("Restore the save from {1}?", {dates[at]}), body, tr("Restore"), tr("Cancel")) != 0) return false;
+			? tr("Every game's save on the shared memory card goes back to how it was on {1}. How they are now is kept as a copy first, so you can come back to them.", {when})
+			: tr("Your save goes back to how it was on {1}. Your save as it is now is kept as a copy first, so you can come back to it.", {when});
+		if (ShowPopup(tr("Restore this save?"), body, tr("Restore"), tr("Cancel")) != 0) return false;
 		restored = RestoreGcBackup(cardPath, folder, folder + "/" + names[at], when);
 		// The list has changed (the copy made first): back to the saves.
 		return restored;
@@ -5505,9 +5530,12 @@ static void MenuGcCard(FrontendState& state)
 	}
 	std::vector<FlowRow> rows;
 	GcIconTextures icons;
+	const std::string backupFolder = riftwii::gc_backup_folder(state.game_id, shared);
+	bool haveBackups = false;
 	const auto rebuild = [&] {
 		rows.clear();
 		icons.Clear();
+		haveBackups = !riftwii::gc_backup_list(backupFolder).empty();
 		for (const riftwii::GcSave& save : info.saves) {
 			FlowRow row;
 			row.kind = FlowRow::Kind::Action;
@@ -5562,9 +5590,11 @@ static void MenuGcCard(FrontendState& state)
 	};
 	const auto note = [&](int row) -> std::string {
 		const std::size_t at = static_cast<std::size_t>(row);
-		if (at == info.saves.size() + 1)
+		if (at == info.saves.size() + 1) {
+			if (!haveBackups) return tr("RiftWii keeps a copy each time you start the game.");
 			return shared ? tr("Go back to how the shared memory card was on a day you pick, for every game on it.")
 				: tr("Go back to how your save was on a day you pick.");
+		}
 		if (at >= info.saves.size()) return tr("Adds a .gci save file from {1}.", {kGcSavesDir});
 		const riftwii::GcSave& save = info.saves[at];
 		if (!save.intact) return tr("This save is damaged: its blocks do not add up. It can only be deleted.");
@@ -5578,6 +5608,8 @@ static void MenuGcCard(FrontendState& state)
 		const std::size_t at = static_cast<std::size_t>(row);
 		std::string why;
 		if (at == info.saves.size() + 1) {
+			// None yet: the note says when there will be; nothing to open.
+			if (!haveBackups) return false;
 			bool restored = false;
 			aside([&] { restored = MenuGcRestore(state); });
 			if (!restored) return false;
@@ -7220,8 +7252,8 @@ static std::string PlayTileNote(const FrontendState& state)
 {
 	const riftwii::wii::ImageGame* patch = SelectedGcPatch(state);
 	// Said first, as the page opens on Play: the game would start, but
-	// could not save. One sentence, which fits in French on a 16:9 TV.
-	if (SelectedGcGame(state) && GcCardFull(state)) return tr("The memory card is full: this game can't save.");
+	// could not save.
+	if (SelectedGcGame(state) && GcCardFull(state)) return GcCardFullNote(state);
 	if (!patch) return tr("Starts the game with the mods and settings shown here.");
 	const riftwii::wii::ImageGame* original = GcOriginal(state, *patch);
 	const std::string originalName = original ? ImageGameName(*original) : FlatCapped(patch->gc_patch_source, 40);
@@ -7235,9 +7267,8 @@ static std::string GcSaveNote(const FrontendState& state)
 	const std::string where = GcCardShared(state)
 		? tr("Saves go to the shared memory card on the SD card: {1}.", {card})
 		: tr("Saves go to this game's own memory card on the SD card: {1}.", {card});
-	// Two lines at most: the full card's line takes the place of where it is.
-	if (GcCardFull(state))
-		return std::string(tr("The memory card is full: this game can't save.")) + " " + tr("Press A to see its saves.");
+	// Two lines at most: the full card's note takes the place of where it is.
+	if (GcCardFull(state)) return GcCardFullNote(state);
 	return where + " " + tr("Press A to see its saves.");
 }
 
@@ -7343,7 +7374,9 @@ static void BuildGameTiles(const FrontendState& state, std::vector<TileSpec>& ti
 	add(GameTile::Cheats, kTilesX, 228, kHalfW, 70, tr("Cheats"), cheats, &skin::iconCheats,
 		game.cheats && !game.cheat_names.empty());
 	add(GameTile::Saves, kRightX, 228, kHalfW, 70, tr("Saves"), saves, &skin::iconSaves,
-		cardFull || (!gamecube && state.model.save_mode != "nand"));
+		!gamecube && state.model.save_mode != "nand");
+	// A full card is a warning, in the theme's colour for one.
+	tiles.back().warn = cardFull;
 	add(GameTile::Favorite, kHeroX, 310, kHeroW, 70, tr("Favourite"), favorite ? tr("On") : tr("Off"),
 		favorite ? &skin::iconStarOn : &skin::iconStar, favorite);
 	add(GameTile::Options, kTilesX, 310, kHalfW, 70, tr("Options"),

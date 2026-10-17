@@ -925,7 +925,81 @@ static void test_backup_files() {
     fs::remove_all(root);
 }
 
+// A restore's undo copy: "-undo" written and read back, sorted among the
+// others by its time, never sharing a minute and number with a plain one,
+// and pruned with them.
+static void test_backup_undo() {
+    GcBackupStamp stamp;
+    stamp.year = 2026;
+    stamp.month = 10;
+    stamp.day = 17;
+    stamp.hour = 14;
+    stamp.minute = 15;
+    stamp.undo = true;
+    EXPECT_EQ(gc_backup_name(stamp), std::string("2026-10-17_1415-undo.raw"));
+    stamp.serial = 2;
+    EXPECT_EQ(gc_backup_name(stamp), std::string("2026-10-17_1415-2-undo.raw"));
+
+    GcBackupStamp back;
+    EXPECT_TRUE(gc_backup_parse("2026-10-17_1415-undo.raw", back));
+    EXPECT_TRUE(back.undo);
+    EXPECT_EQ(back.serial, 0u);
+    EXPECT_EQ(back.minute, 15u);
+    EXPECT_TRUE(gc_backup_parse("2026-10-17_1415-2-undo.raw", back));
+    EXPECT_TRUE(back.undo);
+    EXPECT_EQ(back.serial, 2u);
+    EXPECT_TRUE(gc_backup_parse("2026-10-17_1415-2.raw", back));
+    EXPECT_FALSE(back.undo);
+    EXPECT_FALSE(gc_backup_parse("2026-10-17_1415-undo-2.raw", back));
+    EXPECT_FALSE(gc_backup_parse("2026-10-17_1415-1-undo.raw", back));
+    EXPECT_FALSE(gc_backup_parse("2026-10-17_1415undo.raw", back));
+    EXPECT_FALSE(gc_backup_parse("-undo.raw", back));
+
+    // A plain backup at 14:15 takes the minute: the undo copy is numbered 2,
+    // and sorts after it.
+    stamp.serial = 0;
+    const std::vector<std::string> names = {"2026-10-17_1415.raw", "2026-10-16_2000.raw"};
+    const std::string undo_name = gc_backup_new_name(names, stamp);
+    EXPECT_EQ(undo_name, std::string("2026-10-17_1415-2-undo.raw"));
+    std::vector<std::string> with_undo = names;
+    with_undo.push_back(undo_name);
+    const std::vector<std::string> sorted = gc_backups_newest_first(with_undo);
+    EXPECT_EQ(sorted.size(), 3u);
+    if (!sorted.empty()) EXPECT_EQ(sorted[0], undo_name);
+    // And the other way round: a plain one after an undo copy is numbered too.
+    stamp.undo = false;
+    EXPECT_EQ(gc_backup_new_name({"2026-10-17_1415-undo.raw"}, stamp), std::string("2026-10-17_1415-2.raw"));
+
+    // Undo copies count among the five kept.
+    const std::vector<std::string> six = {"2026-10-11_1000.raw", "2026-10-12_1000-undo.raw", "2026-10-13_1000.raw",
+                                          "2026-10-14_1000.raw", "2026-10-15_1000-undo.raw", "2026-10-16_1000.raw"};
+    const std::vector<std::string> pruned = gc_backups_to_prune(six);
+    EXPECT_EQ(pruned.size(), 1u);
+    if (!pruned.empty()) EXPECT_EQ(pruned[0], std::string("2026-10-11_1000.raw"));
+
+    // An undo copy made on disk, and the plain backup after it numbered.
+    namespace fs = std::filesystem;
+    const fs::path root = fs::temp_directory_path() / "riftwii_gcbackup_undo_test";
+    fs::remove_all(root);
+    fs::create_directories(root);
+    const std::string card = (root / "card.raw").string();
+    const std::string folder = (root / "backups").string();
+    write_file(card, Bytes(1000, 0x33));
+    stamp.undo = true;
+    GcBackupResult made = gc_backup_card(card, folder, stamp);
+    EXPECT_EQ(made.name, std::string("2026-10-17_1415-undo.raw"));
+    write_file(card, Bytes(1000, 0x44));
+    stamp.undo = false;
+    made = gc_backup_card(card, folder, stamp);
+    EXPECT_EQ(made.name, std::string("2026-10-17_1415-2.raw"));
+    const std::vector<std::string> listed = gc_backup_list(folder);
+    EXPECT_EQ(listed.size(), 2u);
+    if (listed.size() == 2) EXPECT_EQ(listed[1], std::string("2026-10-17_1415-undo.raw"));
+    fs::remove_all(root);
+}
+
 int main() {
+    test_backup_undo();
     test_backup_names();
     test_backup_files();
     test_card_text();

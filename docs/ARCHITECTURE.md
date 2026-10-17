@@ -258,7 +258,10 @@ on by default) the loader copies the card the game will use to
 the newest five and skipping the copy while the card matches the newest.
 The Saves page's Restore an older save lists them by date and puts the one
 picked back over the card, after a backup of the card as it is now, so a
-restore can be undone the same way.
+restore can be undone the same way: that copy's name ends in `-undo`, and
+the list marks it "(before you restored)". Each row's second line, how
+many saves and blocks the copy holds, comes from its directory alone
+(`gc_card_space`).
 
 ## Memory
 

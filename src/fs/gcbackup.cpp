@@ -28,6 +28,7 @@ constexpr std::size_t kPieceBytes = 64u << 10;
 constexpr unsigned kMaxSerial = 99;
 
 const char kExtension[] = ".raw";
+const char kUndo[] = "-undo";
 
 std::string two_digits(unsigned v) {
     char buf[4];
@@ -95,15 +96,22 @@ std::string gc_backup_name(const GcBackupStamp& stamp) {
                   two_digits(stamp.day).c_str(), two_digits(stamp.hour).c_str(), two_digits(stamp.minute).c_str());
     std::string name = buf;
     if (stamp.serial >= 2) name += "-" + std::to_string(stamp.serial);
+    if (stamp.undo) name += kUndo;
     return name + kExtension;
 }
 
 bool gc_backup_parse(const std::string& name, GcBackupStamp& out) {
-    // "YYYY-MM-DD_HHMM" (15 characters), maybe "-N", then ".raw".
+    // "YYYY-MM-DD_HHMM" (15 characters), maybe "-N", maybe "-undo", then ".raw".
     constexpr std::size_t kStampChars = 15;
-    const std::size_t extension = sizeof kExtension - 1;
+    std::size_t extension = sizeof kExtension - 1;
     if (name.size() < kStampChars + extension) return false;
     if (name.compare(name.size() - extension, extension, kExtension) != 0) return false;
+    const std::size_t undo_chars = sizeof kUndo - 1;
+    const bool undo = name.size() >= kStampChars + undo_chars + extension &&
+                      name.compare(name.size() - extension - undo_chars, undo_chars, kUndo) == 0;
+    // The marker is read as part of the ending, so the serial's check
+    // below sees only what is between the minute and it.
+    if (undo) extension += undo_chars;
     const char* p = name.c_str();
     GcBackupStamp s;
     if (!read_digits(p, 4, s.year) || p[4] != '-' || !read_digits(p + 5, 2, s.month) || p[7] != '-' ||
@@ -118,6 +126,7 @@ bool gc_backup_parse(const std::string& name, GcBackupStamp& out) {
         if (!read_digits(p + kStampChars + 1, static_cast<unsigned>(rest - 1), s.serial)) return false;
         if (s.serial < 2) return false;
     }
+    s.undo = undo;
     out = s;
     return true;
 }
@@ -137,10 +146,22 @@ std::vector<std::string> gc_backups_newest_first(const std::vector<std::string>&
 }
 
 std::string gc_backup_new_name(const std::vector<std::string>& existing, GcBackupStamp now) {
+    // The minutes and serials taken, plain or undo alike.
+    std::vector<GcBackupStamp> taken;
+    for (const std::string& name : existing) {
+        GcBackupStamp stamp;
+        if (gc_backup_parse(name, stamp)) taken.push_back(stamp);
+    }
     now.serial = 0;
     for (;;) {
+        const auto same = [&](const GcBackupStamp& t) {
+            return t.year == now.year && t.month == now.month && t.day == now.day && t.hour == now.hour &&
+                   t.minute == now.minute && t.serial == now.serial;
+        };
         const std::string name = gc_backup_name(now);
-        if (std::find(existing.begin(), existing.end(), name) == existing.end()) return name;
+        const bool free = std::none_of(taken.begin(), taken.end(), same) &&
+                          std::find(existing.begin(), existing.end(), name) == existing.end();
+        if (free) return name;
         now.serial = now.serial == 0 ? 2 : now.serial + 1;
         if (now.serial > kMaxSerial) return std::string();
     }

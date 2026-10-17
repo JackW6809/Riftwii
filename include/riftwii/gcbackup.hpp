@@ -25,11 +25,14 @@ constexpr std::size_t kGcBackupsKept = 5;
 constexpr std::uint64_t kGcBackupMaxBytes = 16u << 20;
 
 // When a backup was made, as its name says. `serial` tells apart backups
-// made in the same minute: 0 for the first, 2, 3... for the next.
+// made in the same minute: 0 for the first, 2, 3... for the next. `undo`:
+// the copy a restore made of the card just before it put an older one
+// back ("-undo" at the name's end), shown as "before you restored".
 struct GcBackupStamp {
     unsigned year = 0, month = 0, day = 0;  // month 1-12, day 1-31
     unsigned hour = 0, minute = 0;          // 0-23, 0-59
     unsigned serial = 0;
+    bool undo = false;
 };
 
 // A clock reading (localtime's) as a backup's stamp.
@@ -39,7 +42,8 @@ GcBackupStamp gc_backup_stamp(const std::tm& local);
 // card): sd:/riftwii/gc/backups/<ID> or .../backups/shared(-jp).
 std::string gc_backup_folder(const std::string& game_id, bool shared);
 
-// "2026-10-17_1432.raw", or "2026-10-17_1432-2.raw" with serial 2.
+// "2026-10-17_1432.raw", "2026-10-17_1432-2.raw" with serial 2, and
+// "2026-10-17_1432-undo.raw" or "2026-10-17_1432-2-undo.raw" for an undo copy.
 std::string gc_backup_name(const GcBackupStamp& stamp);
 
 // A backup's name read back. False for anything else in the folder (a PC's
@@ -50,7 +54,9 @@ bool gc_backup_parse(const std::string& name, GcBackupStamp& out);
 std::vector<std::string> gc_backups_newest_first(const std::vector<std::string>& names);
 
 // The name for a backup made at `now` that none of `existing` has: the
-// minute's own, or the next free serial when that minute already has one.
+// minute's own, or the next free serial when that minute already has one
+// (an undo copy and a plain one never share a minute and serial, so their
+// order stays plain). `now.undo` marks the new name as an undo copy.
 std::string gc_backup_new_name(const std::vector<std::string>& existing, GcBackupStamp now);
 
 // The backups beyond the newest `keep`, oldest last: the ones to delete.
@@ -85,7 +91,8 @@ struct GcBackupResult {
 
 // Backs up the card at `card_path` into `folder` (made when missing) as
 // made at `now`: skipped when the card is not there or matches the newest
-// backup byte for byte, then the oldest beyond kGcBackupsKept deleted.
+// backup byte for byte, then the oldest beyond kGcBackupsKept deleted. An
+// undo copy (`now.undo`, a restore's) counts among the five like any other.
 GcBackupResult gc_backup_card(const std::string& card_path, const std::string& folder, const GcBackupStamp& now);
 
 }  // namespace riftwii
