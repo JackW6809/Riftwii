@@ -37,8 +37,13 @@ void SetShelfFlying(const std::string& id);
 struct GridItem {
     std::string title;  // the display name, fitted to the tile
     std::string id;     // shown small under the title; the cover's game
+    // What Home keys the tile on (focus, favourites, history): the game ID,
+    // or a profile's "<game ID>@<slug>" (riftwii/profiles.hpp).
+    std::string key;
     std::string badge;  // DISC, USB, SD
     bool mods = false;  // packs exist for this game
+    // One of the game's profiles: its picture in the tile's top right corner.
+    bool profile = false;
     GXColor hue = {90, 90, 100, 255};
 };
 
@@ -79,6 +84,11 @@ public:
     using IconDrawer = std::function<bool(int index, const IconBox& box)>;
     void SetChannels(bool on, IconDrawer icon);
     bool Channels() const { return channels; }
+    // A profile's tile: its picture drawn into the square at x, y of
+    // `size` (item index, alpha); false when it has none, and the tile
+    // shows the Mods icon there instead. Not on the shelf.
+    using PictureDrawer = std::function<bool(int index, float x, float y, float size, int alpha)>;
+    void SetPictureDrawer(PictureDrawer drawer) { pictureDrawer = std::move(drawer); }
     // The items on the page shown: whose icons to have ready.
     int PageFirst() const { return page * kPerPage; }
     // A cover was stored for `id`: draw it from now on.
@@ -201,6 +211,10 @@ private:
     IconDrawer iconDrawer;
     bool iconShown[kPerPage] = {};  // channels: the tile drew its icon this frame
     void DrawChannelLabel(int slot, int alpha);
+    PictureDrawer pictureDrawer;
+    // A profile's picture in the corner of tile `slot` (drawn at `scale`).
+    void DrawProfilePicture(int slot, float scale, int alpha);
+    float ProfilePictureSize() const;
     // What ReadAllCovers last gave the loader.
     const std::vector<GridItem>* readAllItems = nullptr;
     int readAllCount = -1;

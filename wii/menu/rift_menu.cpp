@@ -50,6 +50,7 @@
 #include "gui_tiles.hpp"
 #include "memlimits.hpp"
 #include "modpicture.hpp"
+#include "modtiles.hpp"
 #include "vsdimage.hpp"
 #include "bannerplay.hpp"
 #include "banners.hpp"
@@ -786,6 +787,11 @@ static bool MatchesSearch(const std::string& name, const std::string& id)
 struct HomeEntry {
 	enum class Kind { Disc, Usb, Sd } kind;
 	std::size_t index;
+	// One of the game's profiles (riftwii/profiles.hpp): its key. Empty for
+	// the game's own tile.
+	std::string profile;
+	// What the search reads: the tile's name (and a profile's game's name).
+	std::string searchName;
 };
 
 static std::string GameName(const riftwii::wii::ImageGame& g)
@@ -805,23 +811,67 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 		disc.badge = "DISC";
 		disc.hue = {88, 92, 104, 255};
 		items.push_back(disc);
-		entries.push_back({HomeEntry::Kind::Disc, 0});
+		entries.push_back({HomeEntry::Kind::Disc, 0, "", ""});
 	}
-	struct Row { std::string name; HomeEntry entry; const riftwii::wii::ImageGame* game; };
+	// `name` is the tile's, `game` the game's: a profile's tile sorts A to Z
+	// beside its game's, after it. `key` is what the history and the
+	// favourites know the tile by.
+	struct Row {
+		std::string name, gameName, key;
+		HomeEntry entry;
+		const riftwii::wii::ImageGame* game;  // nullptr for a profile of the disc's game
+		std::string GameId() const { return riftwii::tile_game_id(key); }
+	};
 	std::vector<Row> rows;
+	const auto addGame = [&](const riftwii::wii::ImageGame& g, HomeEntry::Kind kind, std::size_t i) {
+		const std::string name = GameName(g);
+		rows.push_back({name, name, g.id, {kind, i, "", name}, &g});
+	};
 	// Settings > Games from: one drive's games only.
 	const std::string& source = riftwii::wii::Settings().home_source;
 	if (source != "sd")
 		for (std::size_t i = 0; i < state.usb_catalog.games.size(); ++i)
-			rows.push_back({GameName(state.usb_catalog.games[i]), {HomeEntry::Kind::Usb, i}, &state.usb_catalog.games[i]});
+			addGame(state.usb_catalog.games[i], HomeEntry::Kind::Usb, i);
 	if (source != "usb")
 		for (std::size_t i = 0; i < state.sd_catalog.games.size(); ++i)
-			rows.push_back({GameName(state.sd_catalog.games[i]), {HomeEntry::Kind::Sd, i}, &state.sd_catalog.games[i]});
+			addGame(state.sd_catalog.games[i], HomeEntry::Kind::Sd, i);
+	// The games' profiles, each a tile of its own, with the first copy of
+	// its game found (a game on both drives gets them once).
+	{
+		std::set<std::string> withProfiles;
+		const std::size_t games = rows.size();
+		for (std::size_t r = 0; r < games; ++r) {
+			if (!withProfiles.insert(rows[r].GameId()).second) continue;
+			for (const riftwii::Profile* p : riftwii::wii::Profiles().for_game(rows[r].GameId())) {
+				Row row = rows[r];
+				row.name = p->name;
+				row.key = p->key();
+				row.entry.profile = row.key;
+				row.entry.searchName = p->name + " " + rows[r].gameName;
+				rows.push_back(std::move(row));
+			}
+		}
+		// A profile of a game on neither drive: the disc's (its tile reads
+		// the disc in the drive, and starts it when it is that game).
+		if (riftwii::wii::Settings().home_disc != "off") {
+			for (const riftwii::Profile& p : riftwii::wii::Profiles().all()) {
+				if (withProfiles.count(p.game_id)) continue;
+				const std::string gameName = riftwii::wii::GameDisplayName(p.game_id, p.game_id);
+				rows.push_back({p.name, gameName, p.key(), {HomeEntry::Kind::Disc, 0, p.key(), p.name + " " + gameName},
+					nullptr});
+			}
+		}
+	}
 	std::stable_sort(rows.begin(), rows.end(), [](const Row& a, const Row& b) {
 		// A leading "The" is not sorted on (The Legend of Zelda under L).
-		const int by = strcasecmp(a.name.c_str() + riftwii::sort_name_start(a.name),
-			b.name.c_str() + riftwii::sort_name_start(b.name));
-		return by != 0 ? by < 0 : strcasecmp(a.name.c_str(), b.name.c_str()) < 0;
+		const int by = strcasecmp(a.gameName.c_str() + riftwii::sort_name_start(a.gameName),
+			b.gameName.c_str() + riftwii::sort_name_start(b.gameName));
+		if (by != 0) return by < 0;
+		const int whole = strcasecmp(a.gameName.c_str(), b.gameName.c_str());
+		if (whole != 0) return whole < 0;
+		// The game's own tile first, then its profiles by name.
+		if (a.entry.profile.empty() != b.entry.profile.empty()) return a.entry.profile.empty();
+		return strcasecmp(a.name.c_str(), b.name.c_str()) < 0;
 	});
 	const bool searching = !g_search.empty();
 	const std::string& order = riftwii::wii::Settings().home_sort;
@@ -831,8 +881,8 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 		const riftwii::PlayHistory& history = riftwii::wii::History();
 		const bool most = order == "most";
 		std::stable_sort(rows.begin(), rows.end(), [&](const Row& a, const Row& b) {
-			const auto* pa = history.find(a.game->id);
-			const auto* pb = history.find(b.game->id);
+			const auto* pa = history.find(a.key);
+			const auto* pb = history.find(b.key);
 			if (!pa || !pb) return pa && !pb;
 			if (most && pa->count != pb->count) return pa->count > pb->count;
 			return pa->last > pb->last;
@@ -842,22 +892,29 @@ static void BuildHome(const FrontendState& state, std::vector<GridItem>& items, 
 		// The games played from RiftWii, the latest first.
 		const riftwii::PlayHistory& history = riftwii::wii::History();
 		rows.erase(std::remove_if(rows.begin(), rows.end(),
-			[&](const Row& r) { return history.find(r.game->id) == nullptr; }), rows.end());
+			[&](const Row& r) { return history.find(r.key) == nullptr; }), rows.end());
 		std::stable_sort(rows.begin(), rows.end(), [&](const Row& a, const Row& b) {
-			return history.find(a.game->id)->last > history.find(b.game->id)->last;
+			return history.find(a.key)->last > history.find(b.key)->last;
 		});
 	}
 	for (const Row& r : rows) {
-		const bool mods = g_packs.has_packs(r.game->id);
-		if (searching && !MatchesSearch(r.name, r.game->id)) continue;
-		if (!searching && g_filter == Filter::Mods && !mods) continue;
-		if (!searching && g_filter == Filter::Favorites && riftwii::wii::Settings().favorites.count(r.game->id) == 0) continue;
+		const bool profile = !r.entry.profile.empty();
+		const std::string id = r.GameId();
+		const bool mods = g_packs.has_packs(id);
+		if (searching && !MatchesSearch(r.entry.searchName, id)) continue;
+		// A profile is a setup of mods: it stays in the mods view.
+		if (!searching && g_filter == Filter::Mods && !mods && !profile) continue;
+		if (!searching && g_filter == Filter::Favorites && riftwii::wii::Settings().favorites.count(r.key) == 0) continue;
 		GridItem item;
 		item.title = r.name;
-		item.id = r.game->id;
-		item.badge = r.entry.kind == HomeEntry::Kind::Usb ? "USB" : "SD";
-		item.mods = mods;
-		item.hue = skin::HueFor(r.game->id);
+		item.id = id;
+		item.key = r.key;
+		item.profile = profile;
+		// A profile of the disc's game has no drive to name ("DISC" is
+		// the drive's own tile).
+		item.badge = r.entry.kind == HomeEntry::Kind::Usb ? "USB" : r.entry.kind == HomeEntry::Kind::Sd ? "SD" : "";
+		item.mods = mods || profile;
+		item.hue = skin::HueFor(id);
 		items.push_back(std::move(item));
 		entries.push_back(r.entry);
 	}
@@ -1516,7 +1573,8 @@ static std::string HomeStatusLines(const FrontendState& state, const std::vector
 	if (!g_homeNotice.empty()) return g_homeNotice;
 	// The games shown: the disc drive's tile, when it is there, is not one.
 	std::size_t games = 0;
-	for (const GridItem& item : items) games += item.badge != "DISC";
+	// Games, not tiles: a profile is one of its game's.
+	for (const GridItem& item : items) games += item.badge != "DISC" && !item.profile;
 	std::string status;
 	for (const std::string& p : {ShortSourceProblem("SD", state.sd_catalog), ShortSourceProblem("USB", state.usb_catalog)}) {
 		if (p.empty()) continue;
@@ -3037,6 +3095,19 @@ static int MenuSource(FrontendState& state)
 			icon->Draw(b.x, b.y, b.w, b.h, b.alpha, &clip);
 			return true;
 		});
+	// A profile's tile: its picture in the corner (riftwii/profiles.hpp).
+	grid.SetPictureDrawer([&items](int index, float x, float y, float size, int alpha) {
+		if (index < 0 || static_cast<std::size_t>(index) >= items.size()) return false;
+		const riftwii::Profile* profile = riftwii::wii::Profiles().find(items[static_cast<std::size_t>(index)].key);
+		const u8* picture = profile ? riftwii::wii::ProfilePicture(profile->key(), profile->art) : nullptr;
+		if (!picture) return false;
+		constexpr int kSide = riftwii::wii::kProfilePicture;
+		const float k = size / kSide;
+		// Menu_DrawImg scales about the picture's middle: put it on the square's.
+		Menu_DrawImg(x + size / 2 - kSide / 2.0f, y + size / 2 - kSide / 2.0f, kSide, kSide, const_cast<u8*>(picture), 0,
+			k, k, static_cast<u8>(alpha));
+		return true;
+	});
 	grid.SetItems(&items);
 	grid.Focus(g_homeFocus);
 	HomeBar bar;
@@ -3225,7 +3296,7 @@ static int MenuSource(FrontendState& state)
 		const std::vector<std::string> recent = riftwii::wii::History().recent(1);
 		if (!g_focusRestored && !recent.empty()) {
 			for (std::size_t i = 0; i < items.size(); ++i) {
-				if (items[i].id != recent[0]) continue;
+				if (items[i].key != recent[0]) continue;
 				grid.Focus(static_cast<int>(i));
 				break;
 			}
@@ -3336,8 +3407,9 @@ static int MenuSource(FrontendState& state)
 			for (int r = 0; r < 3 && iconId.empty(); ++r) {
 				for (int k = std::max(0, from[r]); k < from[r] + count[r] && k < static_cast<int>(items.size()); ++k) {
 					const std::string& id = items[static_cast<std::size_t>(k)].id;
-					if (id.empty() || entries[static_cast<std::size_t>(k)].kind == HomeEntry::Kind::Disc ||
-					    g_iconIndex.count(id) || g_bannerAbsent.count(id))
+					// The disc drive's own tile has no ID; a profile of the disc's
+					// game shows its icon when the card has its banner.
+					if (id.empty() || g_iconIndex.count(id) || g_bannerAbsent.count(id))
 						continue;
 					iconId = id;
 					break;
@@ -3418,7 +3490,7 @@ static int MenuSource(FrontendState& state)
 			// Only while Home still shows channels (else it would open the page).
 			if (clicked < 0 && grid.Channels()) {
 				for (std::size_t i = 0; i < items.size(); ++i)
-					if (items[i].id == g_reopenBanner) clicked = static_cast<int>(i);
+					if (items[i].key == g_reopenBanner) clicked = static_cast<int>(i);
 				reopening = clicked >= 0;
 			}
 			g_reopenBanner.clear();
@@ -3455,10 +3527,10 @@ static int MenuSource(FrontendState& state)
 				int shown = clicked;
 				const ChannelChoice choice = ShowChannel(shown, static_cast<int>(entries.size()),
 					items[static_cast<std::size_t>(clicked)].id, loadBanner,
-					[&](int i) { return items[static_cast<std::size_t>(i)].id; });
+					[&](int i) { return items[static_cast<std::size_t>(i)].key; });
 				const bool go = choice != ChannelChoice::Back;
 				g_startOnOpen = choice == ChannelChoice::Start;
-				if (choice == ChannelChoice::Page) g_reopenBanner = items[static_cast<std::size_t>(shown)].id;
+				if (choice == ChannelChoice::Page) g_reopenBanner = items[static_cast<std::size_t>(shown)].key;
 				if (shown != clicked) {
 					// Home follows to the game shown last: its tile lit, its page up.
 					clicked = shown;
@@ -3498,6 +3570,19 @@ static int MenuSource(FrontendState& state)
 				ok = SelectUsbGame(state, entry.index, error);
 			} else {
 				ok = SelectSdGame(state, entry.index, error);
+			}
+			if (ok && !entry.profile.empty()) {
+				const riftwii::Profile* profile = riftwii::wii::Profiles().find(entry.profile);
+				if (profile && profile->game_id != state.game_id) {
+					// A profile of the disc's game, with another disc in the drive.
+					ok = false;
+					logf("Home: %s is for %s; the disc is %s\n", entry.profile.c_str(), profile->game_id.c_str(),
+						state.game_id.c_str());
+					error = tr("This tile is for {1}: put its disc in the drive.",
+						{riftwii::wii::GameDisplayName(profile->game_id, profile->game_id)});
+				} else if (profile) {
+					riftwii::wii::SelectProfile(state, *profile);
+				}
 			}
 			HaltGui();
 			if (ok) {
@@ -3554,11 +3639,10 @@ static int MenuSource(FrontendState& state)
 				for (const char* c = kCandidates; *c; ++c) {
 					if (*c == ' ' && (words.empty() || words.back() == ' ')) continue;
 					const std::string trial = words + *c;
-					for (const HomeEntry& e : entries) {
-						if (e.kind == HomeEntry::Kind::Disc) continue;
-						const riftwii::wii::ImageGame& g = e.kind == HomeEntry::Kind::Usb
-							? state.usb_catalog.games[e.index] : state.sd_catalog.games[e.index];
-						if (WordsMatch(trial, GameName(g), g.id)) {
+					for (std::size_t k = 0; k < entries.size(); ++k) {
+						const HomeEntry& e = entries[k];
+						if (e.searchName.empty()) continue;  // the disc drive's tile
+						if (WordsMatch(trial, e.searchName, items[k].id)) {
 							next += *c;
 							break;
 						}
@@ -3607,6 +3691,7 @@ static int MenuSource(FrontendState& state)
 			refresh(false);
 		} else if (rescanBtn.GetState() == STATE::CLICKED) {
 			rescanBtn.ResetState();
+			riftwii::wii::ForgetProfilePictures();
 			ScanDrives(state, statusTxt);
 			refresh(true);
 			// Covers that failed (or were never tried) are asked for again.
@@ -3773,7 +3858,7 @@ static std::string SaveNote(const riftwii::LaunchModel& model)
 struct RowRef {
 	enum class What { Mods, Saves, Cheats, Width, Deflicker, Borders, VideoMode, RegionVideo, Aspect, Rumble, Speaker,
 		RegionStrings, Language, Cios, Server, Favorite, Pack, Option, Note,
-		AddCodes, ForgetCodes, MakeImage, Cover, Memory, About } what = What::Note;
+		AddCodes, ForgetCodes, MakeImage, Cover, Memory, About, SaveTile, RenameTile, RemoveTile } what = What::Note;
 	std::size_t pkg = 0, opt = 0;
 };
 
@@ -4041,7 +4126,7 @@ static void BuildGameRows(const FrontendState& state, std::vector<FlowRow>& rows
 	FlowRow favorite;
 	favorite.kind = FlowRow::Kind::Toggle;
 	favorite.label = tr("Favourite");
-	favorite.on = global.favorites.count(state.game_id) != 0;
+	favorite.on = global.favorites.count(riftwii::wii::TileKey(state)) != 0;
 	favorite.value = favorite.on ? tr("On") : tr("Off");
 	add(favorite, {RowRef::What::Favorite});
 	if (global.online && !state.game_id.empty()) {
@@ -4252,6 +4337,52 @@ static void BuildModRows(const FrontendState& state, const std::string& scanStat
 	pick.kind = FlowRow::Kind::Action;
 	pick.label = tr("Add a code build...");
 	add(pick, {RowRef::What::AddCodes});
+	// Home tiles of their own for these mods (riftwii/profiles.hpp).
+	if (!state.game_id.empty() && shown != 0) {
+		FlowRow tile;
+		tile.kind = FlowRow::Kind::Action;
+		tile.label = tr("Make a Home tile with these mods...");
+		add(tile, {RowRef::What::SaveTile});
+		if (!state.profile_key.empty()) {
+			FlowRow rename;
+			rename.kind = FlowRow::Kind::Action;
+			rename.label = tr("Rename this tile...");
+			add(rename, {RowRef::What::RenameTile});
+			FlowRow remove;
+			remove.kind = FlowRow::Kind::Action;
+			remove.label = tr("Remove this tile from Home");
+			add(remove, {RowRef::What::RemoveTile});
+		}
+	}
+}
+
+static std::string GameTitle(const FrontendState& state);
+
+// The name for a Home tile, typed on the search's keyboard (its name
+// mode). False when cancelled.
+static bool AskTileName(const std::string& title, std::string& name)
+{
+	GuiSearchKeys keys(riftwii::clean_profile_name(name), title, riftwii::kMaxProfileName);
+	mainWindow->SetState(STATE::DISABLED);
+	mainWindow->Append(&keys);
+	keys.SetState(STATE::DEFAULT);
+	ResumeGui();
+	while (keys.Result() == 0) usleep(20000);
+	HaltGui();
+	mainWindow->Remove(&keys);
+	mainWindow->SetState(STATE::DEFAULT);
+	if (keys.Result() < 0) return false;
+	name = keys.Text();
+	return true;
+}
+
+// A new tile's name to start from: the first mod turned on (what the tile
+// is for, as often as not), else the game's.
+static std::string SuggestedTileName(const FrontendState& state)
+{
+	for (const riftwii::LaunchPackage& p : state.model.packages)
+		if (p.valid && p.enabled && riftwii::show_package(p)) return PackLabel(p);
+	return GameTitle(state);
 }
 
 static std::string SourceWhere(const FrontendState& state)
@@ -4261,13 +4392,20 @@ static std::string SourceWhere(const FrontendState& state)
 	return "Disc drive";
 }
 
-static std::string GameTitle(const FrontendState& state)
+// The game's own name, whichever tile opened it.
+static std::string GameOwnTitle(const FrontendState& state)
 {
 	if (state.use_usb && state.usb_index < state.usb_catalog.games.size())
 		return GameName(state.usb_catalog.games[state.usb_index]);
 	if (state.use_sd && state.sd_index < state.sd_catalog.games.size())
 		return GameName(state.sd_catalog.games[state.sd_index]);
 	return riftwii::wii::GameDisplayName(state.game_id, state.disc_title.empty() ? state.game_id : state.disc_title);
+}
+
+// What the pages are headed with: a profile's tile name, else the game's.
+static std::string GameTitle(const FrontendState& state)
+{
+	return state.profile_name.empty() ? GameOwnTitle(state) : state.profile_name;
 }
 
 // ---------------------------------------------------------------------------
@@ -4763,7 +4901,7 @@ static bool ShowAbout(const FrontendState& state, const riftwii::GameInfo& info)
 	for (char& ch : overline)
 		if (ch >= 'a' && ch <= 'z') ch = static_cast<char>(ch - 'a' + 'A');
 	GuiText whereTxt(overline.c_str(), 13, (GXColor){225, 228, 235, 255});
-	const std::string title = GameTitle(state);
+	const std::string title = GameOwnTitle(state);
 	const int titleRoom = kTilesW - (body.HasRating() ? 70 : 0);
 	GuiText titleTxt(title.c_str(), 28, skin::kWhite);
 	int titleSize = 28;
@@ -5512,6 +5650,12 @@ static void MenuMods(FrontendState& state, std::string& scanStatus)
 				say("Takes this build off the list. Its files stay on the SD card.");
 			} else if (ref.what == RowRef::What::MakeImage) {
 				say("Copies this build into an image in sd:/riftwii, a card of its own for the game, so the game can be on the SD card too.");
+			} else if (ref.what == RowRef::What::SaveTile) {
+				say(tr("Puts this game on Home again as a tile of its own, which starts it with the mods and settings set here."));
+			} else if (ref.what == RowRef::What::RenameTile) {
+				say(tr("This page is the \"{1}\" tile's: what is changed here is changed for it only.", {state.profile_name}));
+			} else if (ref.what == RowRef::What::RemoveTile) {
+				say(tr("Takes the \"{1}\" tile off Home. The game and its mods stay.", {state.profile_name}));
 			} else say("");
 		}
 
@@ -5548,6 +5692,42 @@ static void MenuMods(FrontendState& state, std::string& scanStatus)
 				}
 			} else if (ref.what == RowRef::What::Option) {
 				changed = state.model.cycle(ref.pkg, ref.opt, direction);
+			} else if (ref.what == RowRef::What::SaveTile || ref.what == RowRef::What::RenameTile) {
+				const bool renaming = ref.what == RowRef::What::RenameTile;
+				std::string name = renaming ? state.profile_name : SuggestedTileName(state);
+				std::string key, error;
+				if (!AskTileName(renaming ? tr("Rename the tile") : tr("Name the new tile"), name)) {
+					// cancelled
+				} else if (renaming ? riftwii::wii::RenameProfile(state, name, error)
+						    : riftwii::wii::CreateProfile(state, name, key, error)) {
+					const std::string named = renaming ? state.profile_name : riftwii::wii::Profiles().find(key)->name;
+					say(renaming ? tr("Renamed \"{1}\".", {named})
+						     : tr("\"{1}\" is on Home now: its tile starts the game with these mods. Its own picture can go in sd:/riftwii/profiles/{2}.png.", {named, key}));
+					gameTxt.SetText(FlatCapped(GameTitle(state), 40).c_str());
+					shownRow = acted;  // the answer stays up
+				} else {
+					say(error);
+					shownRow = acted;
+				}
+			} else if (ref.what == RowRef::What::RemoveTile) {
+				std::string error;
+				const std::string name = state.profile_name;
+				if (ShowPopup(tr("Remove this tile?"),
+					    tr("\"{1}\" goes from Home, with its own mods and settings. The game and its mods stay.", {name}),
+					    tr("Remove"), tr("Cancel")) != 0) {
+					// kept
+				} else if (riftwii::wii::RemoveProfile(state, error)) {
+					// The page is the game's own again: its choices are read back.
+					scanStatus = riftwii::wii::ScanPackages(state);
+					BuildModRows(state, scanStatus, rows, refs);
+					list.Refresh();
+					list.Select(0);
+					gameTxt.SetText(FlatCapped(GameTitle(state), 40).c_str());
+					say(tr("Removed \"{1}\". This page is the game's own again.", {name}));
+					shownRow = 0;
+				} else {
+					say(error);
+				}
 			} else if (ref.what == RowRef::What::AddCodes || ref.what == RowRef::What::ForgetCodes ||
 				   ref.what == RowRef::What::MakeImage) {
 				std::string key, error;
@@ -5611,6 +5791,8 @@ static void MenuMods(FrontendState& state, std::string& scanStatus)
 static std::string GameFacts(const FrontendState& state)
 {
 	std::vector<std::string> parts;
+	// A profile's page is headed with its own name: which game it starts.
+	if (!state.profile_key.empty()) parts.push_back(GameOwnTitle(state));
 	if (!state.game_id.empty()) parts.push_back(state.game_id);
 	riftwii::GameInfo info;
 	if (!state.game_id.empty() && riftwii::wii::PeekGameInfo(state.game_id, info)) {
@@ -5620,7 +5802,7 @@ static std::string GameFacts(const FrontendState& state)
 		else if (info.players > 1) parts.push_back(tr("1 to {1} players", {std::to_string(info.players)}));
 		if (info.online_players > 0) parts.push_back(tr("Online"));
 	}
-	const std::string played = riftwii::wii::PlayNote(state.game_id);
+	const std::string played = riftwii::wii::PlayNote(riftwii::wii::TileKey(state));
 	if (!played.empty()) parts.push_back(played);
 	std::string out;
 	for (const std::string& part : parts) out += (out.empty() ? "" : " \xC2\xB7 ") + part;
@@ -5670,7 +5852,7 @@ static void BuildGameTiles(const FrontendState& state, std::vector<TileSpec>& ti
 	const std::string modsOn = enabled == 0 ? std::string() : tr("Mods on: {1}", {std::to_string(enabled)});
 	const riftwii::GameSettings& game = state.model.game;
 	const int changed = ChangedGameSettings(game);
-	const bool favorite = riftwii::wii::Settings().favorites.count(state.game_id) != 0;
+	const bool favorite = riftwii::wii::Settings().favorites.count(riftwii::wii::TileKey(state)) != 0;
 	const std::string saves = !state.model.pack_save_owner().empty() ? std::string(tr("Kept by the pack"))
 		: std::string(tr(SaveLabel(state.model.save_mode).c_str()));
 
@@ -6100,8 +6282,9 @@ static int MenuHome(FrontendState& state)
 				say(SaveNote(state.model));
 			} else if (tile == GameTile::Favorite && !state.game_id.empty()) {
 				std::set<std::string>& favorites = riftwii::wii::Settings().favorites;
-				if (favorites.count(state.game_id) != 0) favorites.erase(state.game_id);
-				else favorites.insert(state.game_id);
+				const std::string key = riftwii::wii::TileKey(state);
+				if (favorites.count(key) != 0) favorites.erase(key);
+				else favorites.insert(key);
 				if (!riftwii::wii::SaveSettings()) say(tr("Could not save the settings to the SD card."));
 				rebuildTiles();
 			} else if (tile == GameTile::About) {
@@ -6126,6 +6309,9 @@ static int MenuHome(FrontendState& state)
 				else MenuGameSettings(state, askedCover);
 				transition::Hold(transition::Kind::SlideBack);
 				mainWindow->Append(&w);
+				// The Mods page renames a profile's tile, or removes it (the
+				// page is the game's own then).
+				if (tile == GameTile::Mods) titleTxt.SetText(GameTitle(state).c_str());
 				rebuildTiles();
 				shownTile = -1;
 				if (askedCover && !state.game_id.empty()) {
@@ -6245,7 +6431,7 @@ static int MenuHome(FrontendState& state)
 		const bool playing = g_lingerBanner != nullptr;
 		if (playing) ResumeGui();
 		riftwii::wii::PrepareLaunchExtras(state);
-		riftwii::wii::RecordPlay(state.game_id);
+		riftwii::wii::RecordPlay(riftwii::wii::TileKey(state));
 		riftwii::wii::TagGame(state.game_id, true);
 		if (playing) HaltGui();
 	}

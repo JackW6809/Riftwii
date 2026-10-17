@@ -391,8 +391,10 @@ void GuiGameGrid::Layout() {
         const GridItem& item = (*items)[index];
         // A name tile's disc (top right, from tileW - 46) keeps its name short of it.
         const bool disc = !covers && item.badge == "DISC";
+        // A profile's name keeps short of its picture in the corner.
+        const int pictureRoom = !covers && item.profile ? static_cast<int>(ProfilePictureSize()) + 2 : 0;
         const std::vector<std::string> lines =
-            Wrap(item.title, disc ? Geo().tileW - 46 - kTextLeft - 4 : textWidth, lineCount);
+            Wrap(item.title, disc ? Geo().tileW - 46 - kTextLeft - 4 : textWidth - pictureRoom, lineCount);
         for (int l = 0; l < 3; ++l) s.lines[l]->SetText(l < static_cast<int>(lines.size()) ? lines[l].c_str() : "");
         s.id->SetText(item.id.c_str());
         s.badge->SetText(item.badge.c_str());
@@ -492,9 +494,12 @@ void GuiGameGrid::DrawNameTile(int i, bool on, int alpha) {
         s.id->SetPosition(idX, baseY);
         s.id->Draw();
     }
-    Menu_DrawRectangle(badgeX, baseY - 1, badgeW, 15, skin::WithAlpha(skin::kBadge, alpha), 1);
-    s.badge->SetPosition(badgeX + 5, baseY);
-    s.badge->Draw();
+    // No source badge on a tile with none (a profile of the disc's game).
+    if (!item.badge.empty()) {
+        Menu_DrawRectangle(badgeX, baseY - 1, badgeW, 15, skin::WithAlpha(skin::kBadge, alpha), 1);
+        s.badge->SetPosition(badgeX + 5, baseY);
+        s.badge->Draw();
+    }
     if (item.mods) {
         const int modsW = s.mods->GetTextWidth() + 10;
         const int modsX = badgeX - modsW - 5;
@@ -544,15 +549,45 @@ void GuiGameGrid::DrawCoverTile(int i, bool on, int alpha) {
     const int baseY = at_y(tileH - 22);
     const int badgeW = s.badge->GetTextWidth() + 10;
     const int badgeX = at_x(tileW - 5) - badgeW;
-    Menu_DrawRectangle(badgeX, baseY - 1, badgeW, 15, skin::WithAlpha(skin::WithAlpha(skin::kBadge, 235), alpha), 1);
-    s.badge->SetPosition(badgeX + 5, baseY);
-    s.badge->Draw();
+    if (!item.badge.empty()) {
+        Menu_DrawRectangle(badgeX, baseY - 1, badgeW, 15, skin::WithAlpha(skin::WithAlpha(skin::kBadge, 235), alpha), 1);
+        s.badge->SetPosition(badgeX + 5, baseY);
+        s.badge->Draw();
+    }
     if (item.mods) {
         const int modsW = s.mods->GetTextWidth() + 10;
         const int modsX = at_x(5);
         Menu_DrawRectangle(modsX, baseY - 1, modsW, 15, skin::WithAlpha(skin::kAccentInk, alpha), 1);
         s.mods->SetPosition(modsX + 5, baseY);
         s.mods->Draw();
+    }
+}
+
+// A profile's picture: a quarter or so of the tile, in its top right
+// corner, so the game's own icon, cover or name still shows which game it is.
+float GuiGameGrid::ProfilePictureSize() const {
+    if (covers) return Geo().tileW * 0.46f;
+    return Geo().tileH * (channels ? 0.46f : 0.40f);
+}
+
+void GuiGameGrid::DrawProfilePicture(int slot, float scale, int alpha) {
+    const float tileW = Geo().tileW * scale, tileH = Geo().tileH * scale;
+    const float cx = TileX(slot) + Geo().tileW / 2.0f, cy = TileY(slot) + Geo().tileH / 2.0f;
+    const float size = ProfilePictureSize() * scale;
+    const float inset = (covers ? 3.0f : 6.0f) * scale;
+    const float x = cx + tileW / 2 - inset - size, y = cy - tileH / 2 + inset;
+    // On a card of its own, as a sticker on the tile: a soft shadow, a
+    // light rim, the picture (or the Mods icon) inside it.
+    const float rim = 2.0f * scale;
+    Menu_DrawRectangle(x - rim + 1, y - rim + 2, size + 2 * rim, size + 2 * rim, (GXColor){0, 0, 0, static_cast<u8>(alpha * 70 / 255)}, 1);
+    Menu_DrawRectangle(x - rim, y - rim, size + 2 * rim, size + 2 * rim, skin::WithAlpha(skin::kBadge, alpha), 1);
+    const int index = page * kPerPage + slot;
+    if (pictureDrawer && pictureDrawer(index, x, y, size, alpha)) return;
+    Menu_DrawRectangle(x, y, size, size, skin::WithAlpha(skin::kAccentInk, alpha), 1);
+    const skin::Tex& icon = skin::iconMods;
+    if (icon.data && icon.w > 0 && icon.h > 0) {
+        const float k = size * 0.72f / std::max(icon.w, icon.h);
+        skin::Draw(icon, x + size / 2 - icon.w / 2.0f, y + size / 2 - icon.h / 2.0f, alpha, k);
     }
 }
 
@@ -649,7 +684,7 @@ void GuiGameGrid::Draw() {
                        TileY(i) + Geo().tileH / 2.0f - skin::coverTile.h / 2.0f, tileAlpha * 70 / 255, CoverScale());
         else DrawTilePicture(skin::tileEmpty.data ? skin::tileEmpty : skin::tile, i, skin::tileEmpty.data ? tileAlpha : tileAlpha * 70 / 255, 1.0f);
     }
-    const auto draw_tile = [&](int i) {
+    const auto draw_tile_body = [&](int i) {
         Slot& s = slots[i];
         const bool on = i == lit;
         s.scale += ((on ? 1.06f : 1.0f) - s.scale) * 0.35f;
@@ -710,6 +745,10 @@ void GuiGameGrid::Draw() {
         }
         if (covers) DrawCoverTile(i, on, tileAlpha);
         else DrawNameTile(i, on, tileAlpha);
+    };
+    const auto draw_tile = [&](int i) {
+        draw_tile_body(i);
+        if ((*items)[page * kPerPage + i].profile) DrawProfilePicture(i, slots[i].scale, tileAlpha);
     };
     for (int i = 0; i < kPerPage; ++i) {
         if (i == lit || page * kPerPage + i >= Count()) continue;
