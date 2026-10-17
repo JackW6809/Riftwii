@@ -1536,6 +1536,60 @@ msgstr "セーブのバックアップ"
 msgid "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page."
 msgstr "ゲームキューブのゲームを起動する前に、そのメモリーカードをSDカードにコピーします。最新の5つのコピーが残り、ゲームのセーブのページの「前のセーブに戻す」で使えます。"
 
+msgid "Restore an older save"
+msgstr "前のセーブに戻す"
+
+msgid "Go back to how your save was on a day you pick."
+msgstr "選んだ日のセーブの状態に戻します。"
+
+msgid "Go back to how the shared memory card was on a day you pick, for every game on it."
+msgstr "選んだ日の共有メモリーカードの状態に戻します。カードのすべてのゲームが戻ります。"
+
+msgid "No older saves yet"
+msgstr "前のセーブはまだありません"
+
+msgid "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."
+msgstr "設定の「セーブのバックアップ」がオンのあいだ、ゲームを起動するたびにメモリーカードのコピーが残ります。"
+
+msgid "Press A to put this game's save back to how it was then."
+msgstr "Aボタンで、このゲームのセーブをその時の状態に戻します。"
+
+msgid "Press A to put the shared memory card back to how it was then, for every game on it."
+msgstr "Aボタンで、共有メモリーカードをその時の状態に戻します。カードのすべてのゲームが戻ります。"
+
+msgid "Restore the save from {1}?"
+msgstr "{1}のセーブに戻しますか?"
+
+msgid "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it."
+msgstr "セーブがその時の状態に戻ります。今のセーブは先にコピーとして残るので、あとで戻せます。"
+
+msgid "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them."
+msgstr "共有メモリーカードのすべてのゲームのセーブがその時の状態に戻ります。今の状態は先にコピーとして残るので、あとで戻せます。"
+
+msgid "Restore"
+msgstr "戻す"
+
+msgid "Save restored"
+msgstr "セーブを戻しました"
+
+msgid "The memory card is as it was on {1}. The save from before is kept among the older saves, so you can go back to it."
+msgstr "メモリーカードは{1}の状態になりました。戻す前のセーブは前のセーブの一覧に残るので、あとで戻せます。"
+
+msgid "Save not restored"
+msgstr "セーブを戻せませんでした"
+
+msgid "RiftWii could not read that copy."
+msgstr "RiftWiiはそのコピーを読めませんでした。"
+
+msgid "That copy is damaged, so your save was not changed."
+msgstr "そのコピーは壊れているため、セーブは変わっていません。"
+
+msgid "RiftWii could not keep a copy of the save as it is now, so it was not changed: {1}"
+msgstr "RiftWiiは今のセーブのコピーを残せなかったため、セーブは変わっていません: {1}"
+
+msgid "RiftWii could not write the memory card: {1}"
+msgstr "RiftWiiはメモリーカードに書き込めませんでした: {1}"
+
 msgid "Shared Memory Card"
 msgstr "共有メモリーカード"
 

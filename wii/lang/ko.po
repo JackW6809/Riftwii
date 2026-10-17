@@ -1536,6 +1536,60 @@ msgstr "저장 데이터 백업"
 msgid "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page."
 msgstr "게임큐브 게임을 시작하기 전에 메모리 카드를 SD 카드에 복사합니다. 최근 복사본 다섯 개가 남으며, 게임의 저장 페이지에 있는 이전 저장 데이터로 되돌리기에 쓰입니다."
 
+msgid "Restore an older save"
+msgstr "이전 저장 데이터로 되돌리기"
+
+msgid "Go back to how your save was on a day you pick."
+msgstr "고른 날의 저장 데이터 상태로 되돌립니다."
+
+msgid "Go back to how the shared memory card was on a day you pick, for every game on it."
+msgstr "고른 날의 공유 메모리 카드 상태로 되돌립니다. 카드의 모든 게임이 되돌아갑니다."
+
+msgid "No older saves yet"
+msgstr "아직 이전 저장 데이터가 없습니다"
+
+msgid "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."
+msgstr "설정에서 저장 데이터 백업이 켜져 있으면 게임을 시작할 때마다 메모리 카드 복사본이 남습니다."
+
+msgid "Press A to put this game's save back to how it was then."
+msgstr "A 버튼을 누르면 이 게임의 저장 데이터를 그때 상태로 되돌립니다."
+
+msgid "Press A to put the shared memory card back to how it was then, for every game on it."
+msgstr "A 버튼을 누르면 공유 메모리 카드를 그때 상태로 되돌립니다. 카드의 모든 게임이 되돌아갑니다."
+
+msgid "Restore the save from {1}?"
+msgstr "{1}의 저장 데이터로 되돌릴까요?"
+
+msgid "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it."
+msgstr "저장 데이터가 그때 상태로 되돌아갑니다. 지금의 저장 데이터는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다."
+
+msgid "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them."
+msgstr "공유 메모리 카드에 있는 모든 게임의 저장 데이터가 그때 상태로 되돌아갑니다. 지금 상태는 먼저 복사본으로 남으므로 다시 돌아올 수 있습니다."
+
+msgid "Restore"
+msgstr "되돌리기"
+
+msgid "Save restored"
+msgstr "저장 데이터를 되돌렸습니다"
+
+msgid "The memory card is as it was on {1}. The save from before is kept among the older saves, so you can go back to it."
+msgstr "메모리 카드가 {1}의 상태가 되었습니다. 되돌리기 전의 저장 데이터는 이전 저장 데이터 목록에 남으므로 다시 돌아갈 수 있습니다."
+
+msgid "Save not restored"
+msgstr "저장 데이터를 되돌리지 못했습니다"
+
+msgid "RiftWii could not read that copy."
+msgstr "RiftWii가 그 복사본을 읽지 못했습니다."
+
+msgid "That copy is damaged, so your save was not changed."
+msgstr "그 복사본이 손상되어 저장 데이터는 바뀌지 않았습니다."
+
+msgid "RiftWii could not keep a copy of the save as it is now, so it was not changed: {1}"
+msgstr "RiftWii가 지금의 저장 데이터 복사본을 남기지 못해 저장 데이터는 바뀌지 않았습니다: {1}"
+
+msgid "RiftWii could not write the memory card: {1}"
+msgstr "RiftWii가 메모리 카드에 쓰지 못했습니다: {1}"
+
 msgid "Shared Memory Card"
 msgstr "공유 메모리 카드"
 

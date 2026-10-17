@@ -1536,6 +1536,60 @@ msgstr "Copia de seguridad de partidas"
 msgid "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page."
 msgstr "Antes de que arranque un juego de GameCube, su tarjeta de memoria se copia en la tarjeta SD. Se guardan las cinco últimas copias, para Restaurar una partida anterior en la página de partidas del juego."
 
+msgid "Restore an older save"
+msgstr "Restaurar una partida anterior"
+
+msgid "Go back to how your save was on a day you pick."
+msgstr "Vuelve a tu partida tal como estaba el día que elijas."
+
+msgid "Go back to how the shared memory card was on a day you pick, for every game on it."
+msgstr "Vuelve a la tarjeta de memoria compartida tal como estaba el día que elijas, para todos sus juegos."
+
+msgid "No older saves yet"
+msgstr "Aún no hay partidas anteriores"
+
+msgid "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."
+msgstr "Cada vez que arranca el juego se guarda una copia de la tarjeta de memoria, mientras Copia de seguridad de partidas esté activada en Ajustes."
+
+msgid "Press A to put this game's save back to how it was then."
+msgstr "Pulsa A para devolver la partida de este juego a como estaba entonces."
+
+msgid "Press A to put the shared memory card back to how it was then, for every game on it."
+msgstr "Pulsa A para devolver la tarjeta de memoria compartida a como estaba entonces, para todos sus juegos."
+
+msgid "Restore the save from {1}?"
+msgstr "¿Restaurar la partida del {1}?"
+
+msgid "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it."
+msgstr "Tu partida vuelve a como estaba entonces. Antes se guarda una copia de tu partida tal como está ahora, para que puedas volver a ella."
+
+msgid "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them."
+msgstr "Las partidas de todos los juegos de la tarjeta de memoria compartida vuelven a como estaban entonces. Antes se guarda una copia de cómo están ahora, para que puedas volver a ellas."
+
+msgid "Restore"
+msgstr "Restaurar"
+
+msgid "Save restored"
+msgstr "Partida restaurada"
+
+msgid "The memory card is as it was on {1}. The save from before is kept among the older saves, so you can go back to it."
+msgstr "La tarjeta de memoria está como el {1}. La partida de antes se guarda entre las partidas anteriores, para que puedas volver a ella."
+
+msgid "Save not restored"
+msgstr "Partida no restaurada"
+
+msgid "RiftWii could not read that copy."
+msgstr "RiftWii no ha podido leer esa copia."
+
+msgid "That copy is damaged, so your save was not changed."
+msgstr "Esa copia está dañada, así que tu partida no ha cambiado."
+
+msgid "RiftWii could not keep a copy of the save as it is now, so it was not changed: {1}"
+msgstr "RiftWii no ha podido guardar una copia de la partida tal como está ahora, así que no ha cambiado: {1}"
+
+msgid "RiftWii could not write the memory card: {1}"
+msgstr "RiftWii no ha podido escribir la tarjeta de memoria: {1}"
+
 msgid "Shared Memory Card"
 msgstr "Tarjeta de memoria compartida"
 

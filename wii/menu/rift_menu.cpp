@@ -63,6 +63,7 @@
 #include "cover3d.hpp"
 #include "covers.hpp"
 #include "riftwii/coverart.hpp"
+#include "riftwii/gcbackup.hpp"
 #include "riftwii/gccard.hpp"
 #include "riftwii/qrcode.hpp"
 #include "riftwii/update.hpp"
@@ -5296,6 +5297,145 @@ static bool PickGciFile(const std::vector<std::string>& names, std::string& path
 	return true;
 }
 
+// ---------------------------------------------------------------------------
+// Restore an older save: the backups the loader makes of a GameCube game's
+// memory card before each start (riftwii/gcbackup.hpp).
+
+// A backup's date, as GcSaveDate writes one.
+static std::string GcBackupDate(const riftwii::GcBackupStamp& stamp)
+{
+	return tr("{1}/{2}/{3}", {std::to_string(stamp.month), std::to_string(stamp.day), std::to_string(stamp.year)});
+}
+
+// A backup's date and time: the time as Home's clock writes it (the Clock
+// setting); a second backup in the same minute gets its number.
+static std::string GcBackupWhen(const riftwii::GcBackupStamp& stamp)
+{
+	const std::string date = GcBackupDate(stamp);
+	char minutes[4];
+	snprintf(minutes, sizeof(minutes), "%02u", stamp.minute % 60);
+	const unsigned hour12 = stamp.hour % 12 == 0 ? 12 : stamp.hour % 12;
+	const bool morning = stamp.hour < 12;
+	const char* const ampm = morning ? "{1}:{2} AM" : "{1}:{2} PM";
+	const std::string& mode = riftwii::wii::Settings().clock;
+	std::string timeText;
+	if (mode == "24") {
+		timeText = std::to_string(stamp.hour) + ":" + minutes;
+	} else if (mode == "12") {
+		// The language's own 12-hour way, unless it writes the 24-hour
+		// hour: then the English one, as ClockText does.
+		const std::string own = tr(ampm);
+		timeText = own.find("{1}") != std::string::npos ? tr(ampm, {std::to_string(hour12), minutes, std::to_string(hour12)})
+			: std::to_string(hour12) + ":" + minutes + (morning ? " AM" : " PM");
+	} else {
+		timeText = tr(ampm, {std::to_string(hour12), minutes, std::to_string(stamp.hour)});
+	}
+	std::string when = date + " \xC2\xB7 " + timeText;
+	if (stamp.serial >= 2) when += " (" + std::to_string(stamp.serial) + ")";
+	return when;
+}
+
+// Puts the backup `from` over the card at `cardPath`, after a backup of the
+// card as it is now (made even with Back up saves off), so the restore can
+// be undone from the same list. Says how it went. True: the card changed.
+static bool RestoreGcBackup(const std::string& cardPath, const std::string& folder, const std::string& from,
+	const std::string& when)
+{
+	std::vector<std::uint8_t> bytes;
+	if (!ReadSmallFile(from, riftwii::kGcBackupMaxBytes, bytes)) {
+		logf("GameCube card %s: the backup %s could not be read\n", cardPath.c_str(), from.c_str());
+		ShowPopup(tr("Save not restored"), tr("RiftWii could not read that copy."), tr("OK"));
+		return false;
+	}
+	riftwii::GcCardInfo info;
+	std::string why;
+	if (!riftwii::gc_card_read(bytes, info, why)) {
+		logf("GameCube card %s: the backup %s is damaged: %s\n", cardPath.c_str(), from.c_str(), why.c_str());
+		ShowPopup(tr("Save not restored"), tr("That copy is damaged, so your save was not changed."), tr("OK"));
+		return false;
+	}
+	const time_t now = time(nullptr);
+	struct tm local;
+	localtime_r(&now, &local);
+	const riftwii::GcBackupResult before = riftwii::gc_backup_card(cardPath, folder, riftwii::gc_backup_stamp(local));
+	if (before.what == riftwii::GcBackupResult::What::Failed) {
+		logf("GameCube card %s: not restored, as the card as it is now could not be backed up: %s\n", cardPath.c_str(),
+			before.error.c_str());
+		ShowPopup(tr("Save not restored"), tr("RiftWii could not keep a copy of the save as it is now, so it was not changed: {1}",
+			{FlatCapped(before.error, 120)}), tr("OK"));
+		return false;
+	}
+	if (before.what == riftwii::GcBackupResult::What::Made)
+		logf("GameCube card %s: backed up to %s/%s before the restore\n", cardPath.c_str(), folder.c_str(), before.name.c_str());
+	for (const std::string& old : before.pruned)
+		logf("GameCube card %s: oldest backup %s/%s deleted, to keep the newest %u\n", cardPath.c_str(), folder.c_str(),
+			old.c_str(), static_cast<unsigned>(riftwii::kGcBackupsKept));
+	// A card that was never made: its folder may be missing too.
+	mkdir("sd:/riftwii", 0777);
+	mkdir("sd:/riftwii/gc", 0777);
+	mkdir("sd:/riftwii/gc/cards", 0777);
+	if (!riftwii::gc_overwrite_file(cardPath, bytes, why)) {
+		logf("GameCube card %s: the restore from %s could not be written: %s\n", cardPath.c_str(), from.c_str(), why.c_str());
+		ShowPopup(tr("Save not restored"), tr("RiftWii could not write the memory card: {1}", {FlatCapped(why, 120)}), tr("OK"));
+		return false;
+	}
+	logf("GameCube card %s: restored from %s\n", cardPath.c_str(), from.c_str());
+	ShowPopup(tr("Save restored"),
+		tr("The memory card is as it was on {1}. The save from before is kept among the older saves, so you can go back to it.", {when}),
+		tr("OK"));
+	return true;
+}
+
+// The game's card's backups, newest first, on a page of their own; the one
+// picked, once confirmed, is put back. True: the card changed.
+static bool MenuGcRestore(FrontendState& state)
+{
+	const bool shared = GcCardShared(state);
+	const std::string cardPath = GcCardPath(state);
+	const std::string folder = riftwii::gc_backup_folder(state.game_id, shared);
+	const std::vector<std::string> names = riftwii::gc_backup_list(folder);
+	if (names.empty()) {
+		ShowPopup(tr("No older saves yet"),
+			tr("A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."), tr("OK"));
+		return false;
+	}
+	std::vector<FlowRow> rows;
+	std::vector<std::string> whens, dates;
+	for (const std::string& name : names) {
+		riftwii::GcBackupStamp stamp;
+		riftwii::gc_backup_parse(name, stamp);
+		whens.push_back(GcBackupWhen(stamp));
+		dates.push_back(GcBackupDate(stamp));
+		FlowRow row;
+		row.kind = FlowRow::Kind::Action;
+		row.label = whens.back();
+		rows.push_back(row);
+	}
+	bool restored = false;
+	const auto note = [&](int) -> std::string {
+		return shared ? tr("Press A to put the shared memory card back to how it was then, for every game on it.")
+			: tr("Press A to put this game's save back to how it was then.");
+	};
+	const auto act = [&](int row, const PageAside&) {
+		const std::size_t at = static_cast<std::size_t>(row);
+		const std::string& when = whens[at];
+		// The title has room for the date alone; the row named the time.
+		// Cancel is the second button, the one B and HOME press, so backing
+		// out never changes a save.
+		const std::string body = shared
+			? tr("Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them.")
+			: tr("Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it.");
+		if (ShowPopup(tr("Restore the save from {1}?", {dates[at]}), body, tr("Restore"), tr("Cancel")) != 0) return false;
+		restored = RestoreGcBackup(cardPath, folder, folder + "/" + names[at], when);
+		// The list has changed (the copy made first): back to the saves.
+		return restored;
+	};
+	// No line beside the title: a long one (French) reaches it on a 16:9
+	// TV, and the Saves page before this one named the game and its card.
+	RunRowPage(tr("Restore an older save"), "", rows, note, act);
+	return restored;
+}
+
 // The game's memory card: its saves, how full it is, and adding a save.
 static void MenuGcCard(FrontendState& state)
 {
@@ -5337,6 +5477,11 @@ static void MenuGcCard(FrontendState& state)
 		add.label = tr("Add a save from the SD card");
 		add.icon_column = true;
 		rows.push_back(add);
+		FlowRow restore;
+		restore.kind = FlowRow::Kind::Action;
+		restore.label = tr("Restore an older save");
+		restore.icon_column = true;
+		rows.push_back(restore);
 	};
 	rebuild();
 	// Set when the card file could not be read back after a failed write:
@@ -5370,6 +5515,9 @@ static void MenuGcCard(FrontendState& state)
 	};
 	const auto note = [&](int row) -> std::string {
 		const std::size_t at = static_cast<std::size_t>(row);
+		if (at == info.saves.size() + 1)
+			return shared ? tr("Go back to how the shared memory card was on a day you pick, for every game on it.")
+				: tr("Go back to how your save was on a day you pick.");
 		if (at >= info.saves.size()) return tr("Adds a .gci save file from {1}.", {kGcSavesDir});
 		const riftwii::GcSave& save = info.saves[at];
 		if (!save.intact) return tr("This save is damaged: its blocks do not add up. It can only be deleted.");
@@ -5382,6 +5530,22 @@ static void MenuGcCard(FrontendState& state)
 	const auto act = [&](int row, const PageAside& aside) {
 		const std::size_t at = static_cast<std::size_t>(row);
 		std::string why;
+		if (at == info.saves.size() + 1) {
+			bool restored = false;
+			aside([&] { restored = MenuGcRestore(state); });
+			if (!restored) return false;
+			// The card is the backup's now: read again, as the page shows it.
+			std::vector<std::uint8_t> onDisk;
+			riftwii::GcCardInfo again;
+			if (ReadSmallFile(path, 16u << 20, onDisk) && riftwii::gc_card_read(onDisk, again, why)) {
+				card = std::move(onDisk);
+				info = again;
+				rebuild();
+				return false;
+			}
+			logf("GameCube card %s: could not be read back after the restore, so the page closes\n", path.c_str());
+			return true;
+		}
 		if (at >= info.saves.size()) {
 			const std::vector<std::string> names = ListGciFiles();
 			if (names.empty()) {

@@ -1536,6 +1536,60 @@ msgstr "Backup dos saves"
 msgid "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page."
 msgstr "Antes de um jogo de GameCube iniciar, o cartão de memória dele é copiado para o cartão SD. As últimas cinco cópias são mantidas, para Restaurar um save anterior na página de saves do jogo."
 
+msgid "Restore an older save"
+msgstr "Restaurar um save anterior"
+
+msgid "Go back to how your save was on a day you pick."
+msgstr "Volte o seu save para como estava no dia que você escolher."
+
+msgid "Go back to how the shared memory card was on a day you pick, for every game on it."
+msgstr "Volte o cartão de memória compartilhado para como estava no dia que você escolher, para todos os jogos nele."
+
+msgid "No older saves yet"
+msgstr "Ainda não há saves anteriores"
+
+msgid "A copy of the memory card is kept each time the game starts, while Back up saves is on in Settings."
+msgstr "Uma cópia do cartão de memória é guardada sempre que o jogo inicia, enquanto Backup dos saves estiver ligado nas Configurações."
+
+msgid "Press A to put this game's save back to how it was then."
+msgstr "Aperte A para voltar o save deste jogo para como estava então."
+
+msgid "Press A to put the shared memory card back to how it was then, for every game on it."
+msgstr "Aperte A para voltar o cartão de memória compartilhado para como estava então, para todos os jogos nele."
+
+msgid "Restore the save from {1}?"
+msgstr "Restaurar o save de {1}?"
+
+msgid "Your save goes back to how it was then. Your save as it is now is kept as a copy first, so you can come back to it."
+msgstr "O seu save volta a ser como era então. O save como está agora é guardado antes como cópia, para você poder voltar a ele."
+
+msgid "Every game's save on the shared memory card goes back to how it was then. How they are now is kept as a copy first, so you can come back to them."
+msgstr "Os saves de todos os jogos no cartão de memória compartilhado voltam a ser como eram então. Como estão agora é guardado antes como cópia, para você poder voltar a eles."
+
+msgid "Restore"
+msgstr "Restaurar"
+
+msgid "Save restored"
+msgstr "Save restaurado"
+
+msgid "The memory card is as it was on {1}. The save from before is kept among the older saves, so you can go back to it."
+msgstr "O cartão de memória está como era em {1}. O save de antes fica entre os saves anteriores, para você poder voltar a ele."
+
+msgid "Save not restored"
+msgstr "Save não restaurado"
+
+msgid "RiftWii could not read that copy."
+msgstr "O RiftWii não conseguiu ler essa cópia."
+
+msgid "That copy is damaged, so your save was not changed."
+msgstr "Essa cópia está danificada, então o seu save não foi alterado."
+
+msgid "RiftWii could not keep a copy of the save as it is now, so it was not changed: {1}"
+msgstr "O RiftWii não conseguiu guardar uma cópia do save como está agora, então ele não foi alterado: {1}"
+
+msgid "RiftWii could not write the memory card: {1}"
+msgstr "O RiftWii não conseguiu gravar o cartão de memória: {1}"
+
 msgid "Shared Memory Card"
 msgstr "Cartão de memória compartilhado"
 
