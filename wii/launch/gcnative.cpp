@@ -1205,7 +1205,8 @@ static void prepare_leave(gc_rt_context* ctx, std::uint32_t buf, bool test) {
 // Then, further on in the thread, its callbacks: lbz r3,0x80(r30); bl
 // group (replaced: gc_on_load_callbacks), and after them mr r3,r29; bl
 // group (replaced: gc_on_load_callbacks_done). The current heap's place
-// is alloc's first lwz rX,d(r13). Only GLM games are looked at.
+// is alloc's first lwz rX,d(r13). Only the games gxpatches.hpp's
+// gc_loads_use_queued_heap names are looked at.
 struct LmLoader {
     std::uint32_t group = 0, align = 0, alloc = 0, alloc_site = 0, post = 0;
     std::vector<std::uint32_t> post_sites;
@@ -1214,7 +1215,7 @@ struct LmLoader {
 
 LmLoader find_lm_loader(const std::string& id, const Code& code) {
     LmLoader out;
-    if (id.compare(0, 3, "GLM") != 0) return out;
+    if (!gc_loads_use_queued_heap(id)) return out;
     unsigned threads = 0;
     bool one_post = true;
     code.each([&](std::uint32_t a, std::uint32_t w) {
@@ -1584,7 +1585,7 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, std::string
              "from %u place(s), alloc 0x%08x, current heap at r13%+d)\n",
              static_cast<unsigned>(lm.post), static_cast<unsigned>(lm.post_sites.size()),
              static_cast<unsigned>(lm.alloc), static_cast<int>(static_cast<std::int32_t>(lm.heap_offset)));
-    } else if (image.id.compare(0, 3, "GLM") == 0) {
+    } else if (gc_loads_use_queued_heap(image.id)) {
         logf("GameCube: Luigi's Mansion's file loader was not found; it allocates from whichever heap is current\n");
     }
 
