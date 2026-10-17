@@ -223,7 +223,11 @@ No hook or too many codes: the game starts without them, with a
   middle of the game's own bookkeeping); the options; the trace; the way
   back; the crash screen.
 - `gc_bt.c`: a Bluetooth driver for Wii Remotes, Nunchuks and Classic
-  Controllers, filled into the pad ports with no GameCube controller.
+  Controllers, filled into the pad ports. `gc_ports.h` has the rule: a
+  GameCube controller keeps its own port; each remote plays on its slot's
+  port (its LED), or the next free one when a GameCube controller holds
+  that, and the LED follows; a remote that reconnects gets its slot back
+  by its Bluetooth address.
 - `gc_card.c`: memory card slot A, from an image in MEM2 at `0x91000000`
   written back to its file's sectors as the game saves.
 - `gc_rvz.c` (the RVZ build, `riftwii_gc_rvz.bin`): the disc read from an

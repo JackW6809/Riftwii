@@ -195,7 +195,7 @@ $(GCOUT)/gc_entry.o: $(GCSRC)/gc_entry.S $(GCSRC)/gc_rt.h | $(GCOUT)
 $(GCOUT)/gc_rt.o: $(GCSRC)/gc_rt.c $(GCSRC)/gc_rt.h $(GCSRC)/gc_bt.h $(GCSRC)/gc_card.h | $(GCOUT)
 	$(CC) $(CFLAGS) -I$(GCSRC) -c -o $@ $<
 
-$(GCOUT)/gc_bt.o: $(GCSRC)/gc_bt.c $(GCSRC)/gc_bt.h $(GCSRC)/gc_rt.h | $(GCOUT)
+$(GCOUT)/gc_bt.o: $(GCSRC)/gc_bt.c $(GCSRC)/gc_bt.h $(GCSRC)/gc_ports.h $(GCSRC)/gc_rt.h | $(GCOUT)
 	$(CC) $(CFLAGS) -I$(GCSRC) -c -o $@ $<
 
 $(GCOUT)/gc_card.o: $(GCSRC)/gc_card.c $(GCSRC)/gc_card.h $(GCSRC)/gc_rt.h | $(GCOUT)
@@ -225,7 +225,7 @@ $(GCRVZOUT)/gc_entry.o: $(GCSRC)/gc_entry.S $(GCSRC)/gc_rt.h | $(GCRVZOUT)
 $(GCRVZOUT)/gc_rt.o: $(GCSRC)/gc_rt.c $(GCSRC)/gc_rt.h $(GCSRC)/gc_bt.h $(GCSRC)/gc_card.h $(GCSRC)/gc_rvz.h | $(GCRVZOUT)
 	$(CC) $(CFLAGS) -DRT_RVZ -I$(GCSRC) -c -o $@ $<
 
-$(GCRVZOUT)/gc_bt.o: $(GCSRC)/gc_bt.c $(GCSRC)/gc_bt.h $(GCSRC)/gc_rt.h | $(GCRVZOUT)
+$(GCRVZOUT)/gc_bt.o: $(GCSRC)/gc_bt.c $(GCSRC)/gc_bt.h $(GCSRC)/gc_ports.h $(GCSRC)/gc_rt.h | $(GCRVZOUT)
 	$(CC) $(CFLAGS) -DRT_RVZ -I$(GCSRC) -c -o $@ $<
 
 $(GCRVZOUT)/gc_card.o: $(GCSRC)/gc_card.c $(GCSRC)/gc_card.h $(GCSRC)/gc_rt.h | $(GCRVZOUT)

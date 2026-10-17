@@ -3,6 +3,7 @@
 /* Wii Remotes as GameCube controllers (gc_bt.h). Same rules as the rest
  * of the blob: no globals, no constant data, no library calls. */
 #include "gc_bt.h"
+#include "gc_ports.h"
 #include "gc_rt.h"
 
 #define GC_IOS_OPEN 1u
@@ -281,14 +282,12 @@ static void bt_on_event(struct gc_bt* bt, const uint8_t* e, uint32_t length) {
         return;
     }
     if (code == GC_EV_CONNECTION_COMPLETE) {
-        struct gc_bt_remote* r = 0;
+        struct gc_bt_remote* r;
+        uint32_t slot;
         if (p[0] != 0) return;
-        for (i = 0; i < GC_BT_REMOTES; ++i)
-            if (!bt->remotes[i].used) {
-                r = &bt->remotes[i];
-                break;
-            }
-        if (r == 0) return;  /* four already: it waits for one to leave */
+        slot = gc_ports_slot_for(bt->remotes, p + 3);
+        if (slot >= GC_BT_REMOTES) return;  /* four already: it waits for one to leave */
+        r = &bt->remotes[slot];
         {
             uint8_t* clear = (uint8_t*)r;
             for (i = 0; i < sizeof(*r); ++i) clear[i] = 0;
@@ -497,6 +496,7 @@ static void bt_on_signal(struct gc_bt* bt, struct gc_bt_remote* r, uint32_t slot
         r->ready = 1;
         led[0] = 0x11;
         led[1] = (uint8_t)(0x10u << slot);
+        r->led_port = (uint8_t)slot;
         bt_report(bt, r, led, 2);
         led[0] = 0x15;
         led[1] = 0x00;
@@ -560,6 +560,24 @@ static void bt_open(struct gc_bt* bt) {
     bt->stage = GC_BT_STAGE_RESET;
 }
 
+/* A remote that plays on another port than its LED shows (a GameCube
+ * controller took its own, gc_ports.h) gets that port's LED, so the player
+ * sees which port it is. gc_bt_fill chose the ports last frame; a remote
+ * that became ready since has none yet and keeps its slot's LED. */
+static void bt_update_leds(struct gc_bt* bt) {
+    uint32_t i;
+    for (i = 0; i < GC_BT_REMOTES && bt->stage != GC_BT_STAGE_FAILED; ++i) {
+        struct gc_bt_remote* r = &bt->remotes[i];
+        const uint32_t port = bt->port_of[i];
+        uint8_t led[2];
+        if (!r->used || !r->ready || port >= GC_PORTS || port == r->led_port) continue;
+        led[0] = 0x11;
+        led[1] = (uint8_t)(0x10u << port);
+        r->led_port = (uint8_t)port;
+        bt_report(bt, r, led, 2);
+    }
+}
+
 void gc_bt_poll(struct gc_rt_context* ctx, struct gc_bt* bt) {
     uint32_t i, msr;
     if (bt->stage == GC_BT_STAGE_FAILED) return;
@@ -572,6 +590,7 @@ void gc_bt_poll(struct gc_rt_context* ctx, struct gc_bt* bt) {
     bt->polls++;
     if (bt->stage == GC_BT_STAGE_CLOSED) bt_open(bt);
     bt_take_replies(bt);
+    if (bt->stage == GC_BT_STAGE_READY) bt_update_leds(bt);
     for (i = 0; i < GC_BT_EVENT_READS && bt->stage != GC_BT_STAGE_FAILED; ++i) {
         struct gc_bt_rq* rq = &bt->events[i];
         if (rq->state != GC_BT_RQ_DONE) continue;
@@ -712,13 +731,19 @@ int gc_bt_home_held(const struct gc_bt* bt) {
     return 0;
 }
 
-void gc_bt_fill(const struct gc_bt* bt, uint8_t* status) {
-    uint32_t i;
+void gc_bt_fill(struct gc_bt* bt, uint8_t* status) {
+    uint32_t pads = 0, remotes = 0, i;
+    /* The game's PADRead has just read every port: err is -1 where no
+     * GameCube controller answered. Any other err (a controller still
+     * starting, a transfer error) is a controller there, which keeps it. */
+    for (i = 0; i < GC_PORTS; ++i)
+        if (status[12 * i + 10] != GC_PAD_NO_CONTROLLER) pads |= 1u << i;
+    for (i = 0; i < GC_BT_REMOTES; ++i)
+        if (bt->remotes[i].used && bt->remotes[i].ready) remotes |= 1u << i;
+    gc_ports_assign(pads, remotes, bt->port_of);
     for (i = 0; i < GC_BT_REMOTES; ++i) {
-        uint8_t* pad = status + 12 * i;
-        const struct gc_bt_remote* r = &bt->remotes[i];
-        if (!r->used || !r->ready) continue;
-        if (pad[10] != GC_PAD_NO_CONTROLLER) continue;  /* a GameCube controller is there: it wins */
-        bt_fill_one(r, pad);
+        const uint32_t port = bt->port_of[i];
+        if (port < GC_PORTS) bt_fill_one(&bt->remotes[i], status + 12 * port);
     }
+    for (i = 0; i < GC_PORTS; ++i) bt->port_err[i] = status[12 * i + 10];
 }

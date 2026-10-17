@@ -72,6 +72,8 @@ struct gc_bt_remote {
     uint8_t bdaddr[6];
     uint8_t ready;      /* both channels configured, LEDs set */
     uint8_t chans;
+    uint8_t led_port;   /* the port its LED shows */
+    uint8_t spare[3];
     uint32_t ctrl_cid;  /* the remote's end of each channel */
     uint32_t intr_cid;
     uint32_t ext_step;  /* 0 none, 1-3 starting it (gc_bt.c), 4 ready */
@@ -91,6 +93,10 @@ struct gc_bt {
     uint8_t commands[GC_BT_COMMANDS][32];
     uint8_t keys[GC_BT_KEYS][22];                     /* address, then link key */
     struct gc_bt_remote remotes[GC_BT_REMOTES];
+    /* The ports as gc_bt_fill last left them (gc_ports.h): each remote
+     * slot's port, and each port's err byte as the game got it. */
+    uint8_t port_of[GC_BT_REMOTES];
+    uint8_t port_err[GC_BT_REMOTES];
     int32_t fd;
     uint32_t stage;         /* GC_BT_STAGE_* */
     uint32_t credits;       /* commands the controller takes now */
@@ -120,10 +126,11 @@ struct gc_bt {
 #ifdef RT_TARGET_PPC
 struct gc_rt_context;
 /* Once a frame, from PADRead: IOS's replies taken, the controller and
- * remotes served, then each port without a GameCube controller given its
- * remote's state (status: the game's PADStatus[4]). */
+ * remotes served, then each remote's state written into the port
+ * gc_ports.h gives it, one a GameCube controller does not hold (status:
+ * the game's PADStatus[4]). */
 void gc_bt_poll(struct gc_rt_context* ctx, struct gc_bt* bt);
-void gc_bt_fill(const struct gc_bt* bt, uint8_t* status);
+void gc_bt_fill(struct gc_bt* bt, uint8_t* status);
 /* 1 while a ready Wii Remote's HOME, or its Classic Controller's, is held. */
 int gc_bt_home_held(const struct gc_bt* bt);
 /* A reply from IOS that came while another request was being waited

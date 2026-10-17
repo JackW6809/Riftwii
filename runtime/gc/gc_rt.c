@@ -469,6 +469,10 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
                               bt->remotes[0].ext_step << 8 | bt->remotes[0].ext_kind;
         w[GC_TR_BT_BUTTONS] = (uint32_t)bt->remotes[0].core[0] << 8 | bt->remotes[0].core[1];
         w[GC_TR_BT_EVENT_LENGTHS] = bt->event_lengths;
+        for (i = 0; i < GC_BT_REMOTES; ++i) {
+            w[GC_TR_BT_PORTS] = w[GC_TR_BT_PORTS] << 8 | bt->port_of[i];
+            w[GC_TR_PAD_ERRS] = w[GC_TR_PAD_ERRS] << 8 | bt->port_err[i];
+        }
         gc_copy((uint8_t*)&w[GC_TR_BT_EVENT_LOG], &bt->event_log[0][0], 32);
     }
     if (ctx->card) {
