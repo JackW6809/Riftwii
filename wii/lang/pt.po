@@ -912,23 +912,8 @@ msgstr "Tem certeza de que não quer atualizar? Se você teve algum problema, el
 msgid "RiftWii {1} is out. Settings > Check for a new version installs it."
 msgstr "Saiu a RiftWii {1}. Configurações > Procurar uma versão nova a instala."
 
-msgid "Updates"
-msgstr "Atualizações"
-
-msgid "Beta"
-msgstr "Beta"
-
-msgid "Stable"
-msgstr "Estável"
-
-msgid "Beta: every new version, including test builds that may have new bugs. For testers."
-msgstr "Beta: toda versão nova, incluindo as de teste, que podem ter bugs novos. Para testadores."
-
-msgid "Stable: only versions marked stable, which testers have checked."
-msgstr "Estável: só as versões marcadas como estáveis, que os testadores verificaram."
-
-msgid "No stable version is out yet. This is RiftWii {1}."
-msgstr "Ainda não saiu nenhuma versão estável. Esta é a RiftWii {1}."
+msgid "No release is out yet. This is RiftWii {1}."
+msgstr "Ainda não saiu nenhuma versão. Esta é a RiftWii {1}."
 
 msgid "SD card: {1}"
 msgstr "Cartão SD: {1}"
@@ -938,6 +923,15 @@ msgstr "Unidade USB: {1}"
 
 msgid "Drive problem"
 msgstr "Problema em uma unidade"
+
+msgid "Wii U drive"
+msgstr "Unidade do Wii U"
+
+msgid "USB: a Wii U drive (RiftWii leaves it alone)"
+msgstr "USB: uma unidade do Wii U (o RiftWii não a usa)"
+
+msgid "The USB drive plugged in is a Wii U's own storage drive. RiftWii can't read it, so it leaves it alone. For Wii games on USB, use a drive formatted FAT32 or NTFS on a computer."
+msgstr "A unidade USB conectada é a unidade de armazenamento de um Wii U. O RiftWii não consegue lê-la, então não a usa. Para jogos de Wii pelo USB, use uma unidade formatada em FAT32 ou NTFS em um computador."
 
 msgid "Games on that drive are not listed. Check the drive on a computer; details are in sd:/riftwii/session.log."
 msgstr "Os jogos dessa unidade não aparecem. Verifique a unidade em um computador; os detalhes estão em sd:/riftwii/session.log."
@@ -2046,23 +2040,23 @@ msgstr "Todas as configurações voltam a como vêm no RiftWii. As páginas de c
 msgid "Settings reset to the defaults"
 msgstr "Configurações redefinidas"
 
-msgid "Code mods ask how to start: with or without RiftWii's extras"
-msgstr "Os mods de códigos perguntam como iniciar: com ou sem os extras do RiftWii"
+msgid "Popups look like the Wii Menu's message box"
+msgstr "As janelas pop-up parecem a caixa de mensagem do Menu Wii"
 
-msgid "Code mods start on IOS58, as their own launcher does"
-msgstr "Os mods de códigos iniciam no IOS58, como o próprio carregador deles"
+msgid "Channels: empty places match the channel icons"
+msgstr "Canais: os espaços vazios combinam com os ícones dos canais"
 
-msgid "USB keyboard games like City Folk keep their keyboard"
-msgstr "Jogos com teclado USB, como City Folk, mantêm o teclado"
+msgid "A Wii U's own USB drive is left alone, with no error"
+msgstr "O disco USB próprio do Wii U é ignorado, sem erros"
 
-msgid "More memory for games, and a note before big RVZ games"
-msgstr "Mais memória para os jogos e um aviso antes de jogos RVZ grandes"
+msgid "Fixed: Retro Rewind would not start with its separate save on"
+msgstr "Corrigido: Retro Rewind não iniciava com o save separado ativado"
+
+msgid "Every RiftWii now updates to the latest release"
+msgstr "Todo RiftWii agora atualiza para a versão mais recente"
 
 msgid "Wii U Pro Controller works in games"
 msgstr "O Wii U Pro Controller funciona nos jogos"
-
-msgid "Fixed: a crash when going back to RiftWii after some games"
-msgstr "Corrigido: um travamento ao voltar ao RiftWii depois de alguns jogos"
 
 msgid "Memory for RiftWii's extras"
 msgstr "Memória para os extras do RiftWii"
