@@ -5127,7 +5127,7 @@ static bool GcCardFull(const FrontendState& state)
 static std::string GcCardFullNote(const FrontendState& state)
 {
 	return GcCardShared(state)
-		? tr("The memory card is full: this game can't save. Make room on the Memory Card page or use its own card.")
+		? tr("The card is full: this game can't save. Make room on the Memory Card page or use its own card.")
 		: tr("The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room.");
 }
 
@@ -5341,9 +5341,11 @@ using PageAside = std::function<void(const std::function<void()>&)>;
 // A list of rows on its own page, with a note under it, until B: what
 // MenuGcCard and the .gci picker show. `act(row, aside)` is called on A
 // (with the GUI halted); it returns true to leave.
+// `rowHeight`, when given, makes the rows that tall, for rows with a
+// second line (FlowRow::detail).
 static void RunRowPage(const std::string& title, const std::string& subtitle, std::vector<FlowRow>& rows,
 		       const std::function<std::string(int)>& note, const std::function<bool(int, const PageAside&)>& act,
-		       const std::function<std::string()>& status = nullptr)
+		       const std::function<std::string()>& status = nullptr, int rowHeight = 0)
 {
 	GuiText titleTxt(title.c_str(), 30, skin::kInk);
 	Place(titleTxt, 78, 28);
@@ -5358,7 +5360,9 @@ static void RunRowPage(const std::string& title, const std::string& subtitle, st
 	statusTxt.SetAlignment(ALIGN_H::RIGHT, ALIGN_V::TOP);
 	statusTxt.SetPosition(-40, 48);
 	NoteCard noteCard;
-	GuiFlowList list(44, 84, 540, 5);
+	// Taller rows fit fewer in the same space: four of 56 where five of 44 go.
+	GuiFlowList list(44, 84, 540, rowHeight > 0 ? 4 : 5);
+	if (rowHeight > 0) list.SetRowHeight(rowHeight);
 	list.SetCards(true);
 	list.SetRows(&rows);
 	list.Select(0);
@@ -5614,7 +5618,8 @@ static bool MenuGcRestore(FrontendState& state)
 	};
 	// No line beside the title: a long one (French) reaches it on a 16:9
 	// TV, and the Saves page before this one named the game and its card.
-	RunRowPage(tr("Restore an older save"), "", rows, note, act);
+	// Rows of two lines, the date and what the copy holds.
+	RunRowPage(tr("Restore an older save"), "", rows, note, act, nullptr, 56);
 	return restored;
 }
 

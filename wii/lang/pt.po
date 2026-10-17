@@ -1611,7 +1611,7 @@ msgstr "O RiftWii guarda uma cópia toda vez que você inicia o jogo."
 msgid "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room."
 msgstr "Cartão cheio: este jogo não consegue salvar. Libere espaço na página Cartão de memória."
 
-msgid "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card."
+msgid "The card is full: this game can't save. Make room on the Memory Card page or use its own card."
 msgstr "Cartão cheio: este jogo não consegue salvar. Libere espaço ou dê a ele um cartão próprio."
 
 msgid "Shared Memory Card"

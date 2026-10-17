@@ -1611,7 +1611,7 @@ msgstr "RiftWii garde une copie à chaque lancement du jeu."
 msgid "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room."
 msgstr "Carte mémoire pleine : ce jeu ne peut pas sauvegarder. Faites de la place dans la page Carte mémoire."
 
-msgid "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card."
+msgid "The card is full: this game can't save. Make room on the Memory Card page or use its own card."
 msgstr "Carte pleine : impossible de sauvegarder. Faites de la place ou donnez-lui sa propre carte."
 
 msgid "Shared Memory Card"

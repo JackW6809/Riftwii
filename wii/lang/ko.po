@@ -1611,7 +1611,7 @@ msgstr "게임을 시작할 때마다 RiftWii가 복사본을 남깁니다."
 msgid "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room."
 msgstr "메모리 카드가 가득 차서 저장할 수 없습니다. 메모리 카드 페이지에서 공간을 만드세요."
 
-msgid "The memory card is full: this game can't save. Make room on the Memory Card page or use its own card."
+msgid "The card is full: this game can't save. Make room on the Memory Card page or use its own card."
 msgstr "카드가 가득 차서 저장할 수 없습니다. 공간을 만들거나 전용 카드로 바꾸세요."
 
 msgid "Shared Memory Card"
