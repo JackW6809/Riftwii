@@ -31,6 +31,11 @@ void global_lines() {
     EXPECT_FALSE(shared_nand_global_line("# NandEmuPath = sd:/old/\n", path));
     EXPECT_FALSE(shared_nand_global_line("USB Loader GX R1281\n", path));
     EXPECT_FALSE(shared_nand_global_line("", path));
+    // Tabs, and a UTF-8 byte order mark at the start of the file.
+    EXPECT_TRUE(shared_nand_global_line("\tNandEmuPath\t=\tsd:/tabbed/\t\n", path));
+    EXPECT_EQ(path, std::string("sd:/tabbed/"));
+    EXPECT_TRUE(shared_nand_global_line("\xEF\xBB\xBFNandEmuPath = sd:/bom/\n", path));
+    EXPECT_EQ(path, std::string("sd:/bom/"));
 }
 
 void game_lines() {
@@ -50,6 +55,8 @@ void game_lines() {
     // The last field without its ";".
     EXPECT_TRUE(shared_nand_game_line("game:SMNE01 = NandEmuPath:sd:/n\r\n", "SMNE01", path));
     EXPECT_EQ(path, std::string("sd:/n"));
+    EXPECT_TRUE(shared_nand_game_line("\xEF\xBB\xBFgame:SMNE01\t= NandEmuPath:\tsd:/t/;\n", "SMNE01", path));
+    EXPECT_EQ(path, std::string("sd:/t/"));
 }
 
 void folders() {
@@ -97,6 +104,8 @@ void save_choice() {
     SaveOverride o = resolve_save_override("emunand", "", "RMCE01", "sd:/nands/01");
     EXPECT_EQ(o.dir, std::string("sd:/nands/01"));
     EXPECT_TRUE(o.clone);
+    // An empty data folder there is no save: the other loader makes it.
+    EXPECT_TRUE(o.clone_into_empty);
     EXPECT_FALSE(o.note.empty());
     EXPECT_TRUE(resolve_save_override("emunand", "sd:/riivolution/save", "RMCE01", "sd:/nands/01").dir.empty());
     EXPECT_TRUE(resolve_save_override("emunand", "", "RMCE01").dir.empty());
@@ -104,6 +113,8 @@ void save_choice() {
     // The folder is only for this choice.
     EXPECT_EQ(resolve_save_override("separate", "", "RMCE01", "sd:/nands/01").dir,
               std::string("sd:/riftwii/saves/RMCE01/clone"));
+    // RiftWii's own folders keep their rule: only a new folder is filled.
+    EXPECT_FALSE(resolve_save_override("separate", "", "RMCE01").clone_into_empty);
     EXPECT_TRUE(resolve_save_override("nand", "", "RMCE01", "sd:/nands/01").dir.empty());
 }
 

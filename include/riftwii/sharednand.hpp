@@ -24,9 +24,9 @@ constexpr const char* kDefaultSharedNand = "sd:/nands/01";
 // so a longer one is not a folder that loader could have used.
 constexpr std::size_t kSharedNandMaxPath = 31 + 3;
 
-// The value of a GXGlobal.cfg line "NandEmuPath = <path>" (spaces around
-// the name and the value trimmed, as the loader trims them), or false for
-// any other line.
+// The value of a GXGlobal.cfg line "NandEmuPath = <path>" (spaces and tabs
+// around the name and the value trimmed, and a UTF-8 byte order mark at
+// the line's start skipped), or false for any other line.
 bool shared_nand_global_line(const std::string& line, std::string& path);
 
 // The NandEmuPath of `game_id`'s line in GXGameSettings.cfg

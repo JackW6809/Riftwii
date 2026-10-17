@@ -118,11 +118,16 @@ T = {
         "セーブはSDカードに保存されます(最初から始めます)。",
         "Os saves vão para o cartão SD, começando do zero.",
         "I salvataggi vanno sulla scheda SD, partendo da zero."),
-    "Saves go to the SD card's emulated NAND, shared with other loaders.": (
-        "Las partidas se guardan en la NAND emulada de la SD, compartida con otros cargadores.",
-        "セーブはSDカードのエミュNANDに保存され、他のローダーと共有されます。",
-        "Os saves vão para a NAND emulada do cartão SD, compartilhada com outros loaders.",
-        "I salvataggi vanno nella NAND emulata della scheda SD, condivisa con altri loader."),
+    "Saves go to {1} on the SD card, shared with other loaders.": (
+        "Las partidas se guardan en {1} en la SD, compartidas con otros cargadores.",
+        "セーブはSDカードの{1}に保存され、他のローダーと共有されます。",
+        "Os saves vão para {1} no cartão SD, compartilhados com outros loaders.",
+        "I salvataggi vanno in {1} sulla scheda SD, condivisi con altri loader."),
+    "{1} can't hold saves: use a short folder on the SD card.": (
+        "{1} no puede guardar partidas: usa una carpeta corta de la SD.",
+        "{1}にはセーブできません。SDカードの短いフォルダを使ってください。",
+        "{1} não pode guardar saves: use uma pasta curta do cartão SD.",
+        "{1} non può contenere salvataggi: usa una cartella breve della scheda SD."),
     "Saves stay on the Wii, as usual.": ("Las partidas se quedan en la Wii, como siempre.",
                                          "セーブはいつも通りWii本体に保存されます。",
                                          "Os saves ficam no Wii, como sempre.",
@@ -1902,8 +1907,10 @@ KO = {
         "세이브 데이터는 Wii의 세이브 데이터를 시작으로 SD 카드로 저장됩니다.",
     "Saves go to the SD card, starting fresh.":
         "저장 데이터는 SD 카드에 저장되며, 처음부터 새로 시작하게 됩니다.",
-    "Saves go to the SD card's emulated NAND, shared with other loaders.":
-        "세이브 데이터는 SD 카드의 에뮬레이트 NAND에 저장되며, 다른 로더와 공유됩니다.",
+    "Saves go to {1} on the SD card, shared with other loaders.":
+        "세이브 데이터는 SD 카드의 {1}에 저장되며, 다른 로더와 공유됩니다.",
+    "{1} can't hold saves: use a short folder on the SD card.":
+        "{1}에는 저장할 수 없습니다. SD 카드의 짧은 폴더를 사용하세요.",
     "Saves stay on the Wii, as usual.":
         "세이브는 평소와 마찬가지로 Wii 본체에 저장됩니다.",
     "Broken":
@@ -3259,8 +3266,10 @@ FR = {
         "Les sauvegardes vont sur la carte SD, en partant de la sauvegarde Wii.",
     "Saves go to the SD card, starting fresh.":
         "Les sauvegardes vont sur la carte SD, sauvegarde vierge.",
-    "Saves go to the SD card's emulated NAND, shared with other loaders.":
-        "Les sauvegardes vont dans la NAND émulée de la carte SD, partagée avec d'autres loaders.",
+    "Saves go to {1} on the SD card, shared with other loaders.":
+        "Les sauvegardes vont dans {1} sur la carte SD, partagées avec d'autres loaders.",
+    "{1} can't hold saves: use a short folder on the SD card.":
+        "{1} ne peut pas recevoir les sauvegardes : utilisez un dossier court de la carte SD.",
     "Saves stay on the Wii, as usual.":
         "Les sauvegardes restent sur la Wii, comme d'habitude.",
     "Broken":

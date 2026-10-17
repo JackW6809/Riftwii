@@ -335,11 +335,13 @@ SaveOverride resolve_save_override(const std::string& save_mode, const std::stri
     }
     // Shared with the other loaders that use this emulated NAND: the
     // Wii's save is copied in once, only when the folder has none for
-    // this game yet (a save already there is the player's and stays).
+    // this game yet (a save already there is the player's and stays). An
+    // empty data folder is no save: the other loader makes it up front.
     if (save_mode == "emunand" && !shared_nand.empty()) {
         SaveOverride o;
         o.dir = shared_nand;
         o.clone = true;
+        o.clone_into_empty = true;
         o.note = "saves in the shared emulated NAND at " + shared_nand + " (the Wii's save copied in when it has none)";
         return o;
     }

@@ -6,18 +6,30 @@
 namespace riftwii {
 namespace {
 
-// Spaces off the front; spaces and line ends off the back.
+bool blank(char c) {
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+}
+
+// Spaces, tabs and line ends off both ends.
 std::string trimmed(const std::string& text) {
     std::size_t begin = 0;
-    while (begin < text.size() && text[begin] == ' ') ++begin;
+    while (begin < text.size() && blank(text[begin])) ++begin;
     std::size_t end = text.size();
-    while (end > begin && (text[end - 1] == ' ' || text[end - 1] == '\r' || text[end - 1] == '\n')) --end;
+    while (end > begin && blank(text[end - 1])) --end;
     return text.substr(begin, end - begin);
+}
+
+// The line without a UTF-8 byte order mark, which an editor may put at
+// the start of the file (and so of its first line).
+std::string without_bom(const std::string& line) {
+    if (line.compare(0, 3, "\xEF\xBB\xBF") == 0) return line.substr(3);
+    return line;
 }
 
 }  // namespace
 
-bool shared_nand_global_line(const std::string& line, std::string& path) {
+bool shared_nand_global_line(const std::string& raw_line, std::string& path) {
+    const std::string line = trimmed(without_bom(raw_line));
     if (line.empty() || line[0] == '#') return false;
     const std::size_t equals = line.find('=');
     if (equals == std::string::npos) return false;
@@ -26,11 +38,12 @@ bool shared_nand_global_line(const std::string& line, std::string& path) {
     return true;
 }
 
-bool shared_nand_game_line(const std::string& line, const std::string& game_id, std::string& path) {
+bool shared_nand_game_line(const std::string& raw_line, const std::string& game_id, std::string& path) {
+    const std::string line = trimmed(without_bom(raw_line));
     const std::string prefix = "game:" + game_id;
     if (game_id.empty() || line.compare(0, prefix.size(), prefix) != 0) return false;
     // "game:RMCE01 = ...": the ID ends at a space or the "=".
-    if (line.size() > prefix.size() && line[prefix.size()] != ' ' && line[prefix.size()] != '=') return false;
+    if (line.size() > prefix.size() && !blank(line[prefix.size()]) && line[prefix.size()] != '=') return false;
     std::size_t field = line.find('=', prefix.size());
     if (field == std::string::npos) return false;
     // Fields are "name:value;" one after another.

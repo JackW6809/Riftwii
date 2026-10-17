@@ -45,7 +45,7 @@ bool each_line(const std::string& path, Take take) {
 
 }  // namespace
 
-bool find_shared_nand(const std::string& game_id, std::string& folder, std::string& error) {
+SharedNandLookup look_up_shared_nand(const std::string& game_id) {
     std::string configured = kDefaultSharedNand;
     std::string from = "the default folder";
     for (const char* settings : kSettingsFolders) {
@@ -69,11 +69,22 @@ bool find_shared_nand(const std::string& game_id, std::string& folder, std::stri
         }
         break;
     }
-    if (!shared_nand_folder(configured, folder, error)) {
-        logf("Saves: emulated NAND folder from %s: %s\n", from.c_str(), error.c_str());
+    SharedNandLookup found;
+    found.configured = configured;
+    found.from = from;
+    found.usable = shared_nand_folder(configured, found.folder, found.error);
+    return found;
+}
+
+bool find_shared_nand(const std::string& game_id, std::string& folder, std::string& error) {
+    const SharedNandLookup found = look_up_shared_nand(game_id);
+    if (!found.usable) {
+        error = found.error;
+        logf("Saves: emulated NAND folder from %s: %s\n", found.from.c_str(), error.c_str());
         return false;
     }
-    logf("Saves: emulated NAND folder %s, from %s\n", folder.c_str(), from.c_str());
+    folder = found.folder;
+    logf("Saves: emulated NAND folder %s, from %s\n", folder.c_str(), found.from.c_str());
     return true;
 }
 

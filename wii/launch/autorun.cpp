@@ -141,6 +141,7 @@ struct Session {
     // emulation keeps them (set by ensure_probe).
     std::string own_saves_dir;
     bool own_saves_clone = false;
+    bool own_saves_clone_empty = false;
     bool d2x_saves = false;
     // The game reads the SD card as it runs (packs, saves): the cIOS
     // choice keeps to the bases that reach it (image_cios_order).
@@ -161,7 +162,8 @@ struct Session {
                 if (source.game.title_id == 0) why = "the game's title ID is not known";
                 else if (source.game.device == ImageDevice::Sd && source.game.format == UsbImageFormat::Rvz)
                     why = "an RVZ game on the SD card";
-                else d2x_ready = prepare_d2x_saves(source.game, own_saves_dir, own_saves_clone, why);
+                else d2x_ready = prepare_d2x_saves(source.game, own_saves_dir, own_saves_clone,
+                                                        own_saves_clone_empty, why);
                 if (!d2x_ready) logf("Saves: RiftWii's own save code, not d2x's NAND emulation (%s)\n", why.c_str());
             }
             // When every slot fails, the first one's reason is the one to
@@ -464,6 +466,7 @@ void SetOwnSaves(Session& s, const std::string& save_mode, const std::string& ga
     const SaveOverride own = resolve_save_override(save_mode, "", game_id, shared_nand);
     s.own_saves_dir = own.dir;
     s.own_saves_clone = own.clone;
+    s.own_saves_clone_empty = own.clone_into_empty;
 }
 
 // d2x keeps the save (the runtime leaves it alone), else the runtime
@@ -475,6 +478,7 @@ void KeepOwnSaves(const Session& s, bool xml_saves, BootOptions& options) {
         logf("Saves: kept by d2x's NAND emulation in %s\n", options.savegame_dir.c_str());
         options.savegame_dir.clear();
         options.savegame_clone = false;
+        options.savegame_clone_empty = false;
         options.install_resident = !options.table_entries.empty() || !options.replacements.empty() ||
                                    !options.relocations.empty();
         return;
@@ -513,6 +517,7 @@ bool BootCompiled(CompiledMod&& mod, std::string& error, const LaunchSource& sou
     options.banner_names = mod.banner_names;
     options.savegame_dir = dir;
     options.savegame_clone = xml_saves ? mod.savegame_clone : saves.clone;
+    options.savegame_clone_empty = !xml_saves && saves.clone_into_empty;
     if (!xml_saves && !saves.note.empty()) logf("Saves: %s\n", saves.note.c_str());
     KeepOwnSaves(s, xml_saves, options);
     return boot_game(s.probe, std::move(options), error);
@@ -589,6 +594,7 @@ bool RunLaunch(const std::vector<PackageChoices>& packages, std::string& error, 
     options.main_dol=std::move(mod.main_dol);
     options.banner_names=mod.banner_names;
     options.savegame_dir=dir; options.savegame_clone=xml_saves ? mod.savegame_clone : saves.clone;
+    options.savegame_clone_empty = !xml_saves && saves.clone_into_empty;
     if (!xml_saves && !saves.note.empty()) logf("Saves: %s\n", saves.note.c_str());
     KeepOwnSaves(s, xml_saves, options);
     return boot_game(s.probe, std::move(options), error);

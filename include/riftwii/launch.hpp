@@ -62,6 +62,10 @@ bool needs_launch_pipeline(bool has_selected_packages, const std::string& save_m
 struct SaveOverride {
     std::string dir;   // sd:/ folder, empty when nothing is overridden
     bool clone = false;
+    // The clone also fills a data folder that exists but holds no save:
+    // the shared emulated NAND's other loader makes the game's folder at
+    // every launch, before the game has saved anything.
+    bool clone_into_empty = false;
     std::string note;  // one log line when dir is set
 };
 

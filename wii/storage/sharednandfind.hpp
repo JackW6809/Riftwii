@@ -13,6 +13,19 @@
 // launch stops then, rather than keeping the save somewhere else.
 namespace riftwii::wii {
 
+// What the settings say for one game, checked.
+struct SharedNandLookup {
+    std::string configured;  // the path as written (or the default)
+    std::string from;        // which file it came from, for the log
+    std::string folder;      // the folder to use, when usable
+    std::string error;       // why it cannot be used, otherwise
+    bool usable = false;
+};
+
+// Reads the settings without logging (the game page shows the result).
+SharedNandLookup look_up_shared_nand(const std::string& game_id);
+
+// For a launch: the same, with a log line either way.
 bool find_shared_nand(const std::string& game_id, std::string& folder, std::string& error);
 
 }  // namespace riftwii::wii

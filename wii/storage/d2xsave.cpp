@@ -204,13 +204,26 @@ bool move_flat_saves(const std::string& dir, const std::string& data_dir, std::s
     return true;
 }
 
-bool prepare_d2x_saves(const ImageGame& game, const std::string& dir, bool clone, std::string& error) {
+bool save_folder_empty(const std::string& data_dir) {
+    DIR* d = opendir(data_dir.c_str());
+    if (d == nullptr) return true;
+    bool empty = true;
+    while (dirent* e = readdir(d)) {
+        const std::string n = e->d_name;
+        if (n != "." && n != ".." && n != "riftwii.cln") empty = false;
+    }
+    closedir(d);
+    return empty;
+}
+
+bool prepare_d2x_saves(const ImageGame& game, const std::string& dir, bool clone, bool clone_into_empty,
+                       std::string& error) {
     if (game.title_id == 0) {
         error = "the game's title ID is not known";
         return false;
     }
     const std::string data = own_save_data_dir(dir, game.title_id);
-    const bool had_save = is_dir(data);
+    const bool had_save = is_dir(data) && !(clone_into_empty && save_folder_empty(data));
     // The emulated NAND's folders USB Loader GX makes before it turns d2x's
     // emulation on (d2x makes the rest).
     for (const char* sub : {"/import", "/meta", "/shared1", "/shared2", "/sys", "/ticket", "/tmp"}) {
@@ -232,17 +245,11 @@ bool prepare_d2x_saves(const ImageGame& game, const std::string& dir, bool clone
         error = "cannot write " + tmd;
         return false;
     }
-    // "SD, from Wii save": the Wii's save, once, into a folder that had
-    // none. A copy that fails leaves no half save behind.
+    // "SD, from Wii save" and "SD, emulated NAND": the Wii's save, once,
+    // into a folder that had none. A copy that fails leaves no half save
+    // behind.
     if (clone && !had_save) {
-        DIR* d = opendir(data.c_str());
-        bool empty = true;
-        if (d) {
-            while (dirent* e = readdir(d))
-                if (std::strcmp(e->d_name, ".") != 0 && std::strcmp(e->d_name, "..") != 0) empty = false;
-            closedir(d);
-        }
-        if (empty) {
+        if (save_folder_empty(data)) {
             if (ISFS_Initialize() < 0) {
                 error = "the Wii's save could not be read (ISFS)";
                 return false;
