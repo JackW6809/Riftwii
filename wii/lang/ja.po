@@ -1542,8 +1542,8 @@ msgstr "メモリーカード"
 msgid "About this"
 msgstr "説明"
 
-msgid "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card."
-msgstr "「このゲーム専用」はこのゲームだけのカードにセーブを置き、「共有」はすべてのゲームのセーブを1枚のカードにまとめます。"
+msgid "Save to a card for this game alone, or to one card shared by all your games."
+msgstr "このゲームだけのカードか、すべてのゲームで共有する1枚のカードにセーブします。"
 
 msgid "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own."
 msgstr "切り替えてもセーブはコピーされず、もう一方のカードに残ります。セーブのページの「SDカードにコピー」と「SDカードからセーブを追加」で移せます。日本のゲームは専用の共有カードを使います。"
@@ -1668,8 +1668,8 @@ msgstr "480pはアメリカと日本のゲーム用で、このヨーロッパ�
 msgid "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first."
 msgstr "コンポーネントケーブルで、くっきり安定した映像にします。480pのないゲームも対象で、先に確認を求めるゲームもあります。"
 
-msgid "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."
-msgstr "試験的: メニューと文字は横に伸びたまま、ゲームの世界をワイドテレビいっぱいに広げます (Wiiでは一部のゲームで色がおかしくなったり、画面が二重になったりします)。"
+msgid "Fills a widescreen TV with the game world; menus stay stretched, and some games show wrong colors (experimental)."
+msgstr "ゲームの世界をワイドテレビいっぱいに広げます。メニューは横に伸びたままで、色がおかしくなるゲームもあります (試験的)。"
 
 msgid "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one)."
 msgstr "このゲームを遊ぶ言語で、Wii本体の設定は変わりません (アメリカと日本のゲームの多くは1言語だけです)。"
@@ -1677,8 +1677,8 @@ msgstr "このゲームを遊ぶ言語で、Wii本体の設定は変わりませ
 msgid "Controls"
 msgstr "操作"
 
-msgid "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii)."
-msgstr "「高速」はSDカードの限界の速さで読み込み、「ゲームキューブと同じ」は遅くなりますが、必要とするゲームも少しあります (試験的: Wiiでは一部のゲームが止まることがあります)。"
+msgid "Fast suits almost every game; a few need the GameCube's own, slower speed (experimental, it can freeze some games)."
+msgstr "高速はほとんどのゲームに向いています。ゲームキューブ本来の遅い速さが必要なゲームも少しあります (試験的、一部のゲームが止まることがあります)。"
 
 msgid "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game."
 msgstr "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかと、ゲームのやめ方を表示します。"

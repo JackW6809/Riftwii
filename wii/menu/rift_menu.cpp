@@ -7150,15 +7150,15 @@ static void MenuGameSettings(FrontendState& state, bool& coverAsked)
 			else if (ref.what == RowRef::What::Cover)
 				say(tr("Downloads this game's box art from GameTDB now."));
 			else if (ref.what == RowRef::What::GcDiscReads)
-				say(tr("Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii)."));
+				say(tr("Fast suits almost every game; a few need the GameCube's own, slower speed (experimental, it can freeze some games)."));
 			else if (ref.what == RowRef::What::GcCard)
-				say(tr("This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card."));
+				say(tr("Save to a card for this game alone, or to one card shared by all your games."));
 			else if (ref.what == RowRef::What::GcProgressive && riftwii::gc_pal_game(state.game_id))
 				say(tr("480p is for US and Japanese games; this European game keeps its own picture."));
 			else if (ref.what == RowRef::What::GcProgressive)
 				say(tr("Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first."));
 			else if (ref.what == RowRef::What::GcWidescreen)
-				say(tr("Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."));
+				say(tr("Fills a widescreen TV with the game world; menus stay stretched, and some games show wrong colors (experimental)."));
 			else if (ref.what == RowRef::What::GcLanguage)
 				say(tr("The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one)."));
 			else if (ref.what == RowRef::What::GcControls)

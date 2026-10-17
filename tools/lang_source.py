@@ -1394,7 +1394,7 @@ T = {
     "Saves go to the shared memory card on the SD card: {1}.": ("Las partidas van a la tarjeta de memoria compartida de la tarjeta SD: {1}.", "セーブはSDカード上の共有メモリーカードに保存されます: {1}", "Os saves vão para o cartão de memória compartilhado no cartão SD: {1}.", "I salvataggi vanno nella Memory Card condivisa sulla scheda SD: {1}."),
     "Memory card": ("Tarjeta de memoria", "メモリーカード", "Cartão de memória", "Memory Card"),
     "About this": ("Acerca de esto", "説明", "Sobre isto", "Informazioni"),
-    "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card.": ("«La de este juego» guarda sus partidas en una tarjeta propia, y «Compartida» junta las de todos los juegos en una sola.", "「このゲーム専用」はこのゲームだけのカードにセーブを置き、「共有」はすべてのゲームのセーブを1枚のカードにまとめます。", "\"Só deste jogo\" guarda os saves num cartão próprio, e \"Compartilhado\" junta os saves de todos os jogos num só cartão.", "\"Solo di questo gioco\" tiene i salvataggi su una scheda propria, mentre \"Condivisa\" mette quelli di tutti i giochi su una sola scheda."),
+    "Save to a card for this game alone, or to one card shared by all your games.": ("Guarda las partidas en una tarjeta solo para este juego, o en una tarjeta compartida por todos tus juegos.", "このゲームだけのカードか、すべてのゲームで共有する1枚のカードにセーブします。", "Salva em um cartão só para este jogo, ou em um cartão compartilhado por todos os seus jogos.", "Salva su una scheda solo per questo gioco, oppure su una scheda condivisa da tutti i tuoi giochi."),
     "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own.": ("Al cambiar no se copian partidas: se quedan en la otra tarjeta. Muévelas con Copiar a la tarjeta SD y Añadir una partida desde la tarjeta SD en la página de partidas. Los juegos japoneses tienen su propia tarjeta compartida.", "切り替えてもセーブはコピーされず、もう一方のカードに残ります。セーブのページの「SDカードにコピー」と「SDカードからセーブを追加」で移せます。日本のゲームは専用の共有カードを使います。", "Trocar não copia saves: eles ficam no outro cartão. Mova-os com Copiar para o cartão SD e Adicionar um save do cartão SD na página de saves. Os jogos japoneses têm o seu próprio cartão compartilhado.", "Cambiando non si copia nulla: i salvataggi restano sull'altra scheda. Spostali con Copia sulla scheda SD e Aggiungi un salvataggio dalla scheda SD nella pagina dei salvataggi. I giochi giapponesi hanno la loro scheda condivisa."),
     "Switch": ("Cambiar", "切り替える", "Trocar", "Cambia"),
     "Shared": ("Compartida", "共有", "Compartilhado", "Condivisa"),
@@ -1436,10 +1436,10 @@ T = {
     "Widescreen": ("Panorámico", "ワイド画面", "Widescreen", "Panoramico"),
     "480p is for US and Japanese games; this European game keeps its own picture.": ("480p es para juegos de EE. UU. y Japón; este juego europeo mantiene su propia imagen.", "480pはアメリカと日本のゲーム用で、このヨーロッパのゲームはゲームのままの映像になります。", "480p é para jogos dos EUA e do Japão; este jogo europeu mantém a sua própria imagem.", "Il 480p è per i giochi americani e giapponesi; questo gioco europeo mantiene la sua immagine."),
     "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first.": ("Da una imagen más nítida y estable con un cable por componentes, incluso en juegos sin modo 480p; algunos preguntan antes.", "コンポーネントケーブルで、くっきり安定した映像にします。480pのないゲームも対象で、先に確認を求めるゲームもあります。", "Dá uma imagem mais nítida e estável com cabo componente, mesmo em jogos sem modo 480p; alguns perguntam antes.", "Dà un'immagine più nitida e stabile con un cavo component, anche nei giochi senza modo 480p; alcuni chiedono prima."),
-    "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.": ("Experimental: llena una TV panorámica con el mundo del juego mientras los menús y el texto siguen estirados, y en una Wii algunos juegos muestran colores erróneos o una imagen doble.", "試験的: メニューと文字は横に伸びたまま、ゲームの世界をワイドテレビいっぱいに広げます (Wiiでは一部のゲームで色がおかしくなったり、画面が二重になったりします)。", "Experimental: preenche uma TV widescreen com o mundo do jogo, enquanto menus e texto continuam esticados, e numa Wii alguns jogos mostram cores erradas ou imagem dupla.", "Sperimentale: riempie una TV panoramica con il mondo di gioco, mentre menu e testi restano allungati, e su una Wii alcuni giochi mostrano colori sbagliati o un'immagine doppia."),
+    "Fills a widescreen TV with the game world; menus stay stretched, and some games show wrong colors (experimental).": ("Llena una TV panorámica con el mundo del juego; los menús siguen estirados y algunos juegos muestran colores erróneos (experimental).", "ゲームの世界をワイドテレビいっぱいに広げます。メニューは横に伸びたままで、色がおかしくなるゲームもあります (試験的)。", "Preenche uma TV widescreen com o mundo do jogo; os menus continuam esticados e alguns jogos mostram cores erradas (experimental).", "Riempie una TV panoramica con il mondo di gioco; i menu restano allungati e alcuni giochi mostrano colori sbagliati (sperimentale)."),
     "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).": ("El idioma en que se juega este juego, sin cambiar el ajuste de la Wii (la mayoría de los juegos de EE. UU. y Japón tienen solo uno).", "このゲームを遊ぶ言語で、Wii本体の設定は変わりません (アメリカと日本のゲームの多くは1言語だけです)。", "O idioma em que este jogo é jogado, sem mudar a configuração da Wii (a maioria dos jogos dos EUA e do Japão tem só um).", "La lingua in cui si gioca questo gioco, senza cambiare l'impostazione della Wii (la maggior parte dei giochi americani e giapponesi ne ha una sola)."),
     "Controls": ("Controles", "操作", "Controlos", "Comandi"),
-    "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii).": ("«Rápida» carga tan deprisa como permite la tarjeta SD, mientras que «Como en una GameCube» es más lenta pero es lo que necesitan unos pocos juegos (experimental: en una Wii puede congelar algunos juegos).", "「高速」はSDカードの限界の速さで読み込み、「ゲームキューブと同じ」は遅くなりますが、必要とするゲームも少しあります (試験的: Wiiでは一部のゲームが止まることがあります)。", "\"Rápida\" carrega o mais depressa que o cartão SD permite, enquanto \"Como numa GameCube\" é mais lenta, mas é o que alguns poucos jogos precisam (experimental: numa Wii pode bloquear alguns jogos).", "\"Veloce\" carica il più rapidamente possibile per la scheda SD, mentre \"Come su un GameCube\" è più lenta ma serve a pochi giochi (sperimentale: su una Wii può bloccare alcuni giochi)."),
+    "Fast suits almost every game; a few need the GameCube's own, slower speed (experimental, it can freeze some games).": ("Rápida sirve para casi todos los juegos; unos pocos necesitan la velocidad más lenta propia de la GameCube (experimental, puede congelar algunos juegos).", "高速はほとんどのゲームに向いています。ゲームキューブ本来の遅い速さが必要なゲームも少しあります (試験的、一部のゲームが止まることがあります)。", "Rápida serve para quase todos os jogos; alguns poucos precisam da velocidade mais lenta própria da GameCube (experimental, pode bloquear alguns jogos).", "Veloce va bene per quasi tutti i giochi; pochi richiedono la velocità, più lenta, propria del GameCube (sperimentale, può bloccare alcuni giochi)."),
     "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game.": ("Muestra qué botones del mando de Wii, el Nunchuk o el mando clásico hacen de los del mando de GameCube, y cómo salir del juego.", "Wiiリモコン、ヌンチャク、クラシックコントローラのどのボタンがゲームキューブコントローラのボタンになるかと、ゲームのやめ方を表示します。", "Mostra que botões do Comando Wii, do Nunchuk ou do Comando Clássico fazem de botões do comando GameCube, e como sair do jogo.", "Mostra quali pulsanti del telecomando Wii, del Nunchuk o del controller classico fanno da pulsanti del controller GameCube, e come uscire dal gioco."),
     "SD image made": ("Imagen SD creada", "SDイメージを作成しました", "Imagem SD criada", "Immagine SD creata"),
     "{1} is in sd:/riftwii, and the build in it is turned on: the game gets the image as its SD card.": ("{1} está en sd:/riftwii y la build que contiene está activada: el juego usa la imagen como su tarjeta SD.", "{1}はsd:/riftwiiにあり、中のビルドはオンになっています: ゲームはこのイメージをSDカードとして使います。", "{1} está em sd:/riftwii e a build dentro dela está ativada: o jogo usa a imagem como seu cartão SD.", "{1} è in sd:/riftwii e la build al suo interno è attivata: il gioco usa l'immagine come sua scheda SD."),
@@ -2933,8 +2933,8 @@ KO = {
         "메모리 카드",
     "About this":
         "설명",
-    "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card.":
-        "\"이 게임 전용\"은 이 게임의 저장 데이터를 전용 카드에 두고, \"공유\"는 모든 게임의 저장 데이터를 카드 한 장에 모읍니다.",
+    "Save to a card for this game alone, or to one card shared by all your games.":
+        "이 게임 전용 카드나 모든 게임이 함께 쓰는 카드 한 장에 저장합니다.",
     "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own.":
         "바꿔도 저장 데이터는 복사되지 않고 다른 카드에 남습니다. 저장 페이지의 SD 카드에 복사와 SD 카드에서 저장 데이터 추가로 옮길 수 있습니다. 일본 게임은 별도의 공유 카드를 씁니다.",
     "Switch":
@@ -3017,14 +3017,14 @@ KO = {
         "480p는 미국과 일본 게임용이며, 이 유럽 게임은 원래 화면을 그대로 씁니다.",
     "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first.":
         "컴포넌트 케이블에서 더 선명하고 안정적인 화면을 보여 주며, 480p가 없는 게임도 해당됩니다. 일부 게임은 먼저 물어봅니다.",
-    "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.":
-        "실험적: 메뉴와 글자는 늘어난 채로 게임 세계를 와이드 TV에 가득 채우며, Wii에서는 일부 게임에서 색이 잘못되거나 화면이 겹쳐 보일 수 있습니다.",
+    "Fills a widescreen TV with the game world; menus stay stretched, and some games show wrong colors (experimental).":
+        "게임 세계를 와이드 TV에 가득 채웁니다. 메뉴는 늘어난 채로 남고, 일부 게임은 색이 잘못 나올 수 있습니다 (실험적).",
     "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).":
         "이 게임을 플레이할 언어이며 Wii 본체 설정은 바뀌지 않습니다 (미국·일본 게임은 대부분 언어가 하나뿐입니다).",
     "Controls":
         "조작",
-    "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii).":
-        "\"빠르게\"는 SD 카드가 허용하는 한 빨리 읽고, \"게임큐브처럼\"은 더 느리지만 일부 게임에 필요합니다 (실험적: Wii에서는 일부 게임이 멈출 수 있습니다).",
+    "Fast suits almost every game; a few need the GameCube's own, slower speed (experimental, it can freeze some games).":
+        "빠르게는 거의 모든 게임에 맞고, 일부 게임은 게임큐브 본래의 느린 속도가 필요합니다 (실험적, 일부 게임이 멈출 수 있습니다).",
     "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game.":
         "Wii 리모컨, 눈차크, 클래식 컨트롤러의 어떤 버튼이 게임큐브 컨트롤러의 버튼이 되는지와 게임에서 나가는 방법을 보여 줍니다.",
     "SD image made":
@@ -4654,8 +4654,8 @@ FR = {
         "Carte mémoire",
     "About this":
         "À propos",
-    "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card.":
-        "« Propre à ce jeu » garde ses sauvegardes sur une carte à lui, tandis que « Partagée » met celles de tous les jeux sur une seule carte.",
+    "Save to a card for this game alone, or to one card shared by all your games.":
+        "Enregistre sur une carte réservée à ce jeu, ou sur une carte partagée par tous vos jeux.",
     "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own.":
         "Changer ne copie aucune sauvegarde : elles restent sur l'autre carte. Déplacez-les avec Copier sur la carte SD et Ajouter une sauvegarde depuis la carte SD dans la page des sauvegardes. Les jeux japonais ont leur propre carte partagée.",
     "Switch":
@@ -4738,14 +4738,14 @@ FR = {
         "Le 480p est pour les jeux américains et japonais ; ce jeu européen garde sa propre image.",
     "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first.":
         "Donne une image plus nette et plus stable avec un câble composante, même dans les jeux sans mode 480p ; certains posent d'abord la question.",
-    "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture.":
-        "Expérimental : remplit une TV grand écran avec le monde du jeu pendant que les menus et le texte restent étirés, et sur une Wii certains jeux montrent des couleurs fausses ou une image doublée.",
+    "Fills a widescreen TV with the game world; menus stay stretched, and some games show wrong colors (experimental).":
+        "Remplit une TV grand écran avec le monde du jeu ; les menus restent étirés et certains jeux montrent des couleurs fausses (expérimental).",
     "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one).":
         "La langue dans laquelle ce jeu se joue, sans changer le réglage de la Wii (la plupart des jeux américains et japonais n'en ont qu'une).",
     "Controls":
         "Commandes",
-    "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii).":
-        "« Rapide » charge aussi vite que la carte SD le permet, alors que « Comme sur une GameCube » est plus lente mais nécessaire à quelques jeux (expérimental : sur une Wii, cela peut figer certains jeux).",
+    "Fast suits almost every game; a few need the GameCube's own, slower speed (experimental, it can freeze some games).":
+        "Rapide convient à presque tous les jeux ; quelques-uns exigent la vitesse, plus lente, propre à la GameCube (expérimental, cela peut figer certains jeux).",
     "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game.":
         "Montre quels boutons de la Wiimote, du Nunchuk ou de la manette classique font office de ceux de la manette GameCube, et comment quitter le jeu.",
     "SD image made":

@@ -1542,8 +1542,8 @@ msgstr "Carte mémoire"
 msgid "About this"
 msgstr "À propos"
 
-msgid "This game's own keeps its saves on a card of its own, while Shared puts every game's saves on one card."
-msgstr "« Propre à ce jeu » garde ses sauvegardes sur une carte à lui, tandis que « Partagée » met celles de tous les jeux sur une seule carte."
+msgid "Save to a card for this game alone, or to one card shared by all your games."
+msgstr "Enregistre sur une carte réservée à ce jeu, ou sur une carte partagée par tous vos jeux."
 
 msgid "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own."
 msgstr "Changer ne copie aucune sauvegarde : elles restent sur l'autre carte. Déplacez-les avec Copier sur la carte SD et Ajouter une sauvegarde depuis la carte SD dans la page des sauvegardes. Les jeux japonais ont leur propre carte partagée."
@@ -1668,8 +1668,8 @@ msgstr "Le 480p est pour les jeux américains et japonais ; ce jeu européen gar
 msgid "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first."
 msgstr "Donne une image plus nette et plus stable avec un câble composante, même dans les jeux sans mode 480p ; certains posent d'abord la question."
 
-msgid "Experimental: fills a widescreen TV with the game world while menus and text stay stretched, and on a Wii some games show wrong colors or a doubled picture."
-msgstr "Expérimental : remplit une TV grand écran avec le monde du jeu pendant que les menus et le texte restent étirés, et sur une Wii certains jeux montrent des couleurs fausses ou une image doublée."
+msgid "Fills a widescreen TV with the game world; menus stay stretched, and some games show wrong colors (experimental)."
+msgstr "Remplit une TV grand écran avec le monde du jeu ; les menus restent étirés et certains jeux montrent des couleurs fausses (expérimental)."
 
 msgid "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one)."
 msgstr "La langue dans laquelle ce jeu se joue, sans changer le réglage de la Wii (la plupart des jeux américains et japonais n'en ont qu'une)."
@@ -1677,8 +1677,8 @@ msgstr "La langue dans laquelle ce jeu se joue, sans changer le réglage de la W
 msgid "Controls"
 msgstr "Commandes"
 
-msgid "Fast loads as quickly as the SD card allows, while As on a GameCube is slower but is what a few games need (experimental: it can freeze some games on a Wii)."
-msgstr "« Rapide » charge aussi vite que la carte SD le permet, alors que « Comme sur une GameCube » est plus lente mais nécessaire à quelques jeux (expérimental : sur une Wii, cela peut figer certains jeux)."
+msgid "Fast suits almost every game; a few need the GameCube's own, slower speed (experimental, it can freeze some games)."
+msgstr "Rapide convient à presque tous les jeux ; quelques-uns exigent la vitesse, plus lente, propre à la GameCube (expérimental, cela peut figer certains jeux)."
 
 msgid "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game."
 msgstr "Montre quels boutons de la Wiimote, du Nunchuk ou de la manette classique font office de ceux de la manette GameCube, et comment quitter le jeu."
