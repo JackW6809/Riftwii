@@ -368,6 +368,7 @@ UpdateGUI(void *arg)
 			{
 				// The power button fades out more slowly, as the Wii Menu does.
 				const int step = ExitRequested == kExitPowerButton ? 6 : 15;
+				logf("Exit: the GUI thread starts fading out (exit request %d)\n", static_cast<int>(ExitRequested));
 				if (ExitRequested == kExitPowerButton) logf("Power button: turning the Wii off\n");
 				for(i = 0; i <= 255; i += step)
 				{
@@ -452,7 +453,7 @@ void InitGUIThreads()
 		ExitApp();
 	// A crash in either thread also says where the other one was: the
 	// GUI thread draws what the menu's thread builds and takes down.
-	riftwii::wii::CrashWatchThread("Menu thread", menuthread);
+	riftwii::wii::CrashWatchThread("Menu thread", LWP_GetSelf());
 	riftwii::wii::CrashWatchThread("GUI thread", guithread);
 	HaltGui();
 	g_watchdogOn = true;
@@ -2722,12 +2723,50 @@ static void OfferBurnedDisc(std::string& error)
 	error = tr("RiftWii could not restart. Start it again from the Homebrew Channel.");
 }
 
+// Diagnostics for the update crash: once a second, how many children the
+// main window has and each one's address and first word (the vtable
+// pointer). A page window whose first word turns to zero is what the crash
+// screen showed. A thread of its own that never halts; it reads the window
+// without a lock on purpose, so it can see the moment it goes bad.
+static volatile bool g_updateDiagOn = false;
+static lwp_t g_updateDiag = LWP_THREAD_NULL;
+
+static void* UpdateDiagThread(void*)
+{
+	while (true) {
+		usleep(1000000);
+		if (!mainWindow) continue;
+		char line[400];
+		int used = 0;
+		const u32 count = mainWindow->GetSize();
+		const u32 shown = count < 12 ? count : 12;
+		for (u32 i = 0; i < shown && used < static_cast<int>(sizeof(line)) - 40; ++i) {
+			const GuiElement* child = mainWindow->GetGuiElementAt(i);
+			const u32 firstWord = child ? *reinterpret_cast<const volatile u32*>(child) : 0;
+			used += snprintf(line + used, sizeof(line) - used, " [%u] %p=%08x", static_cast<unsigned>(i),
+				static_cast<const void*>(child), static_cast<unsigned>(firstWord));
+		}
+		line[used < static_cast<int>(sizeof(line)) ? used : sizeof(line) - 1] = 0;
+		logf("Update diag: the main window has %u children:%s\n", static_cast<unsigned>(count), line);
+	}
+	return nullptr;
+}
+
+static void StartUpdateDiag()
+{
+	if (g_updateDiagOn) return;
+	g_updateDiagOn = true;
+	LWP_CreateThread(&g_updateDiag, UpdateDiagThread, nullptr, nullptr, 8192, 80);
+}
+
 // Downloads and installs a newer release (riftwii::wii::InstallUpdate),
 // then offers to leave so the Homebrew Channel starts it.
 static void RunUpdate(const std::string& latest)
 {
 	std::string where, error;
 	bool ok;
+	logf("Update: the update to %s starts\n", latest.c_str());
+	StartUpdateDiag();
 	{
 		PopupBox box(tr("Updating RiftWii"),
 			tr("RiftWii {1} is out. Downloading and installing it now; this takes a minute...", {latest}));
@@ -2746,6 +2785,7 @@ static void RunUpdate(const std::string& latest)
 		});
 		HaltGui();
 	}
+	logf("Update: the install call returned (%s)\n", ok ? "success" : "failure");
 	if (!ok) {
 		logf("Update: %s\n", error.c_str());
 		ShowPopup(tr("Update failed"),
@@ -2754,11 +2794,13 @@ static void RunUpdate(const std::string& latest)
 			tr("OK"));
 		return;
 	}
+	logf("Update: the 'RiftWii updated' popup (Leave or Later) is shown\n");
 	if (ShowPopup(tr("RiftWii updated"),
 		    tr("RiftWii {1} is installed ({2}). It runs the next time RiftWii starts. Leave to the Homebrew Channel now and start it again?",
 			    {latest, where}),
 		    tr("Leave"), tr("Later")) == 0) {
 		logf("Update: the player chose Leave; RiftWii closes so the Homebrew Channel can start %s\n", latest.c_str());
+		logf("Update: ExitRequested is set now\n");
 		ExitRequested = 1;
 		ResumeGui();
 		while (1) usleep(THREAD_SLEEP);
@@ -2899,10 +2941,13 @@ static void OfferReport()
 // Not now is asked once more before it counts (and is logged as a choice).
 static bool AgreeToUpdate(const std::string& latest)
 {
+	logf("Update: the 'Update available' popup for %s is shown\n", latest.c_str());
 	if (ShowPopup(tr("Update available"),
 		    tr("RiftWii {1} is out (this is {2}). Update now? It takes a minute.", {latest, RIFTWII_VERSION}),
-		    tr("Update"), tr("Not now")) == 0)
+		    tr("Update"), tr("Not now")) == 0) {
+		logf("Update: the player chose Update\n");
 		return true;
+	}
 	if (ShowPopup(tr("Are you sure?"),
 		    tr("Are you sure you don't want to update? If you had an issue, it could have been fixed in the latest update!"),
 		    tr("Update"), tr("Not now")) == 0)

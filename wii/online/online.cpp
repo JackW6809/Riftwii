@@ -674,7 +674,8 @@ bool InstallUpdate(const std::string& latest, std::string& where, std::string& e
         error = "RiftWii was not started from a boot.dol on the SD card, so there is nothing to replace";
         return false;
     }
-    logf("Update: downloading %s for %s\n", latest.c_str(), where.c_str());
+    logf("Update: the download of %s for %s starts (GitHub says %u bytes)\n", latest.c_str(), where.c_str(),
+         static_cast<unsigned>(note.dol.size));
     std::vector<std::uint8_t> body;
     // GitHub's redirect answers are small; the DOL is the bulk. Its size
     // is known from the release, so the share is the bytes against it
@@ -687,6 +688,8 @@ bool InstallUpdate(const std::string& latest, std::string& where, std::string& e
         };
     }
     if (!HttpGet(note.dol.url, body, error, 16u << 20, 30000, got)) return false;
+    logf("Update: the download finished with %u bytes (expected %u)\n", static_cast<unsigned>(body.size()),
+         static_cast<unsigned>(note.dol.size));
     if (progress) progress(1.0);
     if (note.dol.size != 0 && body.size() != note.dol.size) {
         error = "the download has " + std::to_string(body.size()) + " bytes, GitHub says " +
@@ -718,6 +721,7 @@ bool InstallUpdate(const std::string& latest, std::string& where, std::string& e
     const CardWriteHold hold;
     const std::string fresh = where + ".new";
     const std::string old = where + ".old";
+    logf("Update: writing the new DOL to %s\n", fresh.c_str());
     if (!write_file(fresh, body, error)) return false;
     struct stat st;
     if (stat(fresh.c_str(), &st) != 0 || static_cast<std::size_t>(st.st_size) != body.size()) {
@@ -725,17 +729,20 @@ bool InstallUpdate(const std::string& latest, std::string& where, std::string& e
         error = "the new DOL did not land whole on the card";
         return false;
     }
+    logf("Update: removing the previous %s and moving %s to it\n", old.c_str(), where.c_str());
     std::remove(old.c_str());
     if (std::rename(where.c_str(), old.c_str()) != 0) {
         std::remove(fresh.c_str());
         error = "cannot move the old " + where + " aside";
         return false;
     }
+    logf("Update: moving %s to %s\n", fresh.c_str(), where.c_str());
     if (std::rename(fresh.c_str(), where.c_str()) != 0) {
         std::rename(old.c_str(), where.c_str());
         error = "cannot put the new DOL in place";
         return false;
     }
+    logf("Update: the files are swapped on the card; updating meta.xml and the update note\n");
     UpdateMetaVersion(where, latest);
     note.installed = latest;
     WriteUpdateNote(note);
