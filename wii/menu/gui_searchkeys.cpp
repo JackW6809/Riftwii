@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gui_searchkeys.hpp"
 
+#include <cctype>
+#include <cstdlib>
+
 #include "i18n.hpp"
 #include "riftwii/skinpaint.hpp"
 #include "skin.hpp"
@@ -16,6 +19,9 @@ constexpr int kPanelX = 34, kPanelY = 102;
 constexpr int kKeyLeft = 60, kKeyPitch = 52, kKeyW = 48, kKeyH = 30;
 constexpr int kFirstRowY = 190, kRowPitch = 35, kActionRowY = 334, kActionH = 34;
 constexpr int kRows = 5;  // four of letters, one of actions
+// The box above the card (a cheat value's note, Home's live matches): clear
+// of a TV's overscan at the top, ending above the card (kPanelY 102).
+constexpr int kBoxY = 24, kBoxH = 70;
 
 bool Pressed(GuiTrigger* t, u32 wpad, u32 drc) {
     return (t->wpad && (t->wpad->btns_d & wpad)) || (t->wiidrcdata.btns_d & drc);
@@ -36,17 +42,23 @@ bool AnyPointer() {
 int GuiSearchKeys::Y(int row) const { return row == kRows - 1 ? kActionRowY : kFirstRowY + row * kRowPitch; }
 
 GuiSearchKeys::GuiSearchKeys(const std::string& start) : text(start.substr(0, kMaxLength)) {
-    Build(tr("Search games"), "", false);
+    Build(tr("Search games"), "", Mode::Search);
 }
 
 GuiSearchKeys::GuiSearchKeys(const std::string& start, const std::string& titleText, const std::string& noteText,
                              std::size_t maxLength)
     : text(start.substr(0, maxLength)), maxLength(maxLength) {
-    Build(titleText, noteText, true);
+    Build(titleText, noteText, Mode::Hex);
 }
 
-void GuiSearchKeys::Build(const std::string& titleText, const std::string& noteText, bool hexKeys) {
-    hex = hexKeys;
+GuiSearchKeys::GuiSearchKeys(const std::string& start, const std::string& titleText, std::size_t maxLength)
+    : text(start.substr(0, maxLength)), maxLength(maxLength) {
+    Build(titleText, "", Mode::Name);
+}
+
+void GuiSearchKeys::Build(const std::string& titleText, const std::string& noteText, Mode mode) {
+    hex = mode == Mode::Hex;
+    naming = mode == Mode::Name;
     width = screenwidth;
     height = screenheight;
     selectable = true;
@@ -72,11 +84,20 @@ void GuiSearchKeys::Build(const std::string& titleText, const std::string& noteT
         }
         // The third row is one short: the delete key takes the last place.
         keys.push_back({tr("Del"), 0, Key::Act::Back, 2, kKeyLeft + 9 * kKeyPitch, kKeyW, nullptr});
-        // Actions: Space, Clear, Cancel and Search across the card's width.
-        keys.push_back({tr("Space"), ' ', Key::Act::Space, 4, kKeyLeft, wide, nullptr});
-        keys.push_back({tr("Clear"), 0, Key::Act::Clear, 4, kKeyLeft + 4 * kKeyPitch, mid, nullptr});
-        keys.push_back({tr("Cancel"), 0, Key::Act::Cancel, 4, kKeyLeft + 6 * kKeyPitch, mid, nullptr});
-        keys.push_back({tr("Search"), 0, Key::Act::Search, 4, kKeyLeft + 8 * kKeyPitch, mid, nullptr});
+        if (naming) {
+            // Actions: Space, Shift, Clear, Cancel and OK across the card's width.
+            keys.push_back({tr("Space"), ' ', Key::Act::Space, 4, kKeyLeft, mid, nullptr});
+            keys.push_back({tr("Shift"), 0, Key::Act::Shift, 4, kKeyLeft + 2 * kKeyPitch, mid, nullptr});
+            keys.push_back({tr("Clear"), 0, Key::Act::Clear, 4, kKeyLeft + 4 * kKeyPitch, mid, nullptr});
+            keys.push_back({tr("Cancel"), 0, Key::Act::Cancel, 4, kKeyLeft + 6 * kKeyPitch, mid, nullptr});
+            keys.push_back({tr("OK"), 0, Key::Act::Search, 4, kKeyLeft + 8 * kKeyPitch, mid, nullptr});
+        } else {
+            // Actions: Space, Clear, Cancel and Search across the card's width.
+            keys.push_back({tr("Space"), ' ', Key::Act::Space, 4, kKeyLeft, wide, nullptr});
+            keys.push_back({tr("Clear"), 0, Key::Act::Clear, 4, kKeyLeft + 4 * kKeyPitch, mid, nullptr});
+            keys.push_back({tr("Cancel"), 0, Key::Act::Cancel, 4, kKeyLeft + 6 * kKeyPitch, mid, nullptr});
+            keys.push_back({tr("Search"), 0, Key::Act::Search, 4, kKeyLeft + 8 * kKeyPitch, mid, nullptr});
+        }
     }
     for (Key& k : keys) {
         k.caption = new GuiText(k.label.c_str(), 18, skin::kInk);
@@ -90,7 +111,7 @@ void GuiSearchKeys::Build(const std::string& titleText, const std::string& noteT
         note = new GuiText(noteText.c_str(), 16, skin::kInk);
         note->SetParent(this);
         note->SetAlignment(ALIGN_H::LEFT, ALIGN_V::TOP);
-        note->SetPosition(kPanelX + 10, 20);
+        note->SetPosition(kPanelX + 10, kBoxY + 8);
         note->SetWrap(true, 572 - 20, 3);
     }
     title = new GuiText(titleText.c_str(), 24, skin::kInk);
@@ -100,7 +121,7 @@ void GuiSearchKeys::Build(const std::string& titleText, const std::string& noteT
     matches = new GuiText("", 16, skin::kInk);
     matches->SetParent(this);
     matches->SetAlignment(ALIGN_H::LEFT, ALIGN_V::TOP);
-    matches->SetPosition(kPanelX + 10, 20);
+    matches->SetPosition(kPanelX + 10, kBoxY + 8);
     matches->SetWrap(true, 572 - 20, 3);
     count = new GuiText("", 18, skin::kInkSoft);
     count->SetParent(this);
@@ -112,6 +133,19 @@ void GuiSearchKeys::Build(const std::string& titleText, const std::string& noteT
     shown->SetPosition(kKeyLeft + 10, 154);
     soundOver = new GuiSound(button_over_pcm, button_over_pcm_size, SOUND::PCM);
     soundClick = new GuiSound(button_click_pcm, button_click_pcm_size, SOUND::PCM);
+    if (naming) {
+        shift = text.empty() || text.back() == ' ';
+        ShowCase();
+    }
+}
+
+void GuiSearchKeys::ShowCase() {
+    for (Key& k : keys) {
+        if (k.act != Key::Act::Type || !std::isalpha(static_cast<unsigned char>(k.ch))) continue;
+        const char letter = static_cast<char>(shift ? std::toupper(static_cast<unsigned char>(k.ch))
+                                                    : std::tolower(static_cast<unsigned char>(k.ch)));
+        k.caption->SetText(std::string(1, letter).c_str());
+    }
 }
 
 GuiSearchKeys::~GuiSearchKeys() {
@@ -126,6 +160,30 @@ GuiSearchKeys::~GuiSearchKeys() {
 }
 
 void GuiSearchKeys::SetCount(const std::string& line) { count->SetText(line.c_str()); }
+
+void GuiSearchKeys::SetAvailable(const std::string& chars) {
+    available = chars;
+    limited = true;
+    if (Live(keys[static_cast<std::size_t>(focus)])) return;
+    // The focused key went dead: the nearest live one in its row, else Search.
+    const Key& f = keys[static_cast<std::size_t>(focus)];
+    int best = -1, gap = 1 << 30;
+    for (std::size_t i = 0; i < keys.size(); ++i) {
+        if (keys[i].row != f.row || !Live(keys[i])) continue;
+        const int d = std::abs(keys[i].x - f.x);
+        if (d < gap) {
+            gap = d;
+            best = static_cast<int>(i);
+        }
+    }
+    focus = best >= 0 ? best : static_cast<int>(keys.size()) - 1;
+}
+
+bool GuiSearchKeys::Live(const Key& k) const {
+    if (!limited || (k.act != Key::Act::Type && k.act != Key::Act::Space)) return true;
+    const char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(k.ch)));
+    return available.find(lower) != std::string::npos;
+}
 
 void GuiSearchKeys::SetMatches(const std::string& text) {
     matches->SetText(text.c_str());
@@ -148,14 +206,14 @@ int GuiSearchKeys::Neighbour(int from, int dRow) const {
     // Rows with no keys (the hex keypad's) are passed over.
     const auto empty = [&](int r) {
         for (const Key& k : keys)
-            if (k.row == r) return false;
+            if (k.row == r && Live(k)) return false;
         return true;
     };
     while (row >= 0 && row < kRows && empty(row)) row += dRow;
     if (row < 0 || row >= kRows) return from;
     int best = from, gap = 1 << 30;
     for (std::size_t i = 0; i < keys.size(); ++i) {
-        if (keys[i].row != row) continue;
+        if (keys[i].row != row || !Live(keys[i])) continue;
         const int d = std::abs((keys[i].x + keys[i].w / 2) - (f.x + f.w / 2));
         if (d < gap) {
             gap = d;
@@ -165,17 +223,33 @@ int GuiSearchKeys::Neighbour(int from, int dRow) const {
     return best;
 }
 
+// The last character off `text`, a whole one: a name may start with a
+// pack's title, which can hold letters of several bytes.
+static void DeleteLast(std::string& text) {
+    while (!text.empty() && (static_cast<unsigned char>(text.back()) & 0xC0) == 0x80) text.pop_back();
+    if (!text.empty()) text.pop_back();
+}
+
 void GuiSearchKeys::Press(const Key& k) {
     switch (k.act) {
     case Key::Act::Type:
     case Key::Act::Space:
-        if (text.size() < maxLength) text += k.ch;
+        if (Live(k) && text.size() < maxLength) {
+            char typed = k.ch;
+            if (naming && std::isalpha(static_cast<unsigned char>(typed)))
+                typed = static_cast<char>(shift ? std::toupper(static_cast<unsigned char>(typed))
+                                                : std::tolower(static_cast<unsigned char>(typed)));
+            text += typed;
+        }
         break;
     case Key::Act::Back:
-        if (!text.empty()) text.pop_back();
+        DeleteLast(text);
         break;
     case Key::Act::Clear:
         text.clear();
+        break;
+    case Key::Act::Shift:
+        shift = !shift;
         break;
     case Key::Act::Cancel:
         result = -1;
@@ -185,6 +259,8 @@ void GuiSearchKeys::Press(const Key& k) {
         result = 1;
         break;
     }
+    if (naming && k.act != Key::Act::Shift) shift = text.empty() || text.back() == ' ';
+    if (naming) ShowCase();
     shown->SetText(text.c_str());
 }
 
@@ -203,8 +279,8 @@ void GuiSearchKeys::Update(GuiTrigger* t) {
         return;
     }
     if (Pressed(t, WPAD_BUTTON_MINUS | WPAD_CLASSIC_BUTTON_MINUS, WIIDRC_BUTTON_MINUS)) {
-        if (!text.empty()) text.pop_back();
-        shown->SetText(text.c_str());
+        for (const Key& k : keys)
+            if (k.act == Key::Act::Back) Press(k);
         return;
     }
     if (t->wpad && t->wpad->ir.valid) {
@@ -230,11 +306,13 @@ void GuiSearchKeys::Update(GuiTrigger* t) {
     } else if (t->Left()) {
         // Same row, the key just left of this one.
         for (std::size_t i = 0; i < keys.size(); ++i)
-            if (keys[i].row == f.row && keys[i].x < f.x && (to == focus || keys[i].x > keys[static_cast<std::size_t>(to)].x))
+            if (keys[i].row == f.row && keys[i].x < f.x && Live(keys[i]) &&
+                (to == focus || keys[i].x > keys[static_cast<std::size_t>(to)].x))
                 to = static_cast<int>(i);
     } else if (t->Right()) {
         for (std::size_t i = 0; i < keys.size(); ++i)
-            if (keys[i].row == f.row && keys[i].x > f.x && (to == focus || keys[i].x < keys[static_cast<std::size_t>(to)].x))
+            if (keys[i].row == f.row && keys[i].x > f.x && Live(keys[i]) &&
+                (to == focus || keys[i].x < keys[static_cast<std::size_t>(to)].x))
                 to = static_cast<int>(i);
     }
     if (to != focus) {
@@ -251,10 +329,10 @@ void GuiSearchKeys::Draw() {
     Menu_FillWholeScreen((GXColor){0, 0, 0, 150});
     if (note) {
         // On a box of its own: what is behind is dimmed, any colour.
-        Menu_DrawRectangle(kPanelX, 12, 572, 76, skin::kBadge, 1);
+        Menu_DrawRectangle(kPanelX, kBoxY, 572, kBoxH, skin::kBadge, 1);
         note->Draw();
     } else if (showMatches) {
-        Menu_DrawRectangle(kPanelX, 12, 572, 76, skin::kBadge, 1);
+        Menu_DrawRectangle(kPanelX, kBoxY, 572, kBoxH, skin::kBadge, 1);
         matches->Draw();
     }
     skin::Draw(skin::panelSettings, kPanelX - 4, kPanelY - 4);
@@ -277,10 +355,18 @@ void GuiSearchKeys::Draw() {
         const int ky = Y(k.row), kh = k.row == kRows - 1 ? kActionH : kKeyH;
         // Keys as the Wii's: shaded and glossy; Search filled with the
         // accent; a lit key ringed in the accent, with its glow.
-        const bool primary = k.act == Key::Act::Search;
+        // The name mode's Shift is lit while the next letter is a capital.
+        const bool primary = k.act == Key::Act::Search || (k.act == Key::Act::Shift && shift);
         skin::DrawNine(skin::keys[(primary ? 2 : 0) + (on ? 1 : 0)], k.x - 4, ky - 4, k.w + 8, kh + 8, riftwii::kKeyCorner);
-        k.caption->SetColor(primary ? skin::kTextOnAccent : skin::kInk);
+        const bool live = Live(k);
+        k.caption->SetColor(primary ? skin::kTextOnAccent : live ? skin::kInk : skin::kInkSoft);
         k.caption->SetPosition(k.x + (k.w - k.caption->GetTextWidth()) / 2, ky + (kh - 18) / 2 - 1);
         k.caption->Draw();
+        if (!live) {
+            // Faded into the card: still there (the layout stays put), clearly out.
+            GXColor veil = skin::kBadge;
+            veil.a = 150;
+            Menu_DrawRectangle(k.x - 2, ky - 2, k.w + 4, kh + 4, veil, 1);
+        }
     }
 }

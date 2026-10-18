@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 RiftWii contributors
 // SPDX-FileCopyrightText: 2009 Tantric (libwiigui template) <https://github.com/dborth/libwiigui>
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "drawtrace.hpp"
 #include "skin.hpp"
 
 #include <gccore.h>
@@ -8,11 +9,13 @@
 
 #include <algorithm>
 #include <cstring>
+#include <map>
 #include <vector>
 
 #include "loadersettings.hpp"
 #include "menutheme.hpp"
 #include "riftwii/canvas.hpp"
+#include "riftwii/inputicons.hpp"
 #include "riftwii/skinpaint.hpp"
 #include "riftwii/theme.hpp"
 
@@ -20,7 +23,7 @@ namespace riftwii::wii::skin {
 
 Tex tile, tileOver, coverTile, coverTileOver, roundBtn, roundBtnOver, pill, pillOver, pillPrimary, pillPrimaryOver, homeBtn, homeBtnOver, chipOff, chipOn, rowFocus,
     stepBack, stepBackOver, stepForward, stepForwardOver, switchOn, switchOff,
-    panelGame, panelSettings, bar, bannerStripes, arrowLeft, arrowLeftOver, arrowRight, arrowRightOver, iconDrives,
+    panelGame, panelSettings, popup, bar, bannerStripes, arrowLeft, arrowLeftOver, arrowRight, arrowRightOver, iconDrives,
     scrollUp, scrollUpOver, scrollDown, scrollDownOver,
     iconGear, iconDisc, discCase, iconSearch, iconStar, iconStarOn, hand[4];
 
@@ -186,6 +189,35 @@ Tex backgroundShelf, backgroundShelfWide;
 Tex clockDigits;
 Tex keys[4];
 Tex card9;
+Tex dropShadow9;
+Tex channelFrame9, channelFrameOver9, channelCard9, channelCardOver9;
+Tex label9;
+
+// Kenney's pictures in the theme's glyph colour, painted the first time
+// one is asked for at a size and kept.
+static const Tex& InputIcon(const std::string& name, int size) {
+    static std::map<std::string, Tex> painted;
+    const std::string key = name + "@" + std::to_string(size);
+    const auto found = painted.find(key);
+    if (found != painted.end()) return found->second;
+    const ThemeColor& g = MenuTheme().colors.glyph;
+    Canvas c(0, 0);
+    if (!paint_input_icon(name, size, Rgba{g.r, g.g, g.b, g.a}, c)) return painted[key] = Tex{};
+    return painted[key] = Upload(c);
+}
+
+const Tex& ControlIcon(const std::string& type) {
+    // A controller without a picture of its own (a Balance Board, a wheel):
+    // a game pad.
+    const std::string name = input_icon_for_control(type);
+    return InputIcon(name.empty() ? "controller_wii_classic_pro" : name, 40);
+}
+
+const Tex& ButtonIcon(const std::string& button, int size) {
+    const std::string name = input_icon_for_button(button);
+    static const Tex none{};
+    return name.empty() ? none : InputIcon(name, size);
+}
 Tex capsule9;
 Tex homeBtnDanger, homeBtnDangerOver, iosClose, iosCloseOver, linen;
 Tex backgroundPlain, backgroundPlainWide, backgroundChannels, backgroundChannelsWide;
@@ -193,11 +225,16 @@ static bool g_onHome = true;
 // Home's view for its wall, set by the menu thread: the GUI thread draws
 // the backdrop every frame and must not read Settings()' strings while
 // the menu thread may be changing them.
-enum class HomeWall { Plain, Shelf, Channels };
+// Home's wall: the covers' (Plain), the shelf view's, the channels' (and names'), or
+// none of their rows (Bare: the theme's plain wall, as on other screens).
+enum class HomeWall { Plain, Shelf, Channels, Bare };
 static volatile HomeWall g_homeWall = HomeWall::Plain;
 Tex noticeIcon[2];
 Tex tileEmpty;
 Tex shelfPlank;
+Tex tile9, tile9Over, tile9Primary, tile9PrimaryOver, promptButton;
+Tex iconPlay, iconMods, iconCheats, iconSaves, iconInfo, iconHelp, iconPicture, iconControllers, iconOnline,
+    iconHome, iconSound, iconPower;
 
 Tex ArtFrame(int w, int h) {
     // Two sizes at most (with and without the popup's hint line), each painted once.
@@ -246,12 +283,17 @@ void Init() {
         {"chip_off", &chipOff}, {"chip_on", &chipOn}, {"row_focus", &rowFocus}, {"step_back", &stepBack},
         {"step_back_over", &stepBackOver}, {"step_forward", &stepForward}, {"step_forward_over", &stepForwardOver},
         {"switch_on", &switchOn}, {"switch_off", &switchOff}, {"panel_game", &panelGame},
-        {"panel_settings", &panelSettings}, {"bar", &bar}, {"banner_stripes", &bannerStripes},
+        {"panel_settings", &panelSettings}, {"popup", &popup}, {"bar", &bar}, {"banner_stripes", &bannerStripes},
         {"arrow_left", &arrowLeft}, {"arrow_left_over", &arrowLeftOver}, {"arrow_right", &arrowRight},
         {"arrow_right_over", &arrowRightOver}, {"scroll_up", &scrollUp}, {"scroll_up_over", &scrollUpOver},
         {"scroll_down", &scrollDown}, {"scroll_down_over", &scrollDownOver}, {"icon_drives", &iconDrives},
         {"icon_gear", &iconGear}, {"icon_search", &iconSearch}, {"icon_star", &iconStar}, {"icon_star_on", &iconStarOn}, {"icon_disc", &iconDisc}, {"disc_case", &discCase}, {"pointer1", &hand[0]}, {"pointer2", &hand[1]},
         {"pointer3", &hand[2]}, {"pointer4", &hand[3]}, {"shelf", &shelfPlank},
+        {"tile9", &tile9}, {"tile9_over", &tile9Over}, {"tile9_primary", &tile9Primary},
+        {"tile9_primary_over", &tile9PrimaryOver}, {"prompt_button", &promptButton}, {"icon_play", &iconPlay},
+        {"icon_mods", &iconMods}, {"icon_cheats", &iconCheats}, {"icon_saves", &iconSaves}, {"icon_info", &iconInfo},
+        {"icon_help", &iconHelp}, {"icon_picture", &iconPicture}, {"icon_controllers", &iconControllers},
+        {"icon_online", &iconOnline}, {"icon_home", &iconHome}, {"icon_sound", &iconSound}, {"icon_power", &iconPower},
         {"background_wide", &backgroundWide}, {"bar_wide", &barWide},
         {"background_shelf", &backgroundShelf}, {"background_shelf_wide", &backgroundShelfWide},
         {"background_plain", &backgroundPlain}, {"background_plain_wide", &backgroundPlainWide},
@@ -275,6 +317,11 @@ void Init() {
         }
         paint_card9(MenuTheme(), c);
         card9 = Upload(c);
+        paint_drop_shadow9(MenuTheme(), c);
+        dropShadow9 = Upload(c);
+        SetChannelCorners(riftwii::wii::Settings().channel_corners);
+        paint_label9(MenuTheme(), c);
+        label9 = Upload(c);
         paint_capsule9(c);
         capsule9 = Upload(c);
         if (MenuTheme().home_ios6) {
@@ -333,17 +380,55 @@ void EnsureBackgrounds() {
     }
 }
 
+// The Channels view's corner radius as a multiple of kChannelRadius: set
+// on the menu thread, read by the GUI thread as it clips each icon.
+static volatile float g_channelCorners = 1.0f;
+
+float ChannelCorners() { return g_channelCorners; }
+
+void SetChannelCorners(const std::string& choice) {
+    Theme shaped = MenuTheme();
+    shaped.corners = riftwii::channel_corner_scale(choice, MenuTheme().corners);
+    g_channelCorners = shaped.corners;
+    // Painted again into the same MEM2 (it is never given back), so a
+    // player stepping through the choices costs nothing; the GUI thread may
+    // show one frame half painted.
+    const auto paint = [&](Tex& tex, bool over, bool fill) {
+        Canvas c(0, 0);
+        paint_channel_frame9(shaped, over, fill, c);
+        if (!tex.data) {
+            tex = Upload(c);
+            return;
+        }
+        const std::vector<std::uint8_t> gx = to_gx_rgba8(c);
+        if (c.width() != tex.w || c.height() != tex.h || gx.empty()) return;
+        std::memcpy(tex.data, gx.data(), gx.size());
+        DCFlushRange(tex.data, gx.size());
+    };
+    paint(channelFrame9, false, false);
+    paint(channelFrameOver9, true, false);
+    paint(channelCard9, false, true);
+    paint(channelCardOver9, true, true);
+}
+
 bool BarBump() { return MenuTheme().bar_bump; }
 
 bool HomeIos6() { return MenuTheme().home_ios6; }
 
 void SetOnHome(bool home) {
     const std::string& tiles = riftwii::wii::Settings().home_tiles;
-    g_homeWall = tiles == "shelf" ? HomeWall::Shelf : tiles == "channels" ? HomeWall::Channels : HomeWall::Plain;
+    // Names stand in the channels' three rows; the carousel and the 3D
+    // covers' ring stand free of any row (a shelf would cut through them).
+    g_homeWall = tiles == "shelf"                          ? HomeWall::Shelf
+                 : tiles == "channels" || tiles == "names" ? HomeWall::Channels
+                 : tiles == "carousel" || tiles == "covers3d" ? HomeWall::Bare
+                                                            : HomeWall::Plain;
     g_onHome = home;
 }
 
 bool Ready() { return g_ready; }
+
+GXColor BannerTint() { return g_banner_tint; }
 
 GXColor HueFor(const std::string& id) {
     static const GXColor palette[] = {
@@ -382,6 +467,7 @@ void DrawNine(const Tex& t, float x, float y, float w, float h, float corner, in
 
 void DrawRgb5a3(const u8* data, int w, int h, float x, float y, int alpha, float scale) {
     if (!data || alpha <= 0) return;
+    GxTraceTexture(data, w, h, GX_TF_RGB5A3);
     GXTexObj tex;
     GX_InitTexObj(&tex, const_cast<u8*>(data), static_cast<u16>(w), static_cast<u16>(h), GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP,
                   GX_FALSE);
@@ -416,6 +502,47 @@ void DrawRgb5a3(const u8* data, int w, int h, float x, float y, int alpha, float
     GX_TexCoord2f32(0, 1);
     GX_End();
     GX_LoadPosMtxImm(view, GX_PNMTX0);
+    GX_SetTevOp(GX_TEVSTAGE0, GX_PASSCLR);
+    GX_SetVtxDesc(GX_VA_TEX0, GX_NONE);
+}
+
+void DrawRgb5a3Part(const u8* data, int w, int h, float u0, float u1, float x, float y, float dw, float dh,
+                    int alpha) {
+    const u8 a = static_cast<u8>(alpha < 0 ? 0 : alpha > 255 ? 255 : alpha);
+    DrawRgb5a3Region(data, w, h, u0, 0.0f, u1, 1.0f, x, y, dw, dh, (GXColor){0xFF, 0xFF, 0xFF, a},
+                     (GXColor){0xFF, 0xFF, 0xFF, a});
+}
+
+void DrawRgb5a3Region(const u8* data, int w, int h, float u0, float v0, float u1, float v1, float x, float y, float dw,
+                      float dh, GXColor top, GXColor bottom) {
+    if (!data || (top.a == 0 && bottom.a == 0)) return;
+    GxTraceTexture(data, w, h, GX_TF_RGB5A3);
+    GXTexObj tex;
+    GX_InitTexObj(&tex, const_cast<u8*>(data), static_cast<u16>(w), static_cast<u16>(h), GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP,
+                  GX_FALSE);
+    GX_InitTexObjLOD(&tex, GX_LINEAR, GX_LINEAR, 0, 0, 0, GX_FALSE, GX_FALSE, GX_ANISO_1);
+    GX_LoadTexObj(&tex, GX_TEXMAP0);
+    GX_SetTevOp(GX_TEVSTAGE0, GX_MODULATE);
+    GX_SetVtxDesc(GX_VA_TEX0, GX_DIRECT);
+    // libgui's 2D view: the identity moved to z = -50 (video.cpp).
+    Mtx view;
+    guMtxIdentity(view);
+    guMtxTransApply(view, view, 0.0f, 0.0f, -50.0f);
+    GX_LoadPosMtxImm(view, GX_PNMTX0);
+    GX_Begin(GX_QUADS, GX_VTXFMT0, 4);
+    GX_Position3f32(x, y, 0);
+    GX_Color4u8(top.r, top.g, top.b, top.a);
+    GX_TexCoord2f32(u0, v0);
+    GX_Position3f32(x + dw, y, 0);
+    GX_Color4u8(top.r, top.g, top.b, top.a);
+    GX_TexCoord2f32(u1, v0);
+    GX_Position3f32(x + dw, y + dh, 0);
+    GX_Color4u8(bottom.r, bottom.g, bottom.b, bottom.a);
+    GX_TexCoord2f32(u1, v1);
+    GX_Position3f32(x, y + dh, 0);
+    GX_Color4u8(bottom.r, bottom.g, bottom.b, bottom.a);
+    GX_TexCoord2f32(u0, v1);
+    GX_End();
     GX_SetTevOp(GX_TEVSTAGE0, GX_PASSCLR);
     GX_SetVtxDesc(GX_VA_TEX0, GX_NONE);
 }
@@ -489,6 +616,7 @@ void DrawExtended(const Tex& t, float x, float y, float left, float top, float r
 }
 
 void GuiBackdrop::Draw() {
+    DrawTrace trace("the backdrop");
     // The whole screen, also past the menu's 640x480 when it is drawn
     // smaller (widescreen, screen size). The theme's picture is never
     // stretched: it stays where the menu's rows are (Bookshelf paints
@@ -508,7 +636,7 @@ void GuiBackdrop::DrawBackdrop() {
     const Tex* pick = wide && backgroundWide.data ? &backgroundWide : &background;
     // The shelf view's own wall when the theme has one (Bookshelf: no
     // shelf through the boxes, where Home's upper row of covers stands).
-    if (!g_onHome) {
+    if (!g_onHome || g_homeWall == HomeWall::Bare) {
         // Every other screen: the theme's plain wall when it has one
         // (Bookshelf: no shelves behind Settings' panels).
         if (wide && backgroundPlainWide.data) pick = &backgroundPlainWide;

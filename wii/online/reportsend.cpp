@@ -26,8 +26,10 @@
 #include "online.hpp"
 #include "restart.hpp"
 #include "riftwii/gamefault.hpp"
+#include "riftwii/gccrash.hpp"
 #include "riftwii/http.hpp"
 #include "riftwii/problemreport.hpp"
+#include "riftwii/profiles.hpp"
 #include "riftwii/wpadlog.hpp"
 #include "rtwlog.h"
 #include "wiidrc.h"
@@ -233,9 +235,18 @@ std::string gather(const std::string& reason, std::size_t limit) {
     // The game and packs of the last launch.
     const std::string id = launched_game_id(boot.text);
     if (!id.empty()) {
-        ReportPart choices = file_part("sd:/riftwii/choices/" + id + ".txt");
+        // A launch from one of the game's profile tiles ran that tile's
+        // choices (riftwii/profiles.hpp), its mods and cheats among them.
+        const ReportPart lastTile = file_part(riftwii::kLastTilePath);
+        const std::string tile = riftwii::launched_choices_key(id, lastTile.found ? lastTile.text : "");
+        ReportPart choices = file_part("sd:/riftwii/choices/" + tile + ".txt");
         parts.push_back(choices);
+        // The border note is the game's, whichever tile ran it.
         parts.push_back(file_part("sd:/riftwii/choices/" + id + ".video"));
+        // The cheats picked, as the cheat file has them (a tester's own
+        // code that did nothing could not be seen before).
+        const ReportPart cheats = file_part(CheatPath(id));
+        if (choices.found) parts.push_back({"cheats picked for " + tile, picked_cheats_report(choices.text, cheats.text), true});
         add_packs(choices.text, parts);
     }
     parts.push_back(listing("sd:/riivolution"));
@@ -293,7 +304,44 @@ std::string DescribeControllers() {
     return out + "; " + DescribePadPairings(pairings);
 }
 
+// A GameCube game's crash: its loader's trace (riftwii/gccrash.hpp), kept
+// as trace-crash.bin once read so it is asked about once; the next launch
+// makes a new trace.bin. The game's ID from the launch's log.
+static bool import_gc_crash() {
+    static const char kTrace[] = "sd:/riftwii/gc/trace.bin";
+    static const char kKept[] = "sd:/riftwii/gc/trace-crash.bin";
+    std::string raw;
+    if (!read_text(kTrace, raw)) return false;
+    const std::vector<std::uint8_t> trace(raw.begin(), raw.end());
+    std::string id, text;
+    std::string boot;
+    if (read_text("sd:/riftwii/boot.log", boot)) {
+        // The loader's own line: "GameCube (native): GMSE04 (sd:/...)".
+        static const char kLine[] = "GameCube (native): ";
+        const std::size_t at = boot.find(kLine);
+        if (at != std::string::npos && at + sizeof(kLine) - 1 + 6 <= boot.size()) id = boot.substr(at + sizeof(kLine) - 1, 6);
+    }
+    if (!describe_gc_crash(trace, id, text)) return false;
+    std::remove(kKept);
+    std::rename(kTrace, kKept);
+    if (FILE* f = std::fopen(kGameCrashFile, "wb")) {
+        std::fputs(text.c_str(), f);
+        std::fclose(f);
+    }
+    g_game_crashed = true;
+    logf("Game crash: %s (from %s, saved as %s)\n", text.substr(0, text.find('\n')).c_str(), kTrace, kGameCrashFile);
+    std::size_t line = 0;
+    while (line < text.size()) {
+        const std::size_t end = text.find('\n', line);
+        logf("  %s\n", text.substr(line, end - line).c_str());
+        if (end == std::string::npos) break;
+        line = end + 1;
+    }
+    return true;
+}
+
 void ImportGameCrash() {
+    if (import_gc_crash()) return;
     if (ISFS_Initialize() < 0) return;
     static u8 record[512] ATTRIBUTE_ALIGN(32);
     const s32 fd = ISFS_Open(kGameCrashRecord, ISFS_OPEN_READ);
@@ -335,9 +383,14 @@ void ImportWpadLog() {
         ISFS_Deinitialize();
         return;
     }
-    // On the heap for the moment it is read: 68 KB kept for good would
-    // only take room from the menu.
-    u8* record = static_cast<u8*>(memalign(32, sizeof(rtwlog_file)));
+    // On the heap for the moment it is read: 82 KB kept for good would
+    // only take room from the menu. Whole cache lines: the read invalidates
+    // the line holding the record's last bytes (82536 is not a multiple of
+    // 32), and with the heap's next header in it that header went back to
+    // what the game left in memory; the next allocation failed and RiftWii
+    // stopped at every return from a game that wrote this log.
+    const std::size_t room = (sizeof(rtwlog_file) + 31) & ~std::size_t(31);
+    u8* record = static_cast<u8*>(memalign(32, room));
     const s32 got = record != nullptr ? ISFS_Read(fd, record, sizeof(rtwlog_file)) : -1;
     ISFS_Close(fd);
     ISFS_Delete(kWpadLogRecord);

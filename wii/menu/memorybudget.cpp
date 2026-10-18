@@ -45,6 +45,8 @@ constexpr std::uint32_t kTypicalTable = 16 * 1024;
 // A Zstandard RVZ's buffers, as RiftWii sizes them for a 128 KiB-chunk
 // disc (wii/launch/resident.cpp: the group as stored, decoded, the decoder).
 constexpr std::uint32_t kTypicalRvzBuffers = 127904 + 135872 + RT_RVZ_DCTX_BYTES + 32;
+// Pieces of an RVZ copied onto a card (fragments a card's free space leaves).
+constexpr std::uint32_t kTypicalRvzExtents = 16;
 
 bool is_rvz(const FrontendState& state) {
     if (state.use_usb && state.usb_index < state.usb_catalog.games.size())
@@ -66,7 +68,7 @@ ExtrasBudget EstimateExtras(const FrontendState& state) {
         packs = true;
         code_build = code_build || p.code_build();
     }
-    const bool saves = state.model.save_mode == "separate" || state.model.save_mode == "fresh";
+    const bool saves = state.model.save_mode != "nand";
     const bool rvz = is_rvz(state);
     const bool protected_game = gx_protected_game(id);
     const bool clears_mem1_top = game_clears_mem1_top(id);
@@ -81,7 +83,7 @@ ExtrasBudget EstimateExtras(const FrontendState& state) {
         std::uint32_t data = 0;
         if (packs) data += kTypicalTable + RT_MAX_PENDING * RT_BOUNCE_BYTES;
         if (saves) data += align(sizeof(rt_fs_state)) + 32;
-        if (rvz) data += align(sizeof(rt_rvz_state)) + kTypicalRvzBuffers;
+        if (rvz) data += align(rt_rvz_state_bytes(kTypicalRvzExtents)) + kTypicalRvzBuffers;
         b.add(rvz ? tr("RVZ and mods") : packs ? tr("mods") : tr("saves on the card"), whole_mem1 ? 0 : code,
               data + (whole_mem1 ? code : 0));
     }

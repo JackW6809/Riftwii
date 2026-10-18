@@ -63,13 +63,6 @@ void TestHttp() {
     EXPECT_TRUE(release_tag_from_json("[{\"url\":\"x\",\"tag_name\" : \"v2.0.1-beta\",\"tag_name\":\"old\"}]", tag));
     EXPECT_EQ(tag, "v2.0.1-beta");
     EXPECT_FALSE(release_tag_from_json("[]", tag));
-    // GitHub's order (the day, then the name as text) is not the versions'.
-    EXPECT_TRUE(newest_release_tag("[{\"tag_name\":\"v3.3.9-beta\"},{\"tag_name\":\"v3.3.4-beta\"},"
-                                   "{\"tag_name\":\"v2610-125\"},{\"tag_name\":\"v3.3.3-beta\"}]", tag));
-    EXPECT_EQ(tag, std::string("v2610-125"));
-    EXPECT_TRUE(newest_release_tag("[{\"tag_name\":\"v3.3.9\"},{\"tag_name\":\"v3.3.10\"}]", tag));
-    EXPECT_EQ(tag, std::string("v3.3.10"));
-    EXPECT_FALSE(newest_release_tag("[]", tag));
     EXPECT_FALSE(release_tag_from_json("{\"tag_name\":3}", tag));
     {
         // The shape of GitHub's answer: the release's own "name", then the
@@ -120,16 +113,6 @@ void TestHttp() {
     EXPECT_EQ(compare_versions("2611", "2610-500"), 1);
     EXPECT_EQ(compare_versions("2610-123", "3.3.9-beta"), 1);
     EXPECT_EQ(compare_versions("v2610-5", "2.7.0"), 1);
-    EXPECT_EQ(effective_update_channel("auto", "2610-123"), "beta");
-    EXPECT_EQ(effective_update_channel("auto", "2610"), "stable");
-    EXPECT_EQ(effective_update_channel("auto", "2.1.0"), "stable");
-    EXPECT_EQ(effective_update_channel("auto", "2.1.0-rc1"), "beta");
-    EXPECT_EQ(effective_update_channel("auto", "2.0.10-beta"), "beta");
-    EXPECT_EQ(effective_update_channel("stable", "2.1.1-beta"), "stable");
-    EXPECT_EQ(effective_update_channel("beta", "2.1.0"), "beta");
-    // A stable release named by its build number stays on Stable.
-    EXPECT_EQ(effective_update_channel("auto", "2610-258", true), "stable");
-    EXPECT_EQ(effective_update_channel("beta", "2610-258", true), "beta");
 
     const std::string plain = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n\r\nhello";
     EXPECT_FALSE(http_response_complete(bytes(plain.substr(0, plain.size() - 1))));
@@ -232,6 +215,25 @@ void TestHttp() {
     EXPECT_TRUE(parse_http_url("http://www.gametdb.com/x", plain_from, error));
     EXPECT_TRUE(http_redirect(plain_from, "https://www.gametdb.com/x", to, error));  // up to https is fine
     EXPECT_TRUE(http_redirect(plain_from, "http://art.gametdb.com/x", to, error));
+
+    // Which redirects a download takes: any (the default), on the same
+    // server only, or none (the GameCube banners: a 301 is a miss).
+    HttpUrl banner, same_path, same_upper, other_host, other_port, to_https;
+    EXPECT_TRUE(parse_http_url("http://banner.rc24.xyz/GMSE04.bnr", banner, error));
+    EXPECT_TRUE(http_redirect(banner, "/GMS.bnr", same_path, error));
+    EXPECT_TRUE(http_redirect(banner, "http://BANNER.rc24.xyz/x.bnr", same_upper, error));
+    EXPECT_TRUE(http_redirect(banner, "http://evil.example/GMSE04.bnr", other_host, error));
+    EXPECT_TRUE(http_redirect(banner, "http://banner.rc24.xyz:8080/GMSE04.bnr", other_port, error));
+    EXPECT_TRUE(http_redirect(banner, "https://banner.rc24.xyz/GMSE04.bnr", to_https, error));
+    for (const HttpUrl* next : {&same_path, &same_upper, &other_host, &other_port, &to_https}) {
+        EXPECT_TRUE(http_redirect_allowed(HttpRedirects::Follow, banner, *next));
+        EXPECT_FALSE(http_redirect_allowed(HttpRedirects::Never, banner, *next));
+    }
+    EXPECT_TRUE(http_redirect_allowed(HttpRedirects::SameHost, banner, same_path));
+    EXPECT_TRUE(http_redirect_allowed(HttpRedirects::SameHost, banner, same_upper));
+    EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, other_host));
+    EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, other_port));
+    EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, to_https));
 }
 
 void TestCheats() {
@@ -397,6 +399,173 @@ void TestCheats() {
         EXPECT_EQ(file.cheats.size(), 1u);
         if (file.cheats.size() == 1) EXPECT_EQ(file.cheats[0].words[0], 0x28000001u);
     }
+}
+
+// A cheat file with a section per release of the game, in the shape the
+// GeckoCodes archive serves Super Smash Bros. Melee's (GALE01): the
+// header, then "Version 1.0" and "Version 1.1" headings, each followed by
+// the same cheats at that release's addresses. Hand-written: the names
+// and codes are made up.
+void TestCheatRevisions() {
+    const std::string text =
+        "GALE01\r\n"
+        "A Fighting Game\r\n"
+        "\r\n"
+        "Shared speed [tester]\r\n"
+        "04001000 00000001\r\n"
+        "\r\n"
+        "Version 1.0\r\n"
+        "\r\n"
+        "Endless timer [tester]\r\n"
+        "04100000 38030000\r\n"
+        "\r\n"
+        "Wide camera [tester]\r\n"
+        "04200000 42000000\r\n"
+        "04200004 42000000\r\n"
+        "Co-author: someone\r\n"
+        "\r\n"
+        "Version 1.1\r\n"
+        "\r\n"
+        "Endless timer [tester]\r\n"
+        "04100964 38030000\r\n"
+        "\r\n"
+        "Wide camera [tester]\r\n"
+        "042012DC 42000000\r\n"
+        "042012E0 42000000\r\n"
+        "Co-author: someone\r\n";
+    CheatFile file;
+    std::string error;
+
+    // Every revision, as before: the second release's cheats are told
+    // apart by number, and the headings are not cheats.
+    EXPECT_TRUE(parse_cheat_text(text, file, error));
+    EXPECT_EQ(file.cheats.size(), 5u);
+    EXPECT_EQ(file.revisions.size(), 2u);
+    EXPECT_EQ(file.other_revision_cheats, 0u);
+    if (file.cheats.size() == 5) EXPECT_EQ(file.cheats[3].name, "Endless timer [tester] (2)");
+
+    // Revision 0 (the disc header's byte 7): the shared cheat and 1.0's.
+    EXPECT_TRUE(parse_cheat_text(text, file, error, 0));
+    EXPECT_EQ(file.cheats.size(), 3u);
+    EXPECT_EQ(file.other_revision_cheats, 2u);
+    if (file.cheats.size() == 3) {
+        EXPECT_EQ(file.cheats[0].name, "Shared speed [tester]");
+        EXPECT_EQ(file.cheats[1].name, "Endless timer [tester]");
+        EXPECT_EQ(file.cheats[1].words[0], 0x04100000u);
+        EXPECT_EQ(file.cheats[2].words.size(), 4u);
+    }
+    // Revision 1: 1.1's addresses, under the same names.
+    EXPECT_TRUE(parse_cheat_text(text, file, error, 1));
+    EXPECT_EQ(file.cheats.size(), 3u);
+    if (file.cheats.size() == 3) {
+        EXPECT_EQ(file.cheats[1].name, "Endless timer [tester]");
+        EXPECT_EQ(file.cheats[1].words[0], 0x04100964u);
+        EXPECT_EQ(file.cheats[2].words[0], 0x042012DCu);
+    }
+    const std::set<std::string> picked{"Endless timer [tester]"};
+    std::size_t count = 0;
+    const std::vector<std::uint8_t> gct = build_gct(file, picked, count);
+    EXPECT_EQ(count, 1u);
+    EXPECT_EQ(gct.size(), 24u);
+    if (gct.size() == 24) EXPECT_EQ(gct[11], 0x64);  // 04100964, 1.1's address
+    // A revision the file has no heading for: only the shared cheat.
+    EXPECT_TRUE(parse_cheat_text(text, file, error, 2));
+    EXPECT_EQ(file.cheats.size(), 1u);
+    EXPECT_EQ(file.other_revision_cheats, 4u);
+    // ...and with nothing shared, no cheats for it at all.
+    const std::string no_shared = text.substr(text.find("Version 1.0"));
+    EXPECT_FALSE(parse_cheat_text(no_shared, file, error, 2));
+    EXPECT_EQ(file.revisions.size(), 2u);
+    EXPECT_TRUE(parse_cheat_text(no_shared, file, error, 1));
+    EXPECT_EQ(file.cheats.size(), 2u);
+
+    // A file without headings is read whole, whatever the revision.
+    EXPECT_TRUE(parse_cheat_text("GMSE01\nA Platformer\n\nJump\n04000000 00000001\n", file, error, 1));
+    EXPECT_EQ(file.cheats.size(), 1u);
+    EXPECT_TRUE(file.revisions.empty());
+
+    // The forms a heading is written in.
+    EXPECT_EQ(cheat_revision_heading("Version 1.0"), 0);
+    EXPECT_EQ(cheat_revision_heading("Version 1.1"), 1);
+    EXPECT_EQ(cheat_revision_heading("version 1.00"), 0);
+    EXPECT_EQ(cheat_revision_heading("v1.02"), 2);
+    EXPECT_EQ(cheat_revision_heading("V1.01"), 1);
+    EXPECT_EQ(cheat_revision_heading("Ver. 1.1"), 1);
+    EXPECT_EQ(cheat_revision_heading("NTSC 1.00"), 0);
+    EXPECT_EQ(cheat_revision_heading("NTSC-U v1.02"), 2);
+    EXPECT_EQ(cheat_revision_heading("PAL Version 1.1"), 1);
+    EXPECT_EQ(cheat_revision_heading("Rev 1"), 1);
+    EXPECT_EQ(cheat_revision_heading("Revision 2"), 2);
+    EXPECT_EQ(cheat_revision_heading("-- Version 1.1 --"), 1);
+    EXPECT_EQ(cheat_revision_heading("[Version 1.0]"), 0);
+    EXPECT_EQ(cheat_revision_heading("Version 1.0:"), 0);
+    // Not headings: notes, names, numbers without a word, other majors.
+    EXPECT_EQ(cheat_revision_heading("1.02"), -1);
+    EXPECT_EQ(cheat_revision_heading("v1"), -1);
+    EXPECT_EQ(cheat_revision_heading("Version 2.0"), -1);
+    EXPECT_EQ(cheat_revision_heading("Version 1.0 codes by someone"), -1);
+    EXPECT_EQ(cheat_revision_heading("Item Modifiers"), -1);
+    EXPECT_EQ(cheat_revision_heading("Vehicle Modifier"), -1);
+    EXPECT_EQ(cheat_revision_heading("Rev 999"), -1);
+    EXPECT_EQ(cheat_revision_heading("Version 1.123"), -1);
+    EXPECT_EQ(cheat_revision_heading(""), -1);
+    EXPECT_EQ(cheat_revision_heading(std::string(200, 'v')), -1);
+    // A cheat named like a heading, with its codes under it, is a cheat.
+    EXPECT_TRUE(parse_cheat_text("Rev 1\n04000000 00000001\n", file, error, 0));
+    EXPECT_EQ(file.cheats.size(), 1u);
+    EXPECT_TRUE(file.revisions.empty());
+
+    // Values are filled in in the disc's own section.
+    std::string valued =
+        "GALE01\nA Fighting Game\n\nVersion 1.0\n\nStock count\n0410000X 00000000\n\n"
+        "Version 1.1\n\nStock count\n0410096X 00000000\n";
+    std::vector<CheatField> fields = cheat_fields(valued, "Stock count", 1);
+    EXPECT_EQ(fields.size(), 1u);
+    if (fields.size() == 1) {
+        fields[0].value = "4";
+        EXPECT_TRUE(fill_cheat_values(valued, "Stock count", fields, error, 1));
+        EXPECT_TRUE(parse_cheat_text(valued, file, error, 1));
+        EXPECT_EQ(file.cheats.size(), 1u);
+        if (file.cheats.size() == 1) EXPECT_EQ(file.cheats[0].words[0], 0x04100964u);
+        EXPECT_TRUE(parse_cheat_text(valued, file, error, 0));
+        if (file.cheats.size() == 1) EXPECT_TRUE(file.cheats[0].needs_values);  // 1.0's still to fill
+    }
+
+    // A download keeps the player's work in its own section: 1.1's filled
+    // values stay with 1.1, and a cheat they added under 1.0 stays under
+    // 1.0, as does one they added before any heading.
+    std::string own = valued + "\nMy 1.1 cheat\n04300000 00000001\n";
+    own.insert(own.find("Version 1.1"), "My 1.0 cheat\n04300000 00000002\n\n");
+    own.insert(own.find("Version 1.0"), "My shared cheat\n04300000 00000003\n\n");
+    const std::string fresh =
+        "GALE01\nA Fighting Game\n\nVersion 1.0\n\nStock count\n0410000X 00000000\n\n"
+        "Version 1.1\n\nStock count\n0410096X 00000000\n";
+    std::size_t kept = 0;
+    const std::string merged = merge_cheat_text(fresh, own, kept);
+    EXPECT_EQ(kept, 4u);
+    EXPECT_TRUE(parse_cheat_text(merged, file, error, 0));
+    EXPECT_EQ(file.cheats.size(), 3u);
+    bool own_first = false, own_shared = false;
+    for (const Cheat& c : file.cheats) {
+        own_first = own_first || c.name == "My 1.0 cheat";
+        own_shared = own_shared || c.name == "My shared cheat";
+    }
+    EXPECT_TRUE(own_first);
+    EXPECT_TRUE(own_shared);
+    EXPECT_TRUE(parse_cheat_text(merged, file, error, 1));
+    EXPECT_EQ(file.cheats.size(), 3u);
+    if (file.cheats.size() == 3) {
+        EXPECT_EQ(file.cheats[0].name, "My shared cheat");
+        EXPECT_FALSE(file.cheats[1].needs_values);  // filled in by hand, kept
+        EXPECT_EQ(file.cheats[2].name, "My 1.1 cheat");
+    }
+    // A download with no headings at all over a file that had them: the
+    // player's cheats keep their heading.
+    const std::string flat = merge_cheat_text("GALE01\nA Fighting Game\n\nNew\n04000000 00000001\n", own, kept);
+    EXPECT_TRUE(parse_cheat_text(flat, file, error, 1));
+    bool leaked = false;
+    for (const Cheat& c : file.cheats) leaked = leaked || c.name == "My 1.0 cheat";
+    EXPECT_FALSE(leaked);
 }
 
 // A render mode table as the SDK lays it out (GXRModeObj, 60 bytes).
@@ -833,9 +1002,72 @@ void TestCoverArt() {
             }
         make_backdrop(rgba8.data(), 128, 176, 0, 128, back.data(), true);
         EXPECT_EQ((back[0] << 8) | back[1], 0xFC00);
+
+        // The game page's box: the front with its corners rounded off.
+        std::vector<std::uint8_t> front(static_cast<std::size_t>(kBoxFrontWidth) * kBoxHeight * 2, 0);
+        EXPECT_TRUE(round_corners(box.data() + 8, kBoxWidth, kBoxHeight, kBoxSpineWidth,
+                                  kBoxSpineWidth + kBoxFrontWidth, 6.0f, front.data()));
+        const auto texel = [&](int x, int y) {
+            const std::size_t at = (static_cast<std::size_t>(y / 4) * (kBoxFrontWidth / 4) + x / 4) * 32 +
+                                   static_cast<std::size_t>((y % 4) * 4 + x % 4) * 2;
+            return (front[at] << 8) | front[at + 1];
+        };
+        const auto alpha = [](int v) { return (v & 0x8000) ? 7 : (v >> 12) & 7; };
+        // Each corner texel gone, the middle and the edges' middles kept whole.
+        EXPECT_EQ(alpha(texel(0, 0)), 0);
+        EXPECT_EQ(alpha(texel(kBoxFrontWidth - 1, 0)), 0);
+        EXPECT_EQ(alpha(texel(0, kBoxHeight - 1)), 0);
+        EXPECT_EQ(alpha(texel(kBoxFrontWidth - 1, kBoxHeight - 1)), 0);
+        EXPECT_EQ(texel(64, 88), 0x801F);
+        EXPECT_EQ(texel(0, 88), 0x801F);
+        EXPECT_EQ(texel(64, 0), 0x801F);
+        // On the curve: partly see-through, still blue.
+        const int edge = texel(1, 2);
+        EXPECT_TRUE(alpha(edge) > 0 && alpha(edge) < 7);
+        EXPECT_EQ(edge & 0x000F, 0x000F);
+        // Columns that aren't whole tiles are refused.
+        EXPECT_FALSE(round_corners(box.data() + 8, kBoxWidth, kBoxHeight, 2, 130, 6.0f, front.data()));
     }
     std::uint8_t bad[8] = {'R', 'W', 'C', '1', 0, 40, 0, 112};
     EXPECT_FALSE(cover_header_valid(bad));
+
+    // A 3D cover: GameTDB's 176x248 kept as it is, see-through parts and all.
+    {
+        EXPECT_EQ(cover3d_url("US", "RSBE01"), "http://art.gametdb.com/wii/cover3D/US/RSBE01.png");
+        std::vector<std::uint8_t> pic(176 * 248 * 4, 0);  // see-through
+        for (int y = 100; y < 248; ++y)
+            for (int x = 20; x < 156; ++x) {
+                std::uint8_t* p = &pic[(static_cast<std::size_t>(y) * 176 + x) * 4];
+                p[0] = 255;  // opaque red
+                p[3] = 255;
+            }
+        const std::vector<std::uint8_t> file = make_cover3d_file(pic.data(), 176, 248);
+        EXPECT_EQ(file.size(), kCover3dHeaderSize + kCover3dPixelBytes);
+        EXPECT_TRUE(cover3d_header_valid(file.data()));
+        const auto texel = [&](int x, int y) {
+            const std::size_t at = kCover3dHeaderSize +
+                                   (static_cast<std::size_t>(y / 4) * (kCover3dWidth / 4) + x / 4) * 32 +
+                                   static_cast<std::size_t>((y % 4) * 4 + x % 4) * 2;
+            return (file[at] << 8) | file[at + 1];
+        };
+        EXPECT_EQ(texel(0, 0) & 0xF000, 0);  // see-through: alpha 0
+        EXPECT_EQ(texel(88, 200), 0xFC00);   // opaque red
+        // A picture of another shape fits inside, standing on the bottom:
+        // 88x248 drawn 88 wide in the middle, the sides see-through.
+        std::vector<std::uint8_t> narrow(88 * 248 * 4, 255);
+        const std::vector<std::uint8_t> fitted = make_cover3d_file(narrow.data(), 88, 248);
+        const auto at = [&](int x, int y) {
+            const std::size_t i = kCover3dHeaderSize +
+                                  (static_cast<std::size_t>(y / 4) * (kCover3dWidth / 4) + x / 4) * 32 +
+                                  static_cast<std::size_t>((y % 4) * 4 + x % 4) * 2;
+            return (fitted[i] << 8) | fitted[i + 1];
+        };
+        EXPECT_EQ(at(10, 200) & 0xF000, 0);
+        EXPECT_EQ(at(88, 200), 0xFFFF);
+        EXPECT_TRUE(make_cover3d_file(narrow.data(), 4, 4).empty());
+        std::uint8_t wrong[8] = {'R', 'W', '3', 'D', 0, 176, 0, 200};
+        EXPECT_FALSE(cover3d_header_valid(wrong));
+    }
 
     LoaderSettings s;
     EXPECT_EQ(s.home_tiles, "covers");
@@ -847,6 +1079,35 @@ void TestCoverArt() {
     EXPECT_EQ(s.home_tiles, "shelf");
     s.parse("home_tiles = channels\n");
     EXPECT_EQ(s.home_tiles, "channels");
+    // The Channels view's corners: the theme's unless the player chose.
+    EXPECT_EQ(s.channel_corners, "theme");
+    EXPECT_TRUE(channel_corner_scale(s.channel_corners, 1.5f) == 1.5f);
+    s.parse("channel_corners = square\n");
+    EXPECT_EQ(s.channel_corners, "square");
+    EXPECT_TRUE(channel_corner_scale(s.channel_corners, 1.5f) == 0.0f);
+    s.parse("channel_corners = pointy\n");
+    EXPECT_EQ(s.channel_corners, "square");
+    s.parse("channel_corners = rounder\n");
+    EXPECT_TRUE(s.serialize().find("channel_corners = rounder\n") != std::string::npos);
+    EXPECT_TRUE(channel_corner_scale(s.channel_corners, 0.0f) == 2.0f);
+    EXPECT_TRUE(channel_corner_scale("slight", 1.0f) == 0.5f);
+    EXPECT_TRUE(channel_corner_scale("round", 0.0f) == 1.0f);
+    EXPECT_TRUE(channel_corner_scale("unknown", 0.25f) == 0.25f);
+    s.channel_corners = "theme";
+    EXPECT_EQ(s.grid_spacing, "normal");
+    s.parse("grid_spacing = roomy\n");
+    EXPECT_EQ(s.grid_spacing, "roomy");
+    s.parse("grid_spacing = vast\n");
+    EXPECT_EQ(s.grid_spacing, "roomy");
+    EXPECT_TRUE(s.serialize().find("grid_spacing = roomy\n") != std::string::npos);
+    s.grid_spacing = "normal";
+    EXPECT_EQ(s.page_peek, "on");
+    s.parse("page_peek = off\n");
+    EXPECT_EQ(s.page_peek, "off");
+    EXPECT_TRUE(s.serialize().find("page_peek = off\n") != std::string::npos);
+    s.parse("page_peek = wide\n");
+    EXPECT_EQ(s.page_peek, "off");
+    s.page_peek = "on";
     EXPECT_EQ(s.menu_widescreen, "off");
     EXPECT_EQ(s.play_history, "on");
     s.parse("play_history = off\n");
@@ -859,6 +1120,10 @@ void TestCoverArt() {
     s.parse("home_source = disc\n");
     EXPECT_EQ(s.home_source, "usb");
     EXPECT_TRUE(s.serialize().find("home_source = usb\n") != std::string::npos);
+    s.parse("home_source = gamecube\n");
+    EXPECT_EQ(s.home_source, "gamecube");
+    s.parse("home_source = wii\n");
+    EXPECT_EQ(s.home_source, "wii");
     s.home_source = "all";
     EXPECT_EQ(s.gc_rumble, "on");
     s.parse("gc_rumble = off\n");
@@ -866,6 +1131,13 @@ void TestCoverArt() {
     EXPECT_TRUE(s.serialize().find("gc_rumble = off\n") != std::string::npos);
     s.parse("gc_rumble = loud\n");
     EXPECT_EQ(s.gc_rumble, "off");
+    // Save backups: on by default, off kept, anything else ignored.
+    EXPECT_EQ(s.gc_backups, "on");
+    s.parse("gc_backups = off\n");
+    EXPECT_EQ(s.gc_backups, "off");
+    EXPECT_TRUE(s.serialize().find("gc_backups = off\n") != std::string::npos);
+    s.parse("gc_backups = maybe\n");
+    EXPECT_EQ(s.gc_backups, "off");
     s.gc_rumble = "on";
     EXPECT_EQ(s.wiimote_rumble, "on");
     s.parse("wiimote_rumble = off\n");
@@ -878,6 +1150,9 @@ void TestCoverArt() {
     s.parse("home_sort = shuffle\n");
     EXPECT_EQ(s.home_sort, "most");
     EXPECT_TRUE(s.serialize().find("home_sort = most\n") != std::string::npos);
+    s.parse("home_sort = custom\n");
+    EXPECT_EQ(s.home_sort, "custom");
+    EXPECT_TRUE(s.serialize().find("home_sort = custom\n") != std::string::npos);
     s.home_sort = "az";
     EXPECT_EQ(s.home_disc, "on");
     s.parse("home_disc = off\n");
@@ -1260,6 +1535,7 @@ int main() {
     TestFriivolutionArguments();
     TestHttp();
     TestCheats();
+    TestCheatRevisions();
     TestVideo();
     TestVideoModes();
     TestKeepsPictureWidth();

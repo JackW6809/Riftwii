@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 RiftWii contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "riftwii/settingsfile.hpp"
+#include "riftwii/profiles.hpp"
 #include "riftwii/riitag.hpp"
 
 #include <algorithm>
@@ -66,7 +67,16 @@ void LoaderSettings::parse(const std::string& text) {
             int slot;
             if (parse_cios_choice(value, slot)) game_cios = value;
         } else if (key == "home_tiles") {
-            if (value == "covers" || value == "names" || value == "shelf" || value == "channels") home_tiles = value;
+            if (value == "covers" || value == "names" || value == "shelf" || value == "carousel" || value == "covers3d" ||
+                value == "channels")
+                home_tiles = value;
+        } else if (key == "channel_corners") {
+            if (value == "theme" || value == "square" || value == "slight" || value == "round" || value == "rounder")
+                channel_corners = value;
+        } else if (key == "grid_spacing") {
+            if (value == "normal" || value == "roomy") grid_spacing = value;
+        } else if (key == "page_peek") {
+            if (value == "on" || value == "off") page_peek = value;
         } else if (key == "menu_widescreen") {
             if (value == "auto" || value == "on" || value == "off") menu_widescreen = value;
         } else if (key == "screen_size") {
@@ -84,9 +94,9 @@ void LoaderSettings::parse(const std::string& text) {
         } else if (key == "play_history") {
             if (value == "on" || value == "off") play_history = value;
         } else if (key == "home_source") {
-            if (value == "all" || value == "sd" || value == "usb") home_source = value;
+            if (value == "all" || value == "sd" || value == "usb" || value == "gamecube" || value == "wii") home_source = value;
         } else if (key == "home_sort") {
-            if (value == "az" || value == "recent" || value == "most") home_sort = value;
+            if (value == "az" || value == "recent" || value == "most" || value == "custom") home_sort = value;
         } else if (key == "home_disc") {
             if (value == "on" || value == "off") home_disc = value;
         } else if (key == "theme") {
@@ -110,10 +120,9 @@ void LoaderSettings::parse(const std::string& text) {
             while (at <= value.size()) {
                 const std::size_t comma = std::min(value.find(',', at), value.size());
                 const std::string id = trim(value.substr(at, comma - at));
-                // Game IDs are letters and digits; anything else is noise.
-                bool plain = !id.empty() && id.size() <= 6;
-                for (char c : id) plain = plain && ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'));
-                if (plain) favorites.insert(id);
+                // Game IDs, and profiles' tile keys (riftwii/profiles.hpp);
+                // anything else is noise.
+                if (valid_tile_key(id)) favorites.insert(id);
                 at = comma + 1;
             }
         } else if (key == "game_folders") {
@@ -130,13 +139,16 @@ void LoaderSettings::parse(const std::string& text) {
                 at = semi + 1;
             }
         } else if (key == "update_channel") {
-            if (value == "auto" || value == "stable" || value == "beta") update_channel = value;
+            // Stable and Beta are gone: every build follows the latest
+            // release. The old line is dropped at the next save.
         } else if (key == "gc_rumble") {
             if (value == "on" || value == "off") gc_rumble = value;
         } else if (key == "wiimote_rumble") {
             if (value == "on" || value == "off") wiimote_rumble = value;
         } else if (key == "gc_adapter") {
             if (value == "auto" || value == "off" || value == "on" || value == "demo") gc_adapter = value;
+        } else if (key == "gc_backups") {
+            if (value == "on" || value == "off") gc_backups = value;
         } else {
             other[key] = value;
         }
@@ -156,6 +168,9 @@ std::string LoaderSettings::serialize() const {
     s += "wfc_server = " + wfc_server + "\n";
     s += "wfc_domain = " + wfc_domain + "\n";
     s += "home_tiles = " + home_tiles + "\n";
+    s += "channel_corners = " + channel_corners + "\n";
+    s += "grid_spacing = " + grid_spacing + "\n";
+    s += "page_peek = " + page_peek + "\n";
     s += "menu_widescreen = " + menu_widescreen + "\n";
     s += "screen_size = " + std::to_string(screen_size) + "\n";
     s += "menu_sounds = " + menu_sounds + "\n";
@@ -171,10 +186,10 @@ std::string LoaderSettings::serialize() const {
     s += "screenshots = " + screenshots + "\n";
     s += std::string("online = ") + (online ? "on" : "off") + "\n";
     if (!riitag_key.empty()) s += "riitag_key = " + riitag_key + "\n";
-    s += "update_channel = " + update_channel + "\n";
     s += "gc_rumble = " + gc_rumble + "\n";
     s += "wiimote_rumble = " + wiimote_rumble + "\n";
     s += "gc_adapter = " + gc_adapter + "\n";
+    s += "gc_backups = " + gc_backups + "\n";
     if (!favorites.empty()) {
         std::string list;
         for (const std::string& id : favorites) list += (list.empty() ? "" : ",") + id;
@@ -249,6 +264,16 @@ WfcServer effective_wfc_server(const GameSettings& game, const LoaderSettings& g
     }
     if (server == WfcServer::Custom && !valid_wfc_domain(global.wfc_domain)) server = WfcServer::Off;
     return server;
+}
+
+float channel_corner_scale(const std::string& choice, float theme_corners) {
+    // Round is RiftWii's own theme's (the Wii Menu's small corners), and
+    // Rounder the most a theme may ask for.
+    if (choice == "square") return 0.0f;
+    if (choice == "slight") return 0.5f;
+    if (choice == "round") return 1.0f;
+    if (choice == "rounder") return 2.0f;
+    return theme_corners;
 }
 
 bool parse_cios_choice(const std::string& s, int& slot) {

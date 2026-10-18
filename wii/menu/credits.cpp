@@ -39,7 +39,8 @@ const char* const kCredits[] = {
     "Prince of Persia, Resident Evil 4, Excite Truck, the error #002 and 480p fixes), its automatic cIOS "
     "choice, the IOS reload block, the region video fix (WiiPower's VIDTV patch), the region strings fix, the "
     "aspect ratio, rumble and speaker options, the Wiinnertag file RiftWii's RiiTag support reads, how to find "
-    "the Wii Menu's fonts (its TrueType and bitmap ones) for the Menu font setting, how to use d2x's USB device on either USB port, the "
+    "the Wii Menu's fonts (its TrueType and bitmap ones) for the Menu font setting, how to use d2x's USB device on either USB port, "
+    "how to keep saves in d2x's emulated NAND and where that NAND is kept (the Saves choice \"SD, emulated NAND\"), the "
     "idea of hooking a game's second "
     "executable and RiftWii's copy of the Gecko code handler. With thanks to its developers and to those whose "
     "work it carries: ToadKing (wiilauncher-nossl), Leseratte and the Wiimmfi team, giantpune, Nuke, "
@@ -54,7 +55,8 @@ const char* const kCredits[] = {
     "",
     "wup-028-bslug by Alex Chadwick (MIT): the GameCube controller adapter.",
     "",
-    "Nintendont by FIX94 and contributors: the USB HID driver, used with its developers' permission.",
+    "Nintendont by FIX94 and contributors: the USB HID driver and the GameCube sound program patches, used "
+    "with its developers' permission.",
     "",
     "WiiDRC by FIX94 (MIT): the Wii U GamePad.",
     "",
@@ -70,7 +72,8 @@ const char* const kCredits[] = {
     "others): the toolchain and the Wii library.",
     "",
     "Dolphin, wiibrew and the Riivolution patch format wiki: how the Wii and the patch format behave, "
-    "read as documentation.",
+    "read as documentation. Dolphin also for how the Wii Remote extension's encryption key is used "
+    "(the Wii U Pro Controller translator).",
     "",
     "libwbfs by Kwiirk and contributors, as in Wiimm's WBFS tools: the layout of a WBFS drive. "
     "Friivolution by december: the launch argument other loaders pass. Both read as documentation, "
@@ -80,6 +83,7 @@ const char* const kCredits[] = {
     "(MIT), FreeType (FreeType License), zlib, Tremor and libogg (BSD-3-Clause).",
     "",
     "Menu font: M PLUS Rounded 1c by the M+ Fonts Project (SIL Open Font License 1.1).",
+    "Controller and button pictures: Input Prompts by Kenney (kenney.nl, CC0).",
     "",
     "Korean translation: DDinghoya. French translation: MidyGamy.",
     "",
@@ -89,6 +93,8 @@ const char* const kCredits[] = {
     "",
     "Game names and covers from GameTDB (gametdb.com). Cheat codes from the GeckoCodes archive kept by "
     "RiiConnect24 (codes.rc24.xyz).",
+    "",
+    "Animated GameCube banners: the community's banners, hosted by RiiConnect24 (banner.rc24.xyz).",
     "",
     "RiftWii contains no Riivolution code and no Nintendo keys or assets.",
     "",

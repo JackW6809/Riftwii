@@ -14,6 +14,10 @@
 // it round to show its back; it sways a little while the focus rests. A
 // held direction speeds up, and the pointer with A held drags the shelf
 // and lets it glide.
+//
+// The same input and backdrop serve the ring (DrawRing): GameTDB's 3D
+// cover pictures round a ring seen from a little above, the focused one
+// large in front, with no first or last.
 #include <gccore.h>
 #include <ogc/lwp_watchdog.h>
 
@@ -22,6 +26,7 @@
 #include <string>
 
 #include "boxart.hpp"
+#include "cover3d.hpp"
 #include "covers.hpp"
 #include "gameextras.hpp"
 #include "gui_gamegrid.hpp"
@@ -64,6 +69,33 @@ constexpr int kSpineTextRoom = 140;  // the length of a spine's name
 // in front of the shelf were glossy; the part of each box nearest the
 // floor, fading out.
 constexpr float kMirrorY = kShelfY + 16.0f;
+// The carousel: the boxes on an arc of this radius, this far apart (in
+// radians) and as many each side; each turned away from the middle by
+// part of its angle, and lower the further out it stands.
+constexpr float kArcRadius = 700.0f;
+constexpr float kArcStep = 0.16f;
+constexpr int kArcReach = 7;
+constexpr float kArcTurn = 1.5f;
+constexpr float kArcDrop = 150.0f;
+// Where the reflection's mirror lies: under the plank's edge, or (the
+// carousel, no plank) right under the boxes.
+float g_mirrorY = kMirrorY;
+// The ring (the 3D covers view): the pictures stand round a ring seen
+// from a little above, close enough to overlap, the focused one large in
+// front and the ring's far side small and high behind. Up to kRingPlaces
+// stand round it (all the games, when there are fewer), the ring's size
+// set so the front ones stand kRingSpacing apart (overlapping), but never
+// narrower than kRingMinRadiusX either side; its far side stands
+// kRingRise higher. kRingReach: the games either side of the focus fetched
+// and kept ready.
+constexpr int kRingPlaces = 20;
+constexpr int kRingReach = kRingPlaces / 2;
+constexpr float kRingFrontH = 236.0f;
+constexpr float kRingFloor = 266.0f;
+constexpr float kRingSpacing = 124.0f;
+constexpr float kRingMinRadiusX = 200.0f;
+constexpr float kRingRise = 150.0f;
+constexpr float kRingReflect = 0.22f;  // of a picture's height, mirrored under its foot
 constexpr float kReflectPart = 0.30f;
 constexpr int kReflectAlpha = 54;
 constexpr float kDragStep = 30.0f;  // pointer pixels a box (dragging, gliding)
@@ -396,7 +428,7 @@ void Dim(Face& f, float k) {
 // The upright faces' lower part, mirrored under the plank and fading out
 // downwards. `k` darkens it with its box.
 void DrawReflection(const Face (&faces)[5], float k, int alpha) {
-    const auto mirror = [](V3 p) { return V3{p.x, kMirrorY + (kShelfY - p.y), p.z}; };
+    const auto mirror = [](V3 p) { return V3{p.x, g_mirrorY + (kShelfY - p.y), p.z}; };
     for (const int i : {0, 1, 2, 4}) {
         const Face& f = faces[i];
         Face r = f;
@@ -557,6 +589,7 @@ std::string ShelfInfo(const GridItem& item) {
     };
     if (item.badge == "USB") add(tr("USB drive"));
     else if (item.badge == "SD") add(tr("SD card"));
+    else if (item.badge == "GC") add(tr("GameCube"));
     if (item.id.size() >= 4) {
         switch (item.id[3]) {
             case 'E': add(tr("USA")); break;
@@ -574,7 +607,8 @@ std::string ShelfInfo(const GridItem& item) {
                 : count == 1 ? std::string(tr("Played once"))
                              : tr("Played {1} times", {std::to_string(count)}));
     }
-    if (item.mods) add(tr("Mods"));
+    if (item.to_build) add(tr("Not made yet"));
+    else if (item.mods) add(tr("Mods"));
     return out;
 }
 
@@ -583,6 +617,17 @@ std::string ShelfInfo(const GridItem& item) {
 std::vector<int> GuiGameGrid::ShelfWanted() const {
     std::vector<int> out;
     if (!shelf) return out;
+    if (ring) {
+        // Round the ring both ways from the focus, each game once.
+        const int n = Count();
+        for (int d = 0; d <= kRingReach && static_cast<int>(out.size()) < n; ++d) {
+            for (const int k : {focus + d, focus - d}) {
+                const int i = ((k % n) + n) % n;
+                if (std::find(out.begin(), out.end(), i) == out.end()) out.push_back(i);
+            }
+        }
+        return out;
+    }
     for (int d = 0; d <= kReach; ++d) {
         if (focus + d < Count()) out.push_back(focus + d);
         if (d > 0 && focus - d >= 0) out.push_back(focus - d);
@@ -591,9 +636,13 @@ std::vector<int> GuiGameGrid::ShelfWanted() const {
 }
 
 void GuiGameGrid::BoxArrived(const std::string& id) { riftwii::wii::ForgetBox(id); }
+void GuiGameGrid::Cover3dArrived(const std::string& id) { riftwii::wii::ForgetCover3d(id); }
 
 void GuiGameGrid::ShelfStep(int delta) {
-    const int target = std::clamp(focus + delta, 0, Count() - 1);
+    // The ring has no ends: past the last game comes the first.
+    const int n = Count();
+    if (n <= 0) return;
+    const int target = ring ? ((focus + delta) % n + n) % n : std::clamp(focus + delta, 0, n - 1);
     if (target == focus) return;
     focus = target;
     page = focus / kPerPage;
@@ -604,10 +653,22 @@ int GuiGameGrid::ShelfHit(int x, int y) const {
     // The nearest drawn box first: they were stored back to front.
     for (auto it = spineRects.rbegin(); it != spineRects.rend(); ++it)
         if (x >= it->x0 && x < it->x1 && y >= it->y0 && y < it->y1) return it->index;
+    // A box pointed at rises (kLift, 8 px on the ring), so a pointer at its
+    // foot was below it the next frame: it fell, was pointed at again and
+    // rose, over and over, which shook it (a tester's photo, the ring). The
+    // box pointed at keeps the pointer as far below it as it rose.
+    constexpr float kRiseSlack = 14.0f;
+    if (shelfHover >= 0)
+        for (const SpineRect& r : spineRects)
+            if (r.index == shelfHover && x >= r.x0 && x < r.x1 && y >= r.y1 && y < r.y1 + kRiseSlack) return r.index;
     return -1;
 }
 
 void GuiGameGrid::DrawShelf(int alpha) {
+    if (ring) {
+        DrawRing(alpha);
+        return;
+    }
     if (static_cast<int>(poses.size()) != Count()) poses.assign(Count(), BoxPose{});
     ++shelfClock;
     if (shelfFlipFor != focus) {
@@ -639,7 +700,9 @@ void GuiGameGrid::DrawShelf(int alpha) {
     // they appeared and vanished in view on a 16:9 menu.
     f32 vx, vy, vw, vh;
     Menu_VisibleArea(&vx, &vy, &vw, &vh);
-    const int reach = std::max(kReach, static_cast<int>((320.0f - vx + 60.0f - kOpen - kBoxT / 2) / kPitch) + 2);
+    const int reach = carousel ? kArcReach
+                               : std::max(kReach, static_cast<int>((320.0f - vx + 60.0f - kOpen - kBoxT / 2) / kPitch) + 2);
+    g_mirrorY = carousel ? kShelfY + 2.0f : kMirrorY;
     const int first = std::max(0, focus - reach), last = std::min(Count() - 1, focus + reach);
 
     // Where each box near the focus wants to be, and a step towards it.
@@ -654,7 +717,22 @@ void GuiGameGrid::DrawShelf(int alpha) {
         const int ad = d < 0 ? -d : d;
         BoxPose& p = poses[i];
         BoxPose want;
-        if (d == 0) {
+        if (carousel) {
+            // On the arc: further round and further back the further from
+            // the focus; facing out, turned partly away from the middle.
+            const float a = d * kArcStep;
+            want.x = 320.0f + kArcRadius * std::sin(a);
+            want.z = (d == 0 ? kPullZ : 0.0f) + kArcRadius * (std::cos(a) - 1.0f);
+            want.turn = static_cast<float>(M_PI) / 2 - kArcTurn * a + (d == 0 ? 0.07f * swing * settle : 0.0f) +
+                        (d == 0 && shelfFlip ? static_cast<float>(M_PI) : 0.0f);
+            want.lift = -kArcDrop * (1.0f - std::cos(a)) + (i == shelfHover ? kLift : 0.0f) +
+                        (d == 0 ? 3.0f * (0.5f + 0.5f * std::sin(shelfClock * 0.045f)) * settle : 0.0f);
+            if (!p.placed) {
+                p = want;
+                p.placed = true;
+                continue;
+            }
+        } else if (d == 0) {
             want.x = 320.0f;
             want.z = kPullZ;
             want.turn = static_cast<float>(M_PI) / 2 + (shelfFlip ? static_cast<float>(M_PI) : 0.0f) + 0.07f * swing * settle;
@@ -710,7 +788,8 @@ void GuiGameGrid::DrawShelf(int alpha) {
                                                                    : (*items)[focus].id;
     UpdateBackdrop(backdrop, shelfStill >= 8);
     DrawBackdrop(alpha);
-    if (focus >= first && focus <= last && poses[focus].placed && (g_flying.empty() || (*items)[focus].id != g_flying)) {
+    if (!carousel && focus >= first && focus <= last && poses[focus].placed &&
+        (g_flying.empty() || (*items)[focus].id != g_flying)) {
         const BoxPose& p = poses[focus];
         DrawWallShadow(MakeBox(p.x, p.z, p.turn, p.lift), std::fabs(std::sin(p.turn)), alpha);
     }
@@ -724,8 +803,9 @@ void GuiGameGrid::DrawShelf(int alpha) {
                  item.hue, faces);
         DrawReflection(faces, dimFor(i), alpha);
     }
-    // The plank: its top, then its front edge, wider than the screen.
-    {
+    // The plank: its top, then its front edge, wider than the screen (none
+    // under the carousel).
+    if (!carousel) {
         const bool pic = skin::shelfPlank.data != nullptr;
         const GXColor wood = pic ? GXColor{255, 255, 255, 255} : skin::kShelfWood;
         const GXColor edgeWood = pic ? GXColor{255, 255, 255, 255} : skin::kShelfEdge;
@@ -907,7 +987,12 @@ void GuiGameGrid::DrawShelf(int alpha) {
         GX_LoadPosMtxImm(view, GX_PNMTX0);
     }
 
-    // The focused (or pointed at) game's name under the shelf.
+    DrawShelfCaption(alpha);
+}
+
+// The focused (or pointed at) game's name under the shelf or the ring, and
+// under it where the game is, its region, how often it was played.
+void GuiGameGrid::DrawShelfCaption(int alpha) {
     const int shown = shelfHover >= 0 ? shelfHover : focus;
     if (shown != captionFor) {
         captionFor = shown;
@@ -924,7 +1009,142 @@ void GuiGameGrid::DrawShelf(int alpha) {
     captionInfo->Draw();
 }
 
+void GuiGameGrid::DrawRing(int alpha) {
+    const int n = Count();
+    if (n <= 0) return;
+    ++shelfClock;
+    if (shelfFlipFor != focus) {
+        shelfFlipFor = focus;
+        shelfStill = 0;
+    } else if (shelfStill < 100000) {
+        ++shelfStill;
+    }
+    // A flick's glide, as on the shelf.
+    if (!dragging && glide != 0.0f) {
+        glideAccum += glide;
+        glide *= 0.88f;
+        while (glideAccum >= kDragStep) {
+            ShelfStep(-1);
+            glideAccum -= kDragStep;
+        }
+        while (glideAccum <= -kDragStep) {
+            ShelfStep(1);
+            glideAccum += kDragStep;
+        }
+        if (std::fabs(glide) < 0.8f) glide = glideAccum = 0.0f;
+    }
+    // The ring turns towards the focus the short way round.
+    if (!ringPlaced) {
+        ringPos = static_cast<float>(focus);
+        ringPlaced = true;
+    }
+    float ahead = focus - ringPos;
+    while (ahead > n / 2.0f) ahead -= n;
+    while (ahead < -n / 2.0f) ahead += n;
+    ringPos += std::fabs(ahead) < 0.002f ? ahead : ahead * 0.2f;
+    while (ringPos >= n) ringPos -= n;
+    while (ringPos < 0) ringPos += n;
+
+    LoadPerspective();
+    const std::string backdrop = (*items)[focus].badge == "DISC" ? std::string(kDiscBackdrop) : (*items)[focus].id;
+    UpdateBackdrop(backdrop, shelfStill >= 8);
+    DrawBackdrop(alpha);
+    LoadFlat();
+
+    // Each game once, at its angle round the ring: a whole ring of
+    // kRingPlaces places, or of as many as there are games.
+    const int places = std::min(n, kRingPlaces);
+    const float step = kTau / places;
+    const float radiusX = std::max(kRingMinRadiusX, kRingSpacing / std::sin(std::min(step, 1.2f)));
+    const int base = static_cast<int>(std::floor(ringPos));
+    const float frac = ringPos - base;
+    struct Placed {
+        int index;
+        float angle;
+    };
+    std::vector<Placed> placed;
+    const int behind = places / 2;
+    for (int k = -behind; k <= places - behind; ++k) {
+        const int index = ((base + k) % n + n) % n;
+        const float angle = (k - frac) * step;
+        if (std::fabs(angle) > static_cast<float>(M_PI) + 0.01f) continue;
+        bool seen = false;
+        for (Placed& p : placed) {
+            if (p.index != index) continue;
+            seen = true;
+            if (std::fabs(angle) < std::fabs(p.angle)) p.angle = angle;
+        }
+        if (!seen) placed.push_back({index, angle});
+    }
+    // Back to front.
+    std::sort(placed.begin(), placed.end(), [](const Placed& x, const Placed& y) { return std::cos(x.angle) < std::cos(y.angle); });
+
+    const float settle = std::clamp((shelfStill - 40) / 60.0f, 0.0f, 1.0f);
+    // The card gives one picture a frame: the ones nearest the focus first.
+    for (const int i : ShelfWanted()) riftwii::wii::Cover3dTexture((*items)[i].id);
+    spineRects.clear();
+    for (const Placed& p : placed) {
+        const GridItem& item = (*items)[p.index];
+        // 1 in front, 0 at the back: smaller, higher and darker behind.
+        const float near = 0.5f + 0.5f * std::cos(p.angle);
+        // The focused picture at full size; the rest at most 72% of it,
+        // smaller further round, so the ring's far side shows over them.
+        const float others = 0.30f + 0.42f * std::pow(near, 1.6f);
+        const float front = std::max(0.0f, 1.0f - std::fabs(p.angle) / step);
+        const float scale = others + (1.0f - others) * front;
+        const float h = kRingFrontH * scale;
+        const float cx = 320.0f + radiusX * std::sin(p.angle);
+        float foot = kRingFloor - kRingRise * (1.0f - near);
+        if (p.index == shelfHover) foot -= 8.0f;
+        if (p.index == focus) foot -= 3.0f * (0.5f + 0.5f * std::sin(shelfClock * 0.045f)) * settle;
+        const u8 shade = static_cast<u8>(255 * (0.36f + 0.64f * near));
+        const GXColor lit = {shade, shade, shade, static_cast<u8>(alpha)};
+        const u8 glint = static_cast<u8>(70 * near * alpha / 255);
+        const GXColor mirrorTop = {shade, shade, shade, glint}, mirrorEnd = {shade, shade, shade, 0};
+        const u8* tex = riftwii::wii::Cover3dTexture(item.id);
+        const u8* cover = tex ? nullptr : riftwii::wii::CoverTexture(item.id);
+        float w, ph;
+        if (tex) {
+            ph = h;
+            w = h * riftwii::kCover3dWidth / riftwii::kCover3dHeight;
+            skin::DrawRgb5a3Region(tex, riftwii::kCover3dWidth, riftwii::kCover3dHeight, 0, 0, 1, 1, cx - w / 2, foot - ph,
+                                   w, ph, lit, lit);
+            // The reflection: the picture's foot mirrored under it, fading out.
+            skin::DrawRgb5a3Region(tex, riftwii::kCover3dWidth, riftwii::kCover3dHeight, 0, 1, 1, 1 - kRingReflect,
+                                   cx - w / 2, foot, w, ph * kRingReflect, mirrorTop, mirrorEnd);
+        } else if (cover) {
+            // No 3D cover (yet): the flat cover, as tall as a case in one.
+            ph = h * 0.92f;
+            w = ph * riftwii::kCoverWidth / riftwii::kCoverHeight;
+            skin::DrawRgb5a3Region(cover, riftwii::kCoverWidth, riftwii::kCoverHeight, 0, 0, 1, 1, cx - w / 2, foot - ph,
+                                   w, ph, lit, lit);
+            skin::DrawRgb5a3Region(cover, riftwii::kCoverWidth, riftwii::kCoverHeight, 0, 1, 1, 1 - kRingReflect,
+                                   cx - w / 2, foot, w, ph * kRingReflect, mirrorTop, mirrorEnd);
+        } else if (item.badge == "DISC" && skin::discCase.data) {
+            ph = h * 0.92f;
+            const float k = ph / skin::discCase.h;
+            w = skin::discCase.w * k;
+            skin::Draw(skin::discCase, cx - w / 2, foot - ph, alpha * shade / 255, k);
+        } else {
+            // Nothing to show yet: the game's colour where its case goes.
+            ph = h * 0.92f;
+            w = ph * riftwii::kCoverWidth / riftwii::kCoverHeight;
+            GXColor hue = item.hue;
+            hue.r = static_cast<u8>(hue.r * shade / 255);
+            hue.g = static_cast<u8>(hue.g * shade / 255);
+            hue.b = static_cast<u8>(hue.b * shade / 255);
+            hue.a = static_cast<u8>(alpha);
+            Menu_DrawRectangle(cx - w / 2, foot - ph, w, ph, hue, 1);
+        }
+        // Nearest last, for the pointer (ShelfHit).
+        spineRects.push_back({p.index, cx - w / 2, foot - ph, cx + w / 2, foot});
+    }
+    DrawShelfCaption(alpha);
+}
+
 bool GuiGameGrid::ShelfFlightFrom(int index, ShelfFlight& out) const {
+    // The ring's pictures are not boxes: a game opens with the usual zoom.
+    if (ring) return false;
     if (!shelf || index < 0 || index >= Count() || index >= static_cast<int>(poses.size()) || !poses[index].placed)
         return false;
     // The disc drive's box is a plain one, and its page shows the disc's
@@ -1002,7 +1222,7 @@ void GuiGameGrid::UpdateShelf(GuiTrigger* t) {
     }
     // Up or Down: the focused box turns round (not again until it has).
     // Without GameTDB's full scan its back is made up (DrawMadeUpBack).
-    if ((t->Up() || t->Down()) && shelfStill > 15) {
+    if (!ring && (t->Up() || t->Down()) && shelfStill > 15) {
         shelfFlip = !shelfFlip;
         shelfStill = 0;
         soundOver->Play();

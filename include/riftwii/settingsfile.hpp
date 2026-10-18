@@ -28,13 +28,16 @@ struct LoaderSettings {
     std::string wfc_server = "off";       // online play: riftwii/wfcpatch.hpp names
     std::string wfc_domain;               // the "custom" server's domain
     std::string home_tiles = "covers";    // Home's tiles: covers, names, shelf or channels
+    std::string channel_corners = "theme";  // theme, square, slight, round, rounder: the Channels view's tiles
+    std::string grid_spacing = "normal";  // normal, roomy: Home's grid smaller, with wider gaps at its sides
+    std::string page_peek = "on";         // on, off: Channels shows the next and previous pages' nearest columns at its sides
     std::string menu_widescreen = "off";  // auto (the Wii's own 16:9 setting), on, off: the menu kept in shape on a 16:9 TV
     int screen_size = 100;                // the menu's size on screen, 80-100 (%), inside what a TV's overscan crops
     std::string menu_sounds = "quiet";    // normal, quiet (a soft hover tick), off
     std::string menu_music = "on";        // on, off: music.ogg while the menu is open
     std::string play_history = "on";      // on, off: count the games played from RiftWii (history.txt)
-    std::string home_source = "all";      // all, sd, usb: which drive's games Home lists
-    std::string home_sort = "az";         // az, recent (last played first), most (most played first)
+    std::string home_source = "all";      // all, sd, usb: which drive's games Home lists; gamecube: the GameCube games only; wii: its WiiWare and Virtual Console games
+    std::string home_sort = "az";         // az, recent (last played first), most (most played first), custom (sd:/riftwii/order.txt)
     std::string home_disc = "on";         // on, off: the Disc drive's tile on Home (asked on a new card)
     std::string theme = "default";        // default, or a folder in sd:/riftwii/themes (docs/THEMES.md)
     std::string clock = "auto";           // auto (as the menu's language writes it), 12, 24: Home's clock
@@ -43,11 +46,11 @@ struct LoaderSettings {
     std::string screenshots = "off";      // in-game screenshots: on, off (demo: Dolphin tests)
     bool online = true;                   // download game names and cheats when the Wii is online
     std::string riitag_key;               // RiiTag (riftwii/riitag.hpp): the player's key, empty for none
-    std::string update_channel = "auto";  // stable, beta, or auto (the build's own: beta for a -suffix version)
     std::string gc_rumble = "on";         // on, off: GameCube controllers' rumble in games (PADControlMotor)
     std::string wiimote_rumble = "on";    // on, off: Wii Remotes' rumble in every game (WPADControlMotor; a game's own Rumble too)
     std::string gc_adapter = "auto";      // GameCube controller adapter for Wii U: auto (when plugged in at launch), on, off (demo: Dolphin tests)
-    std::set<std::string> favorites;      // game IDs, written "favorites = ID,ID"
+    std::string gc_backups = "on";        // on, off: copy a GameCube game's memory card to sd:/riftwii/gc/backups before it starts
+    std::set<std::string> favorites;      // game IDs and profiles' tile keys, written "favorites = ID,ID@slug"
     // More folders to look for games in, besides wbfs and games:
     // "game_folders = /Wii Games; usb:/iso". A plain "/path" is looked
     // for on both drives, "sd:/path" or "usb:/path" on that one.
@@ -75,5 +78,9 @@ bool parse_cios_choice(const std::string& s, int& slot);
 // The online server a launch uses; Custom without a valid domain is Off.
 WfcServer effective_wfc_server(const GameSettings& game, const LoaderSettings& global);
 constexpr int kFirstGameCios = 248, kLastGameCios = 252;
+// How round the Channels view's tiles are, as a multiple of their corner
+// radius (riftwii/skinpaint.hpp): the theme's own [shape] corners for
+// "theme" (or a value this RiftWii does not know), else the player's choice.
+float channel_corner_scale(const std::string& choice, float theme_corners);
 
 }  // namespace riftwii

@@ -268,6 +268,62 @@ void make_backdrop(const std::uint8_t* tiles, int w, int h, int x0, int x1, std:
                 }
 }
 
+bool round_corners(const std::uint8_t* tiles, int w, int h, int x0, int x1, float radius, std::uint8_t* out) {
+    if (!tiles || !out || w <= 0 || h <= 0 || w % 4 || h % 4 || x0 < 0 || x0 % 4 || x1 % 4 || x1 > w || x1 <= x0)
+        return false;
+    const int ow = x1 - x0;
+    const float r = std::clamp(radius, 0.0f, std::min(ow, h) / 2.0f);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < ow; ++x) {
+            const std::size_t from = (static_cast<std::size_t>(y / 4) * (w / 4) + (x + x0) / 4) * 32 +
+                                     static_cast<std::size_t>((y % 4) * 4 + (x + x0) % 4) * 2;
+            const std::size_t to = (static_cast<std::size_t>(y / 4) * (ow / 4) + x / 4) * 32 +
+                                   static_cast<std::size_t>((y % 4) * 4 + x % 4) * 2;
+            out[to] = tiles[from];
+            out[to + 1] = tiles[from + 1];
+            // How far into a corner's square the texel's middle is; inside
+            // one, how much of the texel the curve keeps.
+            const float px = x + 0.5f, py = y + 0.5f;
+            const float dx = px < r ? r - px : px > ow - r ? px - (ow - r) : 0.0f;
+            const float dy = py < r ? r - py : py > h - r ? py - (h - r) : 0.0f;
+            if (dx <= 0.0f || dy <= 0.0f) continue;
+            const float keep = std::clamp(r - std::sqrt(dx * dx + dy * dy) + 0.5f, 0.0f, 1.0f);
+            if (keep >= 1.0f) continue;
+            std::uint8_t p[4];
+            from_rgb5a3(static_cast<std::uint16_t>((tiles[from] << 8) | tiles[from + 1]), p);
+            p[3] = static_cast<std::uint8_t>(p[3] * keep + 0.5f);
+            const std::uint16_t v = rgb5a3(p);
+            out[to] = static_cast<std::uint8_t>(v >> 8);
+            out[to + 1] = static_cast<std::uint8_t>(v);
+        }
+    return true;
+}
+
+std::string cover3d_url(const std::string& region, const std::string& game_id) {
+    return "http://art.gametdb.com/wii/cover3D/" + region + "/" + game_id + ".png";
+}
+
+std::vector<std::uint8_t> make_cover3d_file(const std::uint8_t* rgba, int w, int h) {
+    if (!rgba || w < 8 || h < 8 || w > 2048 || h > 2048) return {};
+    // As large as fits, keeping the picture's shape.
+    const float k = std::min(static_cast<float>(kCover3dWidth) / w, static_cast<float>(kCover3dHeight) / h);
+    const int dw = std::clamp(static_cast<int>(w * k + 0.5f), 1, kCover3dWidth);
+    const int dh = std::clamp(static_cast<int>(h * k + 0.5f), 1, kCover3dHeight);
+    const std::vector<std::uint8_t> scaled = scale_rgba(rgba, w, h, dw, dh);
+    std::vector<std::uint8_t> px(static_cast<std::size_t>(kCover3dWidth) * kCover3dHeight * 4, 0);
+    const int left = (kCover3dWidth - dw) / 2, top = kCover3dHeight - dh;
+    for (int y = 0; y < dh; ++y)
+        std::copy(scaled.begin() + static_cast<std::ptrdiff_t>(y) * dw * 4,
+                  scaled.begin() + static_cast<std::ptrdiff_t>(y + 1) * dw * 4,
+                  px.begin() + (static_cast<std::ptrdiff_t>(top + y) * kCover3dWidth + left) * 4);
+    return rgb5a3_file("RW3D", px, kCover3dWidth, kCover3dHeight);
+}
+
+bool cover3d_header_valid(const std::uint8_t* h) {
+    return h && h[0] == 'R' && h[1] == 'W' && h[2] == '3' && h[3] == 'D' && ((h[4] << 8) | h[5]) == kCover3dWidth &&
+           ((h[6] << 8) | h[7]) == kCover3dHeight;
+}
+
 bool box_header_valid(const std::uint8_t* h) {
     return h && h[0] == 'R' && h[1] == 'W' && h[2] == 'B' && h[3] == '2' && ((h[4] << 8) | h[5]) == kBoxWidth &&
            ((h[6] << 8) | h[7]) == kBoxHeight;

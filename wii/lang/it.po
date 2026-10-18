@@ -126,6 +126,9 @@ msgstr "SD, dal salvataggio Wii"
 msgid "SD, fresh start"
 msgstr "SD, da zero"
 
+msgid "SD, emulated NAND"
+msgstr "SD, NAND emulata"
+
 msgid "Kept by the pack"
 msgstr "Gestiti dal pacchetto"
 
@@ -137,6 +140,12 @@ msgstr "I salvataggi vanno sulla scheda SD, partendo da quello della Wii."
 
 msgid "Saves go to the SD card, starting fresh."
 msgstr "I salvataggi vanno sulla scheda SD, partendo da zero."
+
+msgid "Saves go to {1} on the SD card, shared with other loaders."
+msgstr "I salvataggi vanno in {1} sulla scheda SD, condivisi con altri loader."
+
+msgid "{1} can't hold saves: use a short folder on the SD card."
+msgstr "{1} non può contenere salvataggi: usa una cartella breve della scheda SD."
 
 msgid "Saves stay on the Wii, as usual."
 msgstr "I salvataggi restano sulla Wii, come sempre."
@@ -363,6 +372,9 @@ msgstr "Nessun file di trucchi in {1}"
 msgid "The cheat file has no cheats in it: {1}"
 msgstr "Il file dei trucchi non ne contiene: {1}"
 
+msgid "The cheat file only has cheats for other versions of this game."
+msgstr "Il file dei trucchi ha solo trucchi per altre versioni di questo gioco."
+
 msgid "Settings"
 msgstr "Impostazioni"
 
@@ -428,9 +440,6 @@ msgstr "Esci da RiftWii"
 
 msgid "Exit"
 msgstr "Esci"
-
-msgid "These apply to every game. A game's own page can change them for that game."
-msgstr "Valgono per tutti i giochi. La pagina di ogni gioco può cambiarle per quel gioco."
 
 msgid "Game names follow the language when they are downloaded."
 msgstr "I nomi dei giochi seguono la lingua quando vengono scaricati."
@@ -723,8 +732,44 @@ msgstr "Nomi"
 msgid "Shelf"
 msgstr "Scaffale"
 
+msgid "Carousel"
+msgstr "Carosello"
+
+msgid "Plays with"
+msgstr "Si gioca con"
+
+msgid "3D covers"
+msgstr "Copertine 3D"
+
 msgid "Channels"
 msgstr "Canali"
+
+msgid "Channel corners"
+msgstr "Angoli dei canali"
+
+msgid "Square corners"
+msgstr "Angoli squadrati"
+
+msgid "Slightly round"
+msgstr "Poco arrotondati"
+
+msgid "Round corners"
+msgstr "Angoli arrotondati"
+
+msgid "Extra round"
+msgstr "Molto arrotondati"
+
+msgid "How round the corners of the Channels view's tiles are. Theme keeps the theme's own; the others are the same in every theme."
+msgstr "Quanto sono arrotondati gli angoli dei riquadri nella vista Canali. Tema mantiene quelli del tema; gli altri sono uguali in ogni tema."
+
+msgid "Grid spacing"
+msgstr "Spaziatura della griglia"
+
+msgid "Roomy"
+msgstr "Ampio"
+
+msgid "Roomy makes the Names and Channels tiles a little smaller, with wider gaps between them and at the sides, as on the Wii Menu."
+msgstr "Ampio rende i riquadri di Nomi e Canali un po' più piccoli, con più spazio tra loro e ai lati, come nel Menu Wii."
 
 msgid "Widescreen menu"
 msgstr "Menu panoramico"
@@ -738,8 +783,8 @@ msgstr "Su una TV 16:9 il menu viene disegnato più stretto, così copertine e i
 msgid "Makes the menu smaller on screen, so nothing is cut off at the TV's edges. Lower it until the whole menu shows."
 msgstr "Rende il menu più piccolo sullo schermo, così niente viene tagliato ai bordi della TV. Abbassalo finché non vedi tutto il menu."
 
-msgid "Covers: each game's box art from GameTDB (fetched when downloads are on). Shelf: the boxes on a shelf. Channels: each game's animated icon, and its banner when you pick it, as on the Wii Menu. Names: the names only."
-msgstr "Copertine: la copertina di ogni gioco da GameTDB (scaricata se i download sono attivi). Scaffale: le custodie su uno scaffale. Canali: l'icona animata di ogni gioco, e il banner quando lo scegli, come nel Menu Wii. Nomi: solo i nomi."
+msgid "Covers: each game's box art from GameTDB (fetched when downloads are on). 3D covers: GameTDB's pictures of the cases, round a ring with no end. Carousel: the boxes fanned out on an arc. Shelf: the boxes on a shelf. Channels: each game's animated icon and banner, as on the Wii Menu. Names: the names only."
+msgstr "Copertine: la copertina di ogni gioco da GameTDB (scaricata se i download sono attivi). Copertine 3D: le immagini delle custodie di GameTDB, su un anello senza fine. Carosello: le custodie aperte a ventaglio su un arco. Scaffale: le custodie su uno scaffale. Canali: l'icona animata e il banner di ogni gioco, come nel Menu Wii. Nomi: solo i nomi."
 
 msgid "Custom (no wfc_domain set)"
 msgstr "Personalizzato (wfc_domain non impostato)"
@@ -810,14 +855,23 @@ msgstr "Sperimentale. In un gioco, tieni premuto 1 e premi HOME (controller Game
 msgid "Music while the menu is open: music.ogg from sd:/riftwii, or the one in RiftWii's own folder."
 msgstr "Musica mentre il menu è aperto: music.ogg da sd:/riftwii, o quella nella cartella di RiftWii."
 
-msgid "No music.ogg found in sd:/riftwii or in RiftWii's own folder."
-msgstr "Nessun music.ogg in sd:/riftwii né nella cartella di RiftWii."
+msgid "Music is on, but there is none to play: put a music.ogg in sd:/riftwii, or pick a theme with music."
+msgstr "La musica è attiva, ma non c'è niente da suonare: metti un music.ogg in sd:/riftwii o scegli un tema con musica."
 
 msgid "On a Wii U the GameCube adapter may not work in game from the front USB ports; the rear ones work."
 msgstr "Su Wii U l'adattatore GameCube potrebbe non funzionare in gioco dalle porte USB anteriori; quelle posteriori funzionano."
 
+msgid "This game needs nearly all of the Wii's memory, and this RVZ's {1} KiB blocks take about {2} KB of it in game: Newer Super Mario Bros. Wii crashed that way. If it crashes, convert the RVZ again in Dolphin with a block size of 32 KiB."
+msgstr "Questo gioco usa quasi tutta la memoria del Wii, e i blocchi da {1} KiB di questo RVZ ne occupano circa {2} KB durante il gioco: Newer Super Mario Bros. Wii si bloccava così. Se si blocca, riconverti l'RVZ in Dolphin con una dimensione dei blocchi di 32 KiB."
+
 msgid "Packs on USB are experimental; if it fails, copy them to SD."
 msgstr "I pacchetti su USB sono sperimentali; se non funziona, copiali sulla SD."
+
+msgid "RVZ is experimental for GameCube games; if it fails, use an ISO copy."
+msgstr "L'RVZ è sperimentale per i giochi GameCube; se non funziona, usa una copia ISO."
+
+msgid "Play at your own risk:"
+msgstr "Gioca a tuo rischio:"
 
 msgid "CTGP Revolution (a pack that starts a Homebrew Channel app) does not work from RiftWii yet: it stops on a black or green screen. Start CTGP from the Homebrew Channel instead."
 msgstr "CTGP Revolution (un pacchetto che avvia un'app dell'Homebrew Channel) non funziona ancora da RiftWii: si ferma su una schermata nera o verde. Avvia CTGP dall'Homebrew Channel."
@@ -903,23 +957,8 @@ msgstr "Sei sicuro di non voler aggiornare? Se hai avuto un problema, potrebbe e
 msgid "RiftWii {1} is out. Settings > Check for a new version installs it."
 msgstr "È uscita RiftWii {1}. Impostazioni > Cerca una nuova versione la installa."
 
-msgid "Updates"
-msgstr "Aggiornamenti"
-
-msgid "Beta"
-msgstr "Beta"
-
-msgid "Stable"
-msgstr "Stabile"
-
-msgid "Beta: every new version, including test builds that may have new bugs. For testers."
-msgstr "Beta: ogni nuova versione, comprese quelle di prova, che possono avere nuovi bug. Per i tester."
-
-msgid "Stable: only versions marked stable, which testers have checked."
-msgstr "Stabile: solo le versioni segnate come stabili, già controllate dai tester."
-
-msgid "No stable version is out yet. This is RiftWii {1}."
-msgstr "Non è ancora uscita una versione stabile. Questa è RiftWii {1}."
+msgid "No release is out yet. This is RiftWii {1}."
+msgstr "Non è ancora uscita nessuna versione. Questa è RiftWii {1}."
 
 msgid "SD card: {1}"
 msgstr "Scheda SD: {1}"
@@ -929,6 +968,15 @@ msgstr "Unità USB: {1}"
 
 msgid "Drive problem"
 msgstr "Problema con un'unità"
+
+msgid "Wii U drive"
+msgstr "Unità della Wii U"
+
+msgid "USB: a Wii U drive (RiftWii leaves it alone)"
+msgstr "USB: un'unità della Wii U (RiftWii non la usa)"
+
+msgid "The USB drive plugged in is a Wii U's own storage drive. RiftWii can't read it, so it leaves it alone. For Wii games on USB, use a drive formatted FAT32 or NTFS on a computer."
+msgstr "L'unità USB collegata è l'unità di archiviazione di una Wii U. RiftWii non può leggerla, quindi non la usa. Per i giochi Wii da USB, usa un'unità formattata in FAT32 o NTFS su un computer."
 
 msgid "Games on that drive are not listed. Check the drive on a computer; details are in sd:/riftwii/session.log."
 msgstr "I giochi di quell'unità non sono elencati. Controlla l'unità su un computer; i dettagli sono in sd:/riftwii/session.log."
@@ -1125,8 +1173,8 @@ msgstr "Menu HOME"
 msgid "Close"
 msgstr "Chiudi"
 
-msgid "Opens the HOME Menu, as HOME does: the Homebrew Channel, the Wii Menu, Priiloader or power off."
-msgstr "Apre il menu HOME, come il tasto HOME: Homebrew Channel, Menu Wii, Priiloader o spegnimento."
+msgid "Pick where to go: the Homebrew Channel, the Wii Menu, Priiloader, or power off."
+msgstr "Scegli dove andare: Homebrew Channel, Menu Wii, Priiloader o spegnimento."
 
 msgid "Sending a report"
 msgstr "Invio della segnalazione"
@@ -1272,6 +1320,24 @@ msgstr "Questa scheda SD ha file nascosti che macOS crea quando copia (nomi che 
 msgid "This code mod can't start"
 msgstr "Questo mod di codici non può partire"
 
+msgid "How should this code mod start?"
+msgstr "Come deve partire questo mod di codici?"
+
+msgid "Code mods differ. Most, like Project+, run well with RiftWii's extras. If a mod stays on a black screen, start it without them, as its own loader would."
+msgstr "Ogni mod di codici è diverso. La maggior parte, come Project+, funziona bene con gli extra di RiftWii. Se un mod resta su uno schermo nero, avvialo senza, come farebbe il suo loader."
+
+msgid "With extras"
+msgstr "Con gli extra"
+
+msgid "Crash reports, back to RiftWii"
+msgstr "Rapporti di crash, ritorno a RiftWii"
+
+msgid "Without extras"
+msgstr "Senza extra"
+
+msgid "As the mod's own loader"
+msgstr "Come il loader del mod stesso"
+
 msgid "{1} has more codes than the game has room for ({2}, room for {3}). It needs the file gameconfig.txt (or gc.txt) from the same download as the mod. Copy it into the mod's own folder on the SD card, {4}, so it can't replace another mod's. Not in the download? Ask whoever made the mod."
 msgstr "{1} ha più codici di quanti ne entrino nel gioco ({2}, spazio per {3}). Serve il file gameconfig.txt (o gc.txt) dallo stesso download del mod. Copialo nella cartella del mod stesso sulla scheda SD, {4}, così non sostituisce quello di un altro mod. Non è nel download? Chiedi a chi ha fatto il mod."
 
@@ -1355,6 +1421,438 @@ msgstr "Interrotto. Non è stato salvato nulla."
 
 msgid "{1} could not be made: {2}. Nothing was kept."
 msgstr "Impossibile creare {1}: {2}. Non è stato salvato nulla."
+
+msgid "GameCube"
+msgstr "GameCube"
+
+msgid "Memory Card"
+msgstr "Memory Card"
+
+msgid "Build and play"
+msgstr "Crea e gioca"
+
+msgid "Made from {1} on first start, once; every start after that is immediate."
+msgstr "Viene creato da {1} al primo avvio, una volta sola; gli avvii successivi sono immediati."
+
+msgid "Saves go to this game's own memory card on the SD card: {1}."
+msgstr "I salvataggi vanno nella Memory Card di questo gioco, sulla scheda SD: {1}."
+
+msgid "Stop making {1}?"
+msgstr "Interrompere la creazione di {1}?"
+
+msgid "What is made so far is deleted. It can be made again later, from the start."
+msgstr "Quanto creato finora viene eliminato. Si può ricreare più tardi, dall'inizio."
+
+msgid "Keep going"
+msgstr "Continua"
+
+msgid "{1} can't be built"
+msgstr "Impossibile creare {1}"
+
+msgid "It is built from {1}, and RiftWii cannot open it on the SD card any more. Put it back in sd:/games and try again."
+msgstr "Viene creato da {1}, e RiftWii non riesce più ad aprirlo sulla scheda SD. Rimettilo in sd:/games e riprova."
+
+msgid "Building it needs {1} free on the SD card, and only {2} is free. Free some space and press Start again."
+msgstr "Per crearlo servono {1} liberi sulla scheda SD e ce ne sono solo {2}. Libera dello spazio e premi di nuovo Avvia."
+
+msgid "Build this game first?"
+msgstr "Creare prima questo gioco?"
+
+msgid "Build {1} from your {2}? This happens once."
+msgstr "Creare {1} dal tuo {2}? Succede una volta sola."
+
+msgid "Needs {1}"
+msgstr "Servono {1}"
+
+msgid "Once only"
+msgstr "Una volta sola"
+
+msgid "Build it"
+msgstr "Crealo"
+
+msgid "Building {1}"
+msgstr "Creazione di {1}"
+
+msgid "Reading {1} and writing {2}"
+msgstr "Lettura di {1} e scrittura di {2}"
+
+msgid "{1} not built"
+msgstr "{1} non creato"
+
+msgid "Hold HOME and - for two seconds to leave the game."
+msgstr "Tieni premuti HOME e - per due secondi per uscire dal gioco."
+
+msgid "Hold L, R, Z and Start for two seconds to leave the game."
+msgstr "Tieni premuti L, R, Z e Start per due secondi per uscire dal gioco."
+
+msgid "{1}/{2}/{3}"
+msgstr "{2}/{1}/{3}"
+
+msgid "Not for European games"
+msgstr "Non per giochi europei"
+
+msgid "Only with a component or HDMI cable: without one the picture stays black."
+msgstr "Solo con un cavo component o HDMI: senza, lo schermo resta nero."
+
+msgid "Turn on"
+msgstr "Attiva"
+
+msgid "Wii Remote and Nunchuk"
+msgstr "Telecomando Wii e Nunchuk"
+
+msgid "Wii Remote, held sideways"
+msgstr "Telecomando Wii, in orizzontale"
+
+msgid "GameCube controls: {1}"
+msgstr "Comandi GameCube: {1}"
+
+msgid "Its buttons are the game's own, as on a GameCube."
+msgstr "I pulsanti sono quelli del gioco, come su un GameCube."
+
+msgid "Stick"
+msgstr "Levetta"
+
+msgid "C-stick"
+msgstr "Stick C"
+
+msgid "Saved {1}"
+msgstr "Salvato il {1}"
+
+msgid "{1} of {2} blocks free"
+msgstr "{1} blocchi liberi su {2}"
+
+msgid "Working out the time left..."
+msgstr "Calcolo del tempo rimanente..."
+
+msgid "Stop building {1}?"
+msgstr "Interrompere la creazione di {1}?"
+
+msgid "What is built so far is deleted. It can be built again later, from the start."
+msgstr "Quanto creato finora viene eliminato. Si può ricreare più tardi, dall'inizio."
+
+msgid "{1} could not be built: {2}. Nothing was kept."
+msgstr "Impossibile creare {1}: {2}. Non è stato salvato nulla."
+
+msgid "About a minute"
+msgstr "Circa un minuto"
+
+msgid "About {1}-{2} minutes"
+msgstr "Circa {1}-{2} minuti"
+
+msgid "The game stopped."
+msgstr "Il gioco si è fermato."
+
+msgid "Press HOME or A to go back to RiftWii and send a problem report."
+msgstr "Premi HOME o A per tornare a RiftWii e inviare una segnalazione del problema."
+
+msgid "Press HOME or A to go back to the Homebrew Channel. RiftWii offers to send a problem report when it next starts."
+msgstr "Premi HOME o A per tornare all'Homebrew Channel. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."
+
+msgid "Press HOME or A to go back to the Wii Menu. RiftWii offers to send a problem report when it next starts."
+msgstr "Premi HOME o A per tornare al Menu Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."
+
+msgid "Turn the Wii off and on again. RiftWii offers to send a problem report when it next starts."
+msgstr "Spegni e riaccendi la Wii. RiftWii proporrà di inviare una segnalazione del problema al prossimo avvio."
+
+msgid "Called from"
+msgstr "Chiamato da"
+
+msgid "Hold HOME for two seconds to leave the game."
+msgstr "Tieni premuto HOME per due secondi per uscire dal gioco."
+
+msgid "1 block"
+msgstr "1 blocco"
+
+msgid "{1} blocks"
+msgstr "{1} blocchi"
+
+msgid "Add a save"
+msgstr "Aggiungi un salvataggio"
+
+msgid "Add a save from the SD card"
+msgstr "Aggiungi un salvataggio dalla scheda SD"
+
+msgid "Back up saves"
+msgstr "Backup dei salvataggi"
+
+msgid "Before a GameCube game starts, its memory card is copied to the SD card. The last five copies are kept, for Restore an older save on the game's Saves page."
+msgstr "Prima che parta un gioco GameCube, la sua Memory Card viene copiata sulla scheda SD. Restano le ultime cinque copie, per Ripristina un salvataggio precedente nella pagina dei salvataggi del gioco."
+
+msgid "Restore an older save"
+msgstr "Ripristina un salvataggio precedente"
+
+msgid "Go back to how your save was on a day you pick."
+msgstr "Riporta il salvataggio a com'era nel giorno che scegli."
+
+msgid "Go back to how the shared memory card was on a day you pick, for every game on it."
+msgstr "Riporta la Memory Card condivisa a com'era nel giorno che scegli, per tutti i giochi che contiene."
+
+msgid "Press A to put this game's save back to how it was then."
+msgstr "Premi A per riportare il salvataggio di questo gioco a com'era allora."
+
+msgid "Press A to put the shared memory card back to how it was then, for every game on it."
+msgstr "Premi A per riportare la Memory Card condivisa a com'era allora, per tutti i giochi che contiene."
+
+msgid "Restore"
+msgstr "Ripristina"
+
+msgid "Save restored"
+msgstr "Salvataggio ripristinato"
+
+msgid "The memory card is as it was on {1}. The save from before is kept among the older saves, so you can go back to it."
+msgstr "La Memory Card è com'era il {1}. Il salvataggio di prima resta tra i salvataggi precedenti, così puoi tornarci."
+
+msgid "Save not restored"
+msgstr "Salvataggio non ripristinato"
+
+msgid "RiftWii could not read that copy."
+msgstr "RiftWii non è riuscito a leggere quella copia."
+
+msgid "That copy is damaged, so your save was not changed."
+msgstr "Quella copia è danneggiata, quindi il salvataggio non è cambiato."
+
+msgid "RiftWii could not keep a copy of the save as it is now, so it was not changed: {1}"
+msgstr "RiftWii non è riuscito a conservare una copia del salvataggio attuale, quindi non è cambiato: {1}"
+
+msgid "RiftWii could not write the memory card: {1}"
+msgstr "RiftWii non è riuscito a scrivere la Memory Card: {1}"
+
+msgid "Memory card full"
+msgstr "Scheda piena"
+
+msgid "Restore this save?"
+msgstr "Ripristinare questo salvataggio?"
+
+msgid "Your save goes back to how it was on {1}. Your save as it is now is kept as a copy first, so you can come back to it."
+msgstr "Il salvataggio torna a com'era il {1}. Prima viene conservata una copia del salvataggio attuale, così puoi tornarci."
+
+msgid "Every game's save on the shared memory card goes back to how it was on {1}. How they are now is kept as a copy first, so you can come back to them."
+msgstr "I salvataggi di tutti i giochi sulla Memory Card condivisa tornano a com'erano il {1}. Prima viene conservata una copia di come sono ora, così puoi tornarci."
+
+msgid "(before you restored)"
+msgstr "(prima del ripristino)"
+
+msgid "1 save"
+msgstr "1 salvataggio"
+
+msgid "{1} saves"
+msgstr "{1} salvataggi"
+
+msgid "RiftWii keeps a copy each time you start the game."
+msgstr "RiftWii conserva una copia ogni volta che avvii il gioco."
+
+msgid "The memory card is full: this game can't save. Delete or copy saves on the Memory Card page to make room."
+msgstr "La Memory Card è piena: questo gioco non può salvare. Fai spazio nella pagina Memory Card."
+
+msgid "The card is full: this game can't save. Make room on the Memory Card page or use its own card."
+msgstr "Scheda piena: questo gioco non può salvare. Fai spazio o dagli una scheda propria."
+
+msgid "Bring your Dolphin saves"
+msgstr "Porta i salvataggi di Dolphin"
+
+msgid "Copy every save from Dolphin's GC folder in one go."
+msgstr "Copia in un colpo solo tutti i salvataggi dalla cartella GC di Dolphin."
+
+msgid "To bring all of Dolphin's saves at once, copy its GC folder (in Dolphin: File > Open User Folder) to {1}."
+msgstr "Per portare tutti i salvataggi di Dolphin in una volta, copia la sua cartella GC (in Dolphin: File > Open User Folder) in {1}."
+
+msgid "Added: {1}. Already on the card, so skipped: {2}."
+msgstr "Aggiunti: {1}. Già sulla scheda, quindi saltati: {2}."
+
+msgid "Could not be used: {1}."
+msgstr "Non utilizzabili: {1}."
+
+msgid "The memory card is full, so the rest did not fit."
+msgstr "La Memory Card è piena, quindi il resto non c'è stato."
+
+msgid "No saves from Dolphin"
+msgstr "Nessun salvataggio di Dolphin"
+
+msgid "RiftWii found no saves for this memory card in {1}. Copy Dolphin's GC folder there (in Dolphin: File > Open User Folder, then GC): it holds the USA, EUR and JAP folders."
+msgstr "RiftWii non ha trovato salvataggi per questa Memory Card in {1}. Copiaci la cartella GC di Dolphin (in Dolphin: File > Open User Folder, poi GC): contiene le cartelle USA, EUR e JAP."
+
+msgid "Bring your Dolphin saves?"
+msgstr "Portare i salvataggi di Dolphin?"
+
+msgid "RiftWii found {1} files in Dolphin's folder. Their saves are copied to this memory card, and the ones it has already are left alone. The card is kept as a copy first, so Restore an older save can undo it."
+msgstr "RiftWii ha trovato {1} file nella cartella di Dolphin. I loro salvataggi vengono copiati su questa Memory Card e quelli già presenti restano come sono. Prima viene fatta una copia della scheda, quindi Ripristina un salvataggio precedente può annullare tutto."
+
+msgid "Bring them"
+msgstr "Portale"
+
+msgid "Saves not brought"
+msgstr "Salvataggi non portati"
+
+msgid "RiftWii could not keep a copy of the memory card, so it was not changed: {1}"
+msgstr "RiftWii non è riuscito a conservare una copia della Memory Card, quindi non è stata modificata: {1}"
+
+msgid "Nothing new to add"
+msgstr "Niente di nuovo da aggiungere"
+
+msgid "Dolphin saves brought"
+msgstr "Salvataggi di Dolphin portati"
+
+msgid "Some files were left out because there were too many."
+msgstr "Alcuni file sono stati esclusi perché erano troppi."
+
+msgid "Some files will be left out because there are too many."
+msgstr "Alcuni file saranno esclusi perché sono troppi."
+
+msgid "Shared Memory Card"
+msgstr "Memory Card condivisa"
+
+msgid "The shared memory card is made the first time a game that uses it starts: {1}."
+msgstr "La Memory Card condivisa viene creata la prima volta che si avvia un gioco che la usa: {1}."
+
+msgid "Saves go to the shared memory card on the SD card: {1}."
+msgstr "I salvataggi vanno nella Memory Card condivisa sulla scheda SD: {1}."
+
+msgid "Memory card"
+msgstr "Memory Card"
+
+msgid "About this"
+msgstr "Informazioni"
+
+msgid "Save to a card for this game alone, or to one card shared by all your games."
+msgstr "Salva su una scheda solo per questo gioco, oppure su una scheda condivisa da tutti i tuoi giochi."
+
+msgid "Switching copies no saves: they stay on the other card. Move them with Copy to the SD card and Add a save from the SD card on the Saves page. Japanese games have a shared card of their own."
+msgstr "Cambiando non si copia nulla: i salvataggi restano sull'altra scheda. Spostali con Copia sulla scheda SD e Aggiungi un salvataggio dalla scheda SD nella pagina dei salvataggi. I giochi giapponesi hanno la loro scheda condivisa."
+
+msgid "Switch"
+msgstr "Cambia"
+
+msgid "Shared"
+msgstr "Condivisa"
+
+msgid "This game's own"
+msgstr "Solo di questo gioco"
+
+msgid "Adds a .gci save file from {1}."
+msgstr "Aggiunge un file di salvataggio .gci da {1}."
+
+msgid "As a save file for Dolphin"
+msgstr "Come file di salvataggio, per Dolphin"
+
+msgid "Copy to the SD card"
+msgstr "Copia sulla scheda SD"
+
+msgid "Delete"
+msgstr "Elimina"
+
+msgid "Delete {1}?"
+msgstr "Eliminare {1}?"
+
+msgid "From this memory card"
+msgstr "Da questa Memory Card"
+
+msgid "It is gone from the memory card for good. Copy it to the SD card first to keep it."
+msgstr "Sparisce dalla Memory Card per sempre. Copialo prima sulla scheda SD per tenerlo."
+
+msgid "Keep it"
+msgstr "Tienilo"
+
+msgid "Memory card damaged"
+msgstr "Memory Card danneggiata"
+
+msgid "Memory card not changed"
+msgstr "Memory Card non modificata"
+
+msgid "No memory card yet"
+msgstr "Ancora nessuna Memory Card"
+
+msgid "No saves on the SD card"
+msgstr "Nessun salvataggio sulla scheda SD"
+
+msgid "Press A to add this save to the memory card."
+msgstr "Premi A per aggiungere questo salvataggio alla Memory Card."
+
+msgid "Press A to see its saves."
+msgstr "Premi A per vedere i salvataggi."
+
+msgid "Put .gci save files (from Dolphin, Nintendont or another card) in {1}, then try again."
+msgstr "Metti dei file di salvataggio .gci (da Dolphin, Nintendont o un'altra scheda) in {1}, poi riprova."
+
+msgid "Save copied"
+msgstr "Salvataggio copiato"
+
+msgid "Save not added"
+msgstr "Salvataggio non aggiunto"
+
+msgid "Save not copied"
+msgstr "Salvataggio non copiato"
+
+msgid "Save not deleted"
+msgstr "Salvataggio non eliminato"
+
+msgid "This game's memory card is made the first time the game starts: {1}."
+msgstr "La Memory Card di questo gioco viene creata al primo avvio del gioco: {1}."
+
+msgid "This save is damaged: its blocks do not add up. It can only be deleted."
+msgstr "Questo salvataggio è danneggiato: i blocchi non tornano. Si può solo eliminare."
+
+msgid "It is {1}."
+msgstr "È {1}."
+
+msgid "RiftWii cannot read {1}: {2}"
+msgstr "RiftWii non riesce a leggere {1}: {2}"
+
+msgid "RiftWii could not read {1}."
+msgstr "RiftWii non è riuscito a leggere {1}."
+
+msgid "RiftWii could not write {1}."
+msgstr "RiftWii non è riuscito a scrivere {1}."
+
+msgid "This game's own options: how its disc is read, and its controls."
+msgstr "Le opzioni proprie di questo gioco: come viene letto il disco e i comandi."
+
+msgid "Not made yet"
+msgstr "Non ancora creato"
+
+msgid "Home lists the GameCube games only, from sd:/games."
+msgstr "La Home mostra solo i giochi GameCube, da sd:/games."
+
+msgid "A GameCube game goes on the SD card, as sd:/games/<its ID>/game.iso."
+msgstr "Un gioco GameCube va sulla scheda SD, come sd:/games/<il suo ID>/game.iso."
+
+msgid "Loading speed"
+msgstr "Caricamento"
+
+msgid "Fast"
+msgstr "Veloce"
+
+msgid "As on a GameCube (slower)"
+msgstr "Come su un GameCube (più lenta)"
+
+msgid "480p picture"
+msgstr "Immagine in 480p"
+
+msgid "On (480p)"
+msgstr "Sì (480p)"
+
+msgid "Widescreen"
+msgstr "Panoramico"
+
+msgid "480p is for US and Japanese games; this European game keeps its own picture."
+msgstr "Il 480p è per i giochi americani e giapponesi; questo gioco europeo mantiene la sua immagine."
+
+msgid "Gives a sharper, steadier picture on a component cable, even in games with no 480p mode; some games ask first."
+msgstr "Dà un'immagine più nitida e stabile con un cavo component, anche nei giochi senza modo 480p; alcuni chiedono prima."
+
+msgid "Fills a widescreen TV with the game world; menus stay stretched, and some games show wrong colors (experimental)."
+msgstr "Riempie una TV panoramica con il mondo di gioco; i menu restano allungati e alcuni giochi mostrano colori sbagliati (sperimentale)."
+
+msgid "The language this game plays in, leaving the Wii's own setting alone (most US and Japanese games have only one)."
+msgstr "La lingua in cui si gioca questo gioco, senza cambiare l'impostazione della Wii (la maggior parte dei giochi americani e giapponesi ne ha una sola)."
+
+msgid "Controls"
+msgstr "Comandi"
+
+msgid "Fast suits almost every game; a few need the GameCube's own, slower speed (experimental, it can freeze some games)."
+msgstr "Veloce va bene per quasi tutti i giochi; pochi richiedono la velocità, più lenta, propria del GameCube (sperimentale, può bloccare alcuni giochi)."
+
+msgid "Shows which Wii Remote, Nunchuk or Classic Controller buttons act as the GameCube controller's, and how to leave the game."
+msgstr "Mostra quali pulsanti del telecomando Wii, del Nunchuk o del controller classico fanno da pulsanti del controller GameCube, e come uscire dal gioco."
 
 msgid "SD image made"
 msgstr "Immagine SD creata"
@@ -1521,9 +2019,6 @@ msgstr "Gioca"
 msgid "Play history"
 msgstr "Cronologia di gioco"
 
-msgid "SD and USB"
-msgstr "SD e USB"
-
 msgid "Scan the code for the guide."
 msgstr "Inquadra il codice per la guida."
 
@@ -1542,8 +2037,29 @@ msgstr "Il trucco non ha note sui suoi valori: la pagina del suo autore potrebbe
 msgid "The menu restarts to show it when you leave Settings."
 msgstr "Il menu si riavvia per mostrarlo quando esci dalle Impostazioni."
 
-msgid "The order of the games on Home. Last played and Most played put the games you played from RiftWii first, the rest after them A to Z."
-msgstr "L'ordine dei giochi nella Home. Ultimo giocato e Più giocati mettono prima i giochi che hai giocato da RiftWii, e il resto dopo, dalla A alla Z."
+msgid "The order of the games on Home. Last played and Most played put the games you played from RiftWii first, the rest after them A to Z. Your order is yours: on Home, hold B and press A on a game to move it."
+msgstr "L'ordine dei giochi nella Home. Ultimo giocato e Più giocati mettono prima i giochi che hai giocato da RiftWii, e il resto dopo, dalla A alla Z. Il tuo ordine è tuo: nella Home, tieni premuto B e premi A su un gioco per spostarlo."
+
+msgid "Your order"
+msgstr "Il tuo ordine"
+
+msgid "Home is in your own order now. Settings > Home order puts it back A to Z."
+msgstr "La Home è ora nel tuo ordine. Impostazioni > Ordine della Home la rimette dalla A alla Z."
+
+msgid "Let go of A: put it down   At a side: turn the page"
+msgstr "Rilascia A: posa   Su un lato: cambia pagina"
+
+msgid "D-pad: move   A: put it down   B: put it back"
+msgstr "Croce: sposta   A: posa   B: rimetti a posto"
+
+msgid "1: view   2: settings   -/+: pages   B+A: move"
+msgstr "1: vista   2: impostazioni   -/+: pagine   B+A: sposta"
+
+msgid "1: view  2: settings  B: A-Z  B+A: move"
+msgstr "1: vista  2: impost.  B: A-Z  B+A: sposta"
+
+msgid "1: view   2: settings   -/+: pages"
+msgstr "1: vista   2: impostazioni   -/+: pagine"
 
 msgid "The values were not saved: {1}"
 msgstr "I valori non sono stati salvati: {1}"
@@ -1577,9 +2093,6 @@ msgstr "Novità di RiftWii {1}"
 
 msgid "Which USB port is the adapter plugged into?"
 msgstr "In quale porta USB è collegato l'adattatore?"
-
-msgid "Which drive's games Home lists. With a game on both, one drive's copy is enough."
-msgstr "Di quale unità la Home elenca i giochi. Con un gioco su entrambe, basta la copia di una."
 
 msgid "Which port?"
 msgstr "Quale porta?"
@@ -1707,14 +2220,71 @@ msgstr "Tutte le impostazioni tornano come in origine. Le pagine dei singoli gio
 msgid "Settings reset to the defaults"
 msgstr "Impostazioni ripristinate"
 
-msgid "The GameCube adapter works in Project+"
-msgstr "L'adattatore GameCube funziona in Project+"
+msgid "Install WAD files"
+msgstr "Installa file WAD"
 
-msgid "Mods that change several places in memory work fully"
-msgstr "Le mod che cambiano più punti della memoria funzionano del tutto"
+msgid "{1} found"
+msgstr "{1} trovati"
 
-msgid "Wii U Pro Controller: a log to help it work in games"
-msgstr "Controller Pro di Wii U: un registro per farlo funzionare nei giochi"
+msgid "Installs the .wad files in the wad folder of the SD card into the emulated NAND USB Loader GX keeps its channels in, and lists them on Home. The Wii itself is not changed."
+msgstr "Installa i file .wad della cartella wad della scheda SD nella NAND emulata dove USB Loader GX tiene i suoi canali, e li mostra nella Home. La Wii stessa non cambia."
+
+msgid "No .wad files in the wad folder of the SD card."
+msgstr "Nessun file .wad nella cartella wad della scheda SD."
+
+msgid "Install {1} WAD file(s) into {2}? The Wii itself is not changed."
+msgstr "Installare {1} file WAD in {2}? La Wii stessa non cambia."
+
+msgid "Install"
+msgstr "Installa"
+
+msgid "Installing WAD files"
+msgstr "Installazione dei file WAD"
+
+msgid "{1} of {2}: {3}"
+msgstr "{1} di {2}: {3}"
+
+msgid "This Wii's key could not be read, so WAD files can't be installed."
+msgstr "Non è stato possibile leggere la chiave di questa Wii, quindi i file WAD non si possono installare."
+
+msgid "Installed {1} of {2}. They are on Home now."
+msgstr "Installati {1} di {2}. Ora sono nella Home."
+
+msgid "Not installed: {1}. The reasons are in sd:/riftwii/session.log."
+msgstr "Non installati: {1}. I motivi sono in sd:/riftwii/session.log."
+
+msgid "The emulated NAND folder can't be used: {1}"
+msgstr "La cartella della NAND emulata non si può usare: {1}"
+
+msgid "Starts the game with the cheats and settings shown here."
+msgstr "Avvia il gioco con i trucchi e le impostazioni mostrati qui."
+
+msgid "Wii channels"
+msgstr "Canali Wii"
+
+msgid "Which games Home lists: every drive's and the Wii's own, or one place's only. With a game on both drives, one copy is enough."
+msgstr "Quali giochi mostra la Home: quelli di ogni unità e quelli della Wii stessa, o solo quelli di un posto. Con un gioco su entrambe le unità, basta una copia."
+
+msgid "This game's data was removed from the Wii, so it can't start."
+msgstr "I dati di questo gioco sono stati cancellati dalla Wii, quindi non può partire."
+
+msgid "GameCube games play in Wii mode (trial)"
+msgstr "I giochi GameCube funzionano in modalità Wii (prova)"
+
+msgid "WiiWare and Virtual Console games on Home"
+msgstr "Giochi WiiWare e Virtual Console nella Home"
+
+msgid "A game can have more Home tiles, each with its own mods"
+msgstr "Un gioco può avere più riquadri nella Home, ognuno con le sue mod"
+
+msgid "Put the games on Home in your own order"
+msgstr "Metti i giochi della Home nel tuo ordine"
+
+msgid "Indigo: a third built-in theme"
+msgstr "Indigo: un terzo tema incluso"
+
+msgid "Saves can be shared with USB Loader GX's emulated NAND"
+msgstr "I salvataggi si possono condividere con la NAND emulata di USB Loader GX"
 
 msgid "Memory for RiftWii's extras"
 msgstr "Memoria per gli extra di RiftWii"
@@ -1748,3 +2318,312 @@ msgstr "registro dei crash"
 
 msgid "screenshots"
 msgstr "screenshot"
+
+msgid "About this game"
+msgstr "Informazioni sul gioco"
+
+msgid "What GameTDB says about the game: when it came out, how many can play, the controllers it takes and its story."
+msgstr "Cosa dice GameTDB del gioco: quando è uscito, quanti possono giocare, i controller che usa e la trama."
+
+msgid "Wii Remote"
+msgstr "Telecomando Wii"
+
+msgid "Nunchuk"
+msgstr "Nunchuk"
+
+msgid "Classic Controller"
+msgstr "Controller tradizionale"
+
+msgid "GameCube controller"
+msgstr "Controller GameCube"
+
+msgid "Balance Board"
+msgstr "Balance Board"
+
+msgid "Wii MotionPlus"
+msgstr "Wii MotionPlus"
+
+msgid "Wii Wheel"
+msgstr "Wii Wheel"
+
+msgid "Wii Zapper"
+msgstr "Wii Zapper"
+
+msgid "Microphone (Wii Speak)"
+msgstr "Microfono (Wii Speak)"
+
+msgid "USB keyboard"
+msgstr "Tastiera USB"
+
+msgid "Nintendo DS"
+msgstr "Nintendo DS"
+
+msgid "Guitar"
+msgstr "Chitarra"
+
+msgid "Drums"
+msgstr "Batteria"
+
+msgid "Dance mat"
+msgstr "Tappetino da ballo"
+
+msgid "uDraw tablet"
+msgstr "Tavoletta uDraw"
+
+msgid "January"
+msgstr "gennaio"
+
+msgid "February"
+msgstr "febbraio"
+
+msgid "March"
+msgstr "marzo"
+
+msgid "April"
+msgstr "aprile"
+
+msgid "May"
+msgstr "maggio"
+
+msgid "June"
+msgstr "giugno"
+
+msgid "July"
+msgstr "luglio"
+
+msgid "August"
+msgstr "agosto"
+
+msgid "September"
+msgstr "settembre"
+
+msgid "October"
+msgstr "ottobre"
+
+msgid "November"
+msgstr "novembre"
+
+msgid "December"
+msgstr "dicembre"
+
+msgid "{1} {2}, {3}"
+msgstr "{2} {1} {3}"
+
+msgid "Downloading game details"
+msgstr "Scaricamento dei dati dei giochi"
+
+msgid "No game details"
+msgstr "Nessun dato del gioco"
+
+msgid "Could not download them: {1}"
+msgstr "Impossibile scaricarli: {1}"
+
+msgid "Reading game details..."
+msgstr "Lettura dei dati dei giochi..."
+
+msgid "Once for all your games: next time they open at once."
+msgstr "Una volta per tutti i tuoi giochi: la prossima volta si aprono subito."
+
+msgid "No details for this game"
+msgstr "Nessun dato per questo gioco"
+
+msgid "GameTDB's database does not list {1}."
+msgstr "Il database di GameTDB non contiene {1}."
+
+msgid "Could not read them: {1}"
+msgstr "Impossibile leggerli: {1}"
+
+msgid "No game details yet"
+msgstr "Ancora nessun dato dei giochi"
+
+msgid "They come from GameTDB's database of Wii games. Turn on Download names and cheats in Settings to get it."
+msgstr "Provengono dal database dei giochi Wii di GameTDB. Attiva Scarica nomi e trucchi nelle Impostazioni per ottenerlo."
+
+msgid "Download game details?"
+msgstr "Scaricare i dati dei giochi?"
+
+msgid "They come from GameTDB's database of every Wii game: about 2 MB, kept on the SD card. Download it now?"
+msgstr "Provengono dal database di GameTDB con tutti i giochi Wii: circa 2 MB, salvati sulla scheda SD. Scaricarlo ora?"
+
+msgid "Players"
+msgstr "Giocatori"
+
+msgid "1 player"
+msgstr "1 giocatore"
+
+msgid "1 to {1} players"
+msgstr "Da 1 a {1} giocatori"
+
+msgid "Needed to play"
+msgstr "Necessario per giocare"
+
+msgid "Also works with"
+msgstr "Funziona anche con"
+
+msgid "Connected"
+msgstr "Collegato"
+
+msgid "Not connected"
+msgstr "Non collegato"
+
+msgid "Story"
+msgstr "Trama"
+
+msgid "Game details of {1}"
+msgstr "Dati del {1}"
+
+msgid "From GameTDB, the database of Wii games its community keeps."
+msgstr "Da GameTDB, il database dei giochi Wii curato dalla sua comunità."
+
+msgid "Select"
+msgstr "Scegli"
+
+msgid "Controllers"
+msgstr "Controller"
+
+msgid "Downloads off"
+msgstr "Download disattivati"
+
+msgid "Downloads on"
+msgstr "Download attivi"
+
+msgid "Game settings"
+msgstr "Impostazioni del gioco"
+
+msgid "Mods on: {1}"
+msgstr "Mod attive: {1}"
+
+msgid "Starts the game with the mods and settings shown here."
+msgstr "Avvia il gioco con le mod e le impostazioni mostrate qui."
+
+msgid "This game's own picture, language, online server and the rest. The ones not changed follow Settings."
+msgstr "Immagine, lingua, server online e il resto solo per questo gioco. Ciò che non cambi segue le Impostazioni."
+
+msgid "{1} changed"
+msgstr "{1} modificati"
+
+msgid "How games are drawn on your TV: picture width, the flicker filter, black borders, the video mode and the aspect ratio."
+msgstr "Come i giochi appaiono sulla TV: larghezza dell'immagine, filtro antisfarfallio, bordi neri, modalità video e proporzioni."
+
+msgid "The language games are told the console uses, the cIOS they run under, where the Wii Menu button leads, and in-game screenshots."
+msgstr "La lingua comunicata ai giochi, il cIOS su cui girano, dove porta il pulsante Menu Wii e gli screenshot nel gioco."
+
+msgid "The GameCube controller adapter for Wii U, and rumble for GameCube controllers and Wii Remotes."
+msgstr "L'adattatore per controller GameCube per Wii U, e la vibrazione dei controller GameCube e dei telecomandi Wii."
+
+msgid "How Home shows your games: covers, a shelf or channels, from which drive, in what order, play history and the clock."
+msgstr "Come la home mostra i tuoi giochi: copertine, scaffale o canali, da quale unità, in che ordine, cronologia e orologio."
+
+msgid "The menu's language, theme, letters, size on the TV, sounds and music."
+msgstr "La lingua, il tema, i caratteri, la dimensione sulla TV, i suoni e la musica del menu."
+
+msgid "Downloads of game names, covers and cheats, the online server for games, and RiftWii's updates."
+msgstr "Download di nomi, copertine e trucchi, il server online dei giochi e gli aggiornamenti di RiftWii."
+
+msgid "Reading the SD card and the USB drive again, and mods from a PC on the network (RiiFS)."
+msgstr "Rileggere la scheda SD e l'unità USB, e mod da un PC in rete (RiiFS)."
+
+msgid "Problem reports, what's new, the tutorial, the RiftWii channel, resetting the settings and the credits."
+msgstr "Segnalazioni di problemi, novità, il tutorial, il canale RiftWii, il ripristino delle impostazioni e i crediti."
+
+msgid "About"
+msgstr "Info"
+
+msgid "Drives"
+msgstr "Unità"
+
+msgid "Home"
+msgstr "Home"
+
+msgid "Options"
+msgstr "Opzioni"
+
+msgid "Released"
+msgstr "Uscita"
+
+msgid "Genre"
+msgstr "Genere"
+
+msgid "Made by"
+msgstr "Creato da"
+
+msgid "Developer"
+msgstr "Sviluppatore"
+
+msgid "Publisher"
+msgstr "Editore"
+
+msgid "Up to {1} players"
+msgstr "Fino a {1} giocatori"
+
+msgid "The mod's own"
+msgstr "Quello della mod"
+
+msgid "Pages at the sides"
+msgstr "Pagine ai lati"
+
+msgid "Channels: the edges of the previous and the next page at the sides of the screen, as on the Wii Menu. Point at one and press A to turn to that page."
+msgstr "Canali: i bordi della pagina precedente e di quella successiva ai lati dello schermo, come nel Menu Wii. Punta su uno e premi A per passare a quella pagina."
+
+msgid "Could not save the tiles to the SD card."
+msgstr "Impossibile salvare i riquadri sulla scheda SD."
+
+msgid "The tile needs a name."
+msgstr "Il riquadro ha bisogno di un nome."
+
+msgid "This game has {1} tiles already, as many as it can have."
+msgstr "Questo gioco ha già {1} riquadri, il massimo possibile."
+
+msgid "Home has {1} extra tiles already, as many as it can have."
+msgstr "La home ha già {1} riquadri in più, il massimo possibile."
+
+msgid "This game has no ID to keep its tile under."
+msgstr "Questo gioco non ha un ID con cui salvare il riquadro."
+
+msgid "Could not save the tile's mods to the SD card."
+msgstr "Impossibile salvare le mod del riquadro sulla scheda SD."
+
+msgid "This tile is not on the list any more."
+msgstr "Questo riquadro non è più nell'elenco."
+
+msgid "Shift"
+msgstr "Maiusc"
+
+msgid "Make a Home tile with these mods..."
+msgstr "Crea un riquadro nella home con queste mod..."
+
+msgid "Rename this tile..."
+msgstr "Rinomina questo riquadro..."
+
+msgid "Remove this tile from Home"
+msgstr "Togli questo riquadro dalla home"
+
+msgid "Puts this game on Home again as a tile of its own, which starts it with the mods and settings set here."
+msgstr "Mette di nuovo questo gioco nella home come riquadro a sé, che lo avvia con le mod e le impostazioni scelte qui."
+
+msgid "This page is the \"{1}\" tile's: what is changed here is changed for it only."
+msgstr "Questa pagina è del riquadro \"{1}\": ciò che cambi qui cambia solo per lui."
+
+msgid "Takes the \"{1}\" tile off Home. The game and its mods stay."
+msgstr "Toglie il riquadro \"{1}\" dalla home. Il gioco e le sue mod restano."
+
+msgid "Rename the tile"
+msgstr "Rinomina il riquadro"
+
+msgid "Name the new tile"
+msgstr "Nome del nuovo riquadro"
+
+msgid "Renamed \"{1}\"."
+msgstr "Nuovo nome: \"{1}\"."
+
+msgid "\"{1}\" is on Home now: its tile starts the game with these mods. Its own picture can go in sd:/riftwii/profiles/{2}.png."
+msgstr "\"{1}\" ora è nella home: il suo riquadro avvia il gioco con queste mod. Un'immagine sua può andare in sd:/riftwii/profiles/{2}.png."
+
+msgid "Remove this tile?"
+msgstr "Togliere questo riquadro?"
+
+msgid "\"{1}\" goes from Home, with its own mods and settings, and its picture in sd:/riftwii/profiles if it has one. The game and its mods stay."
+msgstr "\"{1}\" sparisce dalla home, con le sue mod e impostazioni e la sua immagine in sd:/riftwii/profiles, se ce l'ha. Il gioco e le sue mod restano."
+
+msgid "Removed \"{1}\". This page is the game's own again."
+msgstr "\"{1}\" tolto. Questa pagina è di nuovo quella del gioco."

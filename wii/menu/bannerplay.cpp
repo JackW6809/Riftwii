@@ -11,6 +11,8 @@
 
 #include "banners.hpp"
 #include "log.hpp"
+#include "riftwii/gcbanner.hpp"
+#include "riftwii/gccard.hpp"
 #include "riftwii/tpl.hpp"
 #include "video.h"
 
@@ -199,18 +201,59 @@ void BannerPlayer::Free() {
     arc_ = nullptr;
     arc_size_ = 0;
     loaded_ = false;
+    picture_ = false;
 }
 
-bool BannerPlayer::Load(const std::vector<std::uint8_t>& opening_bnr, bool icon, std::string& error) {
+bool BannerPlayer::Load(const std::vector<std::uint8_t>& opening_bnr, bool icon, std::string& error,
+                        const std::string& game_id) {
     // A banner that asks for more memory than is free shows as a name tile
     // instead of ending the menu.
     try {
+        if (is_gc_banner(opening_bnr.data(), opening_bnr.size()))
+            return LoadGameCube(opening_bnr, icon, gc_card_shift_jis(game_id), error);
         return LoadParts(opening_bnr, icon, error);
     } catch (const std::bad_alloc&) {
         Free();
         error = "out of memory for the banner";
         return false;
     }
+}
+
+// The disc's picture is drawn through a layout made here (riftwii/gcbanner.hpp's
+// gc_picture_layout): the same drawing as a Wii banner's, its round clip
+// on the tile and its 16:9 stretch included. Nothing moves in it.
+bool BannerPlayer::LoadGameCube(const std::vector<std::uint8_t>& bnr, bool icon, bool shift_jis, std::string& error) {
+    Free();
+    icon_ = icon;
+    GcBanner banner;
+    if (!parse_gc_banner(bnr.data(), bnr.size(), shift_jis, banner, error)) return false;
+    name_ = gc_banner_name(banner, BannerLanguageIndex());
+    // The picture as it lies in the file is already a GX RGB5A3 texture;
+    // GX reads it from 32-byte aligned memory.
+    Texture& texture = textures_[kGcPictureTexture];
+    texture.own = static_cast<std::uint8_t*>(memalign(32, kGcBannerPictureBytes));
+    if (!texture.own) {
+        Free();
+        error = "out of memory for the banner";
+        return false;
+    }
+    std::memcpy(texture.own, bnr.data() + kGcBannerPictureOffset, kGcBannerPictureBytes);
+    DCFlushRange(texture.own, kGcBannerPictureBytes);
+    GX_InitTexObj(&texture.obj, texture.own, kGcBannerWidth, kGcBannerHeight, GX_TF_RGB5A3, GX_CLAMP, GX_CLAMP,
+                  GX_FALSE);
+    texture.ok = true;
+    // The icon's bands and the banner's tint take their colours from the picture.
+    base_ = gc_picture_layout(icon, gc_picture_colours(banner.rgba));
+    language_ = LanguagePanes();
+    has_start_ = has_loop_ = false;
+    work_ = base_;
+    by_index_.clear();
+    looked_up_.clear();
+    tex_dirty_ = true;  // GX_InvalidateTexAll at the next Draw, on the GUI thread
+    picture_ = true;
+    loaded_ = true;
+    Restart();
+    return true;
 }
 
 bool BannerPlayer::LoadParts(const std::vector<std::uint8_t>& opening_bnr, bool icon, std::string& error) {
@@ -406,7 +449,10 @@ void BannerPlayer::Draw(float x, float y, float w, float h, int alpha, const Rou
     GX_SetChanCtrl(GX_COLOR0A0, GX_DISABLE, GX_SRC_REG, GX_SRC_VTX, GX_LIGHTNULL, GX_DF_NONE, GX_AF_NONE);
     // The narrowing that keeps a flagged pane's shape in that stretch; an
     // icon's in a box wider than 4:3 (a widescreen menu's channel tile).
-    layout_quads(work_, quads_, scratch_, (wide_ || icon_) && sx > 0 ? sy / sx : 1.0f);
+    const float narrowing = (wide_ || icon_) && sx > 0 ? sy / sx : 1.0f;
+    // A GameCube disc's picture spans the channel whatever its shape.
+    if (picture_ && icon_) gc_picture_fit(work_, narrowing);
+    layout_quads(work_, quads_, scratch_, narrowing);
     // A vertex's colour: the quad's, or the material's by its channel
     // control, times the banner's own fade.
     const auto vertex_color = [alpha](const LytQuad& q, const LytMaterial* m, int k) {
@@ -544,6 +590,14 @@ void BannerPlayer::Draw(float x, float y, float w, float h, int alpha, const Rou
         const std::int16_t kBlack[4] = {0, 0, 0, 0}, kWhite[4] = {255, 255, 255, 255};
         GX_SetTevColorS10(GX_TEVREG0, S10(m ? m->black : kBlack));
         GX_SetTevColorS10(GX_TEVREG1, S10(m ? m->white : kWhite));
+        // A material with its own stages, drawn before this one, may have
+        // left its swaps behind: Mario & Sonic at the Olympic Winter Games'
+        // icon has a light effect whose stage reads its texture through
+        // swap table 2, and the logo after it came out as its green
+        // channel alone (grey on a tester's Wii). Every stage here reads
+        // its colours as they are.
+        GX_SetTevSwapModeTable(GX_TEV_SWAP0, GX_CH_RED, GX_CH_GREEN, GX_CH_BLUE, GX_CH_ALPHA);
+        for (int s = 0; s < 3; ++s) GX_SetTevSwapMode(static_cast<u8>(GX_TEVSTAGE0 + s), GX_TEV_SWAP0, GX_TEV_SWAP0);
         // Stage 0: the texture's black to white mapped onto C0 to C1 (no
         // texture: C1). Stage 1: times the rasterised colour.
         GX_SetNumTevStages(2);

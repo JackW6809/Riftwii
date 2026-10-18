@@ -15,12 +15,18 @@
 // The hex mode is the same card with 0-9 and A-F only, for a cheat's
 // values: its own title, at most `maxLength` digits, and a note above the
 // card (what the value is, from the cheat's notes).
+//
+// The name mode types a name (a Home tile's): letters in both cases, with
+// a Shift key that capitalises the next letter, on by itself at the start
+// and after a space, as a phone's keyboard; OK in place of Search.
 class GuiSearchKeys : public GuiElement {
 public:
     static constexpr std::size_t kMaxLength = 32;
 
     explicit GuiSearchKeys(const std::string& start);
     GuiSearchKeys(const std::string& start, const std::string& title, const std::string& note, std::size_t maxLength);
+    // The name mode.
+    GuiSearchKeys(const std::string& start, const std::string& title, std::size_t maxLength);
     ~GuiSearchKeys() override;
     const std::string& Text() const { return text; }
     // A short line at the right of the title (Home's live search: how many
@@ -29,6 +35,11 @@ public:
     // The games that match so far, on a box above the card (the keyboard
     // hides the grid behind it); empty hides the box. GUI halted.
     void SetMatches(const std::string& text);
+    // Home's search: the characters that still lead to a game when typed
+    // next (lower case; ' ' for Space). The other letter keys are dimmed,
+    // can't be typed and the D-pad passes over them, so a name is a few
+    // presses away. Not called (the hex pad): every key. GUI halted.
+    void SetAvailable(const std::string& chars);
     // Search was chosen (1), cancelled (-1), or neither yet (0).
     int Result() const { return result; }
     void Draw() override;
@@ -38,21 +49,30 @@ private:
     struct Key {
         std::string label;
         char ch;  // typed; 0 for the action keys
-        enum class Act { Type, Space, Back, Clear, Cancel, Search } act;
+        enum class Act { Type, Space, Back, Clear, Cancel, Search, Shift } act;
         int row, x, w;
         GuiText* caption;
     };
     void Press(const Key& k);
+    // Whether `k` can be pressed: an action, or a character still available.
+    bool Live(const Key& k) const;
     int KeyAt(int x, int y) const;
     int Neighbour(int from, int dRow) const;
     int Y(int row) const;
 
-    void Build(const std::string& titleText, const std::string& noteText, bool hex);
+    enum class Mode { Search, Hex, Name };
+    void Build(const std::string& titleText, const std::string& noteText, Mode mode);
+    // The name mode: the letter keys show the case the next letter takes.
+    void ShowCase();
 
     std::vector<Key> keys;
     std::string text;
+    std::string available;  // SetAvailable's characters
+    bool limited = false;   // SetAvailable was called
     std::size_t maxLength = kMaxLength;
     bool hex = false;
+    bool naming = false;  // the name mode
+    bool shift = false;   // the name mode: the next letter is a capital
     GuiText* shown;
     GuiText* title;
     GuiText* note = nullptr;

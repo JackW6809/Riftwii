@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "nandchannels.hpp"
 #include "riftwii/disc.hpp"
 #include "riftwii/dol.hpp"
 #include "riftwii/fst.hpp"
@@ -153,6 +154,9 @@ struct BootOptions {
     // the runtime copies the title's NAND save into it before the game's
     // first request. Any other existing folder is used as it is.
     bool savegame_clone = false;
+    // And when the folder exists but holds no save (only for the shared
+    // emulated NAND, whose other loader makes the game's folder up front).
+    bool savegame_clone_empty = false;
     // The folder is RiftWii's own (Saves on the game's page, not a pack's
     // <savegame>): an emulated NAND (wii/storage/d2xsave.hpp) whose
     // title/<type>/<id>/data is served; flat files from before move in.
@@ -195,6 +199,9 @@ struct LaunchExtras {
     std::uint32_t code_list_end = 0;
     int code_hooktype = 0;
     std::vector<GamePoke> pokes;
+    // Picked at Start: the code build starts with its codes, gameconfig.txt
+    // and a plugged-in GameCube adapter only, none of RiftWii's other extras.
+    bool code_build_plain = false;
     // What a game's Wii Menu button starts, for a headless launch
     // (wii/launch/headless.hpp): a title, or the Wii Menu itself; neither
     // leaves it to the Wii Menu button setting.
@@ -212,6 +219,9 @@ struct LaunchExtras {
     bool pack_keeps_saves = false;  // a pack's <savegame> decides where the saves go
 };
 void SetLaunchExtras(LaunchExtras extras);
+// What SetLaunchExtras set, for a launch that does not go through
+// boot_game (a GameCube game's, wii/launch/gcnative.cpp, reads its cheats).
+const LaunchExtras& CurrentLaunchExtras();
 // The menu's word on the next launch: a pack keeps its own saves.
 bool LaunchPackKeepsSaves();
 
@@ -244,5 +254,14 @@ bool debug_off(const char* what);
 // `options` by value: callers move theirs in (a pack's main.dol and
 // replacements can be megabytes, and the launch needs them only once).
 bool boot_game(const DiscProbe& probe, BootOptions options, std::string& error);
+
+// Starts a WiiWare or Virtual Console game installed on the Wii with
+// RiftWii's own loader, so the game gets Back to RiftWii: reloads the IOS
+// its TMD asks for, has ES run it as its own title (ES_Identify, so its
+// saves are its own), copies its program into memory and jumps to it.
+// Returns only when it did not start, with `error` saying why; the caller
+// then lets the system start the title as the Wii Menu does. Check
+// reload_terminal_failure() first: after that, nothing more may be tried.
+bool boot_channel(ChannelBootFiles files, std::string& error);
 
 }  // namespace riftwii::wii

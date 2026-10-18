@@ -53,6 +53,26 @@ bool game_clears_mem1_top(const std::string& game_id);
 // (an RVZ's reads, a pack's files) cannot move its code to the top of MEM2
 // for them, and stays below the FST, where the game overwrites it.
 bool game_runs_no_mem2_code(const std::string& game_id);
+// Games that need nearly all of MEM2, so the few hundred KB an RVZ's reader
+// takes in game can be too much (the menu says so before an RVZ launch).
+bool game_needs_most_of_mem2(const std::string& game_id);
+
+// GameCube games (the native loader, gcnative.cpp) whose ARAM addresses
+// must stay as the SDK gives them: raising them to 0x10004000, for the
+// sound program to read MEM2, breaks a check of their own. Mario Party 4's
+// sound manager (msmSysInit, its ARAM end fixed at 0x808000) tests
+// ARGetBaseAddress() plus its sound data's size against that end, sees no
+// room and stops in an endless loop before the first frame. Their sound
+// program then reads its samples from MEM1 (wrong sound), but they run.
+bool gc_keeps_aram_addresses(const std::string& game_id);
+
+// GameCube games whose file loader thread takes a queued load as soon as a
+// read finishes and allocates from JSystem's current heap, a single global:
+// with reads at the SD card's speed it can wake while another thread has
+// made a small, full heap current (Luigi's Mansion: a 512 KB solid heap for
+// a room's models) and gets nothing. The native loader makes each load use
+// the heap current where it was queued (gcnative.cpp's find_lm_loader).
+bool gc_loads_use_queued_heap(const std::string& game_id);
 
 // Games whose main.dol only starts another executable on the disc (EA's
 // 2007 games among them): the FST index of the one to start in its place,
@@ -116,5 +136,22 @@ struct D2xSlot {
 };
 int gx_pick_cios(const std::string& game_id, int requested_ios, std::vector<D2xSlot> slots, bool sd_card,
                  std::string& why);
+
+// Games that read a USB keyboard through IOS's /dev/usb/kbd: Animal
+// Crossing: City Folk (RUU) and Monster Hunter Tri (RMH, its chat).
+bool game_uses_usb_keyboard(const std::string& game_id);
+// Whether an IOS, or a d2x cIOS on that base, has /dev/usb/kbd: IOS30 and
+// up, but not 57-59, whose new USB stack has no keyboard driver (as
+// Dolphin's VersionInfo.cpp has it; City Folk under IOS58 in Dolphin:
+// "Unknown device: /dev/usb/kbd").
+bool ios_has_usb_keyboard(int ios);
+// `order` (cIOS slots to try) with the slots whose base has the keyboard
+// driver first, then the others, each group as it was. The d2x slots not
+// in `order` that have it are tried too. With the SD card in use, a base
+// below 56 goes last, after the ones without the keyboard: GX keeps the
+// SD card to bases 56-60 (see gx_pick_cios), and a pack that fails in game
+// is worse than no keyboard.
+std::vector<int> keyboard_slots_first(const std::vector<int>& order, const std::vector<D2xSlot>& slots,
+                                      bool sd_card);
 
 }  // namespace riftwii

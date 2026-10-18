@@ -23,6 +23,7 @@
 #include <sstream>
 
 #include "d2xsd.hpp"
+#include "gclaunch.hpp"
 #include "loadersettings.hpp"
 #include "online.hpp"
 #include "boot.hpp"
@@ -43,6 +44,7 @@
 #include "riftwii/wiicrypt.hpp"
 #include "otpkey.hpp"
 #include "memlimits.hpp"
+#include "menumusic.hpp"
 #include "umsdev.hpp"
 #include "gcadapter.hpp"
 #include "netsock.hpp"
@@ -63,6 +65,11 @@ bool g_raw_mounted = false;
 bool g_libfat_mounted = false;
 bool g_usb_started = false;  // libogc's USB storage driver runs
 bool g_sd_back = false;  // SD remounted (and the log reopened) after an IOS reload
+bool g_usb_wiiu_drive = false;  // the only drive found is a Wii U's own (usb_only_wiiu_drive)
+// What a drive whose block 0 looks encrypted is called in the log and the
+// scan's error (the menu words it for players itself).
+constexpr const char* kWiiUDriveError =
+    "the USB drive is a Wii U's own storage drive (encrypted by the Wii U); RiftWii cannot read it and leaves it alone";
 // The RVZ game being launched: the loader's partition reads come from it.
 std::shared_ptr<const ByteSource> g_rvz_file;
 std::unique_ptr<RvzImage> g_rvz;
@@ -277,6 +284,7 @@ bool pick_drive(const usb_device_entry* devices, u8 listed, std::string& error) 
         bool games = false;
     };
     std::vector<Candidate> readable;
+    bool saw_wiiu = false;
     for (u8 i = 0; i < listed && i < 8; ++i) {
         const usb_device_entry& d = devices[i];
         if (!is_mass_storage(d)) continue;
@@ -335,6 +343,9 @@ bool pick_drive(const usb_device_entry* devices, u8 listed, std::string& error) 
                 } else if (bytes == 512 && std::memcmp(b, "WBFS", 4) == 0) {
                     ok = games = true;
                     what = "a WBFS drive";
+                } else if (bytes == 512 && classify_drive_block0(b) == DriveBlock0::WiiU) {
+                    what = "a Wii U's own drive (encrypted; left alone)";
+                    saw_wiiu = true;
                 }
             }
             logf("USB: drive %04x:%04x LUN %d: %u sectors of %u bytes, %s\n", d.vid, d.pid, static_cast<int>(lun),
@@ -348,6 +359,11 @@ bool pick_drive(const usb_device_entry* devices, u8 listed, std::string& error) 
         if (!kept) USBStorage_Close(&h);
     }
     if (readable.empty()) {
+        if (saw_wiiu) {
+            g_usb_wiiu_drive = true;
+            error = kWiiUDriveError;
+            return false;
+        }
         error = "none of the USB drives plugged in has a FAT32 or NTFS volume RiftWii can read (a Wii U-formatted "
                 "drive cannot be read: the games need a drive formatted FAT32 or NTFS on a computer)";
         return false;
@@ -444,6 +460,7 @@ bool open_usb_raw_disc(std::string& error) {
 
 bool ensure_usb(std::string& error) {
     if (g_raw_mounted && (g_usb_volume || g_usb_raw_disc || g_usb_wbfs)) return true;
+    g_usb_wiiu_drive = false;
     // libogc's storage driver and d2x each pick one drive, not always the
     // same one when two are plugged in (a Wii U's own drive and the games'),
     // so with more than one RiftWii picks the drive it can read itself.
@@ -525,6 +542,15 @@ bool ensure_usb(std::string& error) {
             unmount_usb_games();
             return false;
         }
+        // A Wii U's own drive: named as such, and left alone.
+        static std::uint8_t block0[512] ATTRIBUTE_ALIGN(32);
+        if (usb_read(0, 1, block0) && classify_drive_block0(block0) == DriveBlock0::WiiU) {
+            logf("USB: %s\n", kWiiUDriveError);
+            g_usb_wiiu_drive = true;
+            error = kWiiUDriveError;
+            unmount_usb_games();
+            return false;
+        }
         error = "USB has no readable FAT32 or NTFS volume: " + error;
         if (error.find("signature missing") != std::string::npos) {
             error += " (a Wii U-formatted drive cannot be read: format it FAT32 on a computer)";
@@ -571,7 +597,14 @@ bool open_rvz_game(const ImageVolume& volume, const std::string& prefix, ImageGa
     if (!read_rvz_head(*image.pieces[0].source, head, error)) return false;
     DiscHeader header;
     if (!parse_disc_header(head.disc_header.data(), head.disc_header.size(), header, error)) return false;
-    const RvzVerdict verdict = check_rvz(head, image.pieces[0].file.entry.size);
+    RvzVerdict verdict = check_rvz(head, image.pieces[0].file.entry.size);
+    // A GameCube game is played from a folder of its own in sd:/games
+    // (wii/launch/gclaunch.hpp), not from the Wii games' folders.
+    if (head.disc_type == 1) {
+        verdict.support = RvzSupport::Unsupported;
+        verdict.reasons.assign(1, "It is a GameCube game: RiftWii plays those from a folder of their own in "
+                                  "sd:/games (sd:/games/<name>/game.rvz).");
+    }
     game.id = header.game_id;
     game.title = header.title;
     game.revision = header.version;
@@ -579,6 +612,7 @@ bool open_rvz_game(const ImageVolume& volume, const std::string& prefix, ImageGa
     game.rvz_support = verdict.support;
     game.rvz_reasons = verdict.reasons;
     game.rvz_disc_bytes = head.iso_size;
+    game.rvz_chunk_bytes = head.chunk_size;
     game.checked = true;
     logf("  %s\n", describe_rvz(head).c_str());
     for (const std::string& r : game.rvz_reasons) logf("  %s\n", r.c_str());
@@ -1376,6 +1410,16 @@ std::string GameDisplayName(const std::string& id, const std::string& internal) 
     return display_title(titles(), id, std::string(), internal);
 }
 
+const TitleTable* LoadedTitles() { return g_titles_loaded && !g_titles_from.empty() ? &g_titles : nullptr; }
+
+bool GameTitleListed(const std::string& id, std::string& title) {
+    const TitleTable* table = titles();
+    title.clear();
+    if (table == nullptr) return false;
+    if (const std::string* found = table->find(id)) title = *found;
+    return true;
+}
+
 void ReloadTitles() {
     g_titles = TitleTable{};
     g_titles_loaded = false;
@@ -1610,6 +1654,16 @@ std::vector<int> image_cios_order(const ImageGame& game, int chosen, bool uses_s
     for (int slot : {249, 250, 251}) {
         if (std::find(order.begin(), order.end(), slot) == order.end()) order.push_back(slot);
     }
+    if (game_uses_usb_keyboard(game.id)) {
+        // A base-58 d2x has no keyboard driver: a tester's City Folk ran on
+        // IOS251 after IOS249 (base 56) did not start the drive, and took
+        // no keyboard (2610-412).
+        order = keyboard_slots_first(order, d2x_slots(), game.device == ImageDevice::Sd || uses_sd);
+        std::string list;
+        for (int slot : order) list += (list.empty() ? "" : ", ") + std::to_string(slot);
+        logf("cIOS: %s reads a USB keyboard, which d2x bases 57-59 have no driver for: tried in the order %s\n",
+             game.id.c_str(), list.c_str());
+    }
     return order;
 }
 
@@ -1671,6 +1725,8 @@ std::uint64_t usb_sector0_hash(const std::uint8_t* sector, std::size_t bytes) {
     return h;
 }
 
+bool usb_only_wiiu_drive() { return g_usb_wiiu_drive; }
+
 bool usb_picked_drive(std::uint32_t& sector_bytes, std::uint64_t& sector0_hash) {
     if (!g_picked.known) return false;
     sector_bytes = g_picked.sector_bytes;
@@ -1692,6 +1748,7 @@ bool scan_sd_games(ImageCatalog& out, std::string& error) {
     if (!mount_image_volume(&sd_read, g_sd_volume, error)) { error = "SD has no readable FAT32 or NTFS volume: " + error; return false; }
     std::string failure; scan_dir(*g_sd_volume, "sd:/", ImageDevice::Sd, "sd:/wbfs", true, UsbImageFormat::Wbfs, out, failure); scan_dir(*g_sd_volume, "sd:/", ImageDevice::Sd, "sd:/games", false, UsbImageFormat::Iso, out, failure);
     scan_own_folders(*g_sd_volume, "sd", ImageDevice::Sd, out, failure);
+    ScanGcImages(out.games);
     apply_titles(out);
     out.status = out.games.empty() ? (failure.empty() ? "No valid Wii images under sd:/wbfs or sd:/games" : "No valid SD images: " + failure) : "SD: " + std::to_string(out.games.size()) + " valid game(s)";
     logf("%s\n", out.status.c_str());
@@ -1774,6 +1831,7 @@ bool activate_disc_cios(int cios_slot, const char* log_path, std::string& error,
         }
         logf("Disc: reload IOS%d for %s; releasing Wii Remotes, USB, SD and DI\n", slot, purpose);
         mem::CheckHeap("before the cIOS reload");
+        LaunchMusicPauseForReload("the disc's cIOS is loaded next");
         LogClose();
         const std::string released = release_for_reload();
         const ReloadResult r = reload_ios(slot, error, true);
@@ -1889,6 +1947,7 @@ bool activate_image_game(const ImageGame& game, int cios_slot, void*& storage, s
     // hardware access, which an IOS reload ends: the running IOS's ES is
     // told to leave it on for the cIOS.
     if (block_ios_reload) keep_hardware_access(device_name(game.device));
+    LaunchMusicPauseForReload("the game's cIOS is loaded next");
     LogClose();
     const std::string released = release_for_reload();
     const PadPairings pads_before = ReadPadPairings();
@@ -1934,6 +1993,9 @@ bool activate_image_game(const ImageGame& game, int cios_slot, void*& storage, s
                 " (the details are in boot.log)";
         return post_reload_failure(log_path, error);
     }
+    // The cIOS is up and the heap whole: the menu's music again for the
+    // rest of the launch (debug_off = musicresume keeps it quiet).
+    if (!debug_off("musicresume")) LaunchMusicResumeAfterReload();
     if (disc_device == ImageDevice::Usb && !rvz) log_d2x_usb_view(game.fragments);
     logf("%s: d2x F9 config\n", device_name(game.device));
     if (!di::configure_frag(device,storage,static_cast<std::uint32_t>(bytes.size()),error)) { error = "d2x F9 fragment setup failed: " + error; return post_reload_failure(log_path, error); }

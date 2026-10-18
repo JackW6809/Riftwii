@@ -1,8 +1,7 @@
 # Testing RiftWii
 
-This is the full test plan for the next stable release. It covers
-everything that changed since the last stable one, 2.7.0, and the basics
-that must keep working. Please don't try to do all of it in one go: pick
+This is the full test plan for a release. It covers what changed
+lately and the basics that must keep working. Please don't try to do all of it in one go: pick
 the sections that match what you have (a disc, a USB drive, mods, a Wii U,
 a GameCube adapter, another loader) and go through those.
 
@@ -14,8 +13,7 @@ console; everything else is worth trying on both.
 
 1. Put the release zip's `sd-card` folder on your SD card (and
    `usb-drive` on your USB drive if you use one), replacing the old
-   files. Or, with Settings > Updates on Beta, let RiftWii update itself
-   (that's a test too: section 2).
+   files. Or let RiftWii update itself (that's a test too: section 2).
 2. Games on the SD card or a USB drive need d2x cIOS v11 beta3 or newer
    in 248 to 252 (249 and 251 are the usual ones). Discs work without one.
 3. Note your console: Wii or Wii U, region, and your cIOS slots. A
@@ -26,7 +24,7 @@ console; everything else is worth trying on both.
 Problem reports need no computer, and you don't need to take out your
 SD card:
 
-1. In RiftWii, go to **Settings > Send a problem report**.
+1. In RiftWii, go to **Settings > Help > Send a problem report**.
 2. Scan the QR code with your phone, or copy the link it shows.
 3. Post the link with a line on what you did and what happened.
 
@@ -73,8 +71,9 @@ For things that worked, a short "works" with the game, where it ran from
   you use.
 - [ ] **Aspect ratio** (Settings): 16:9 and 4:3 menus, on a Wii U's TV
   and a Wii's.
-- [ ] **Themes** (Settings > Theme): Default, Midnight and Bookshelf, each
-  with its own colours and music. Theme updates come with app updates.
+- [ ] **Themes** (Settings > Theme): Default, Midnight, Bookshelf and
+  Indigo, each with its own colours and pictures (and music, where it has
+  some). Theme updates come with app updates.
 - [ ] **Transitions**: opening a game, Settings and a channel zooms and
   slides smoothly, with no freeze.
 - [ ] **Menu music and sounds** (Settings): on and off, Normal, Quiet
@@ -98,10 +97,9 @@ For things that worked, a short "works" with the game, where it ran from
 
 ## 2. Updates
 
-- [ ] **Settings > Updates** switches between Stable and Beta.
-- [ ] **Check for a new version.** On Beta it offers the newest beta; on
-  Stable it doesn't offer anything older. The update shows its progress
-  and RiftWii restarts into the new version.
+- [ ] **Check for a new version** offers the newest release and nothing
+  older. The update shows its progress and RiftWii restarts into the new
+  version.
 - [ ] **Offline**: with no network, the start-up check gives up after a
   few seconds and the menu works.
 
@@ -216,7 +214,7 @@ For things that worked, a short "works" with the game, where it ran from
 
 ## 12. Problem reports and crashes
 
-- [ ] **Settings > Send a problem report**: the link opens and the QR code
+- [ ] **Settings > Help > Send a problem report**: the link opens and the QR code
   scans.
 - [ ] **A crash**: the crash screen shows, and the next start offers the
   report, with `gamecrash.txt` for a game crash.
@@ -233,6 +231,46 @@ From a USB drive or the SD card where you can:
 - [ ] **Resident Evil 4**, also from an RVZ: GameCube controllers work.
 - [ ] **Wii Fit Plus** with a Balance Board.
 - [ ] **Metroid Prime Trilogy** with a cheat on, inside one of its games.
+
+## 14. GameCube games
+
+Super Mario Sunshine as `sd:/games/GMSE01/game.iso` with Super Mario
+Eclipse's patch in `sd:/riftwii/patches`, and any other GameCube game in
+`sd:/games/<ID>/game.iso`. After each launch, keep `sd:/riftwii/boot.log`
+and `sd:/riftwii/gc/trace.bin`.
+
+- [ ] **Home**: GameCube games have the GC badge; Eclipse has BUILD until
+  it is built; Settings > Games from > GameCube lists only them; search
+  "gc" finds them.
+- [ ] **Build**: Eclipse's page says Build and play; the Build box shows
+  both covers; building shows the time left; Stop asks, B twice keeps
+  building; the game starts once built, and Play starts it at once next
+  time.
+- [ ] **Controls**: the controls card shows once before the first start,
+  with the controllers connected; a Wii Remote (sideways), a Nunchuk, a
+  Classic Controller and a GameCube controller in a Wii port all play.
+- [ ] **Sound and music**: in-game sound and the disc's streamed music.
+- [ ] **Memory card**: save in the game, restart it, the save loads; the
+  Saves tile lists it with its icon; copy it out as `.gci`, delete it,
+  add it back; Options > Memory card > Shared uses `shared.raw`.
+- [ ] **Leaving**: hold HOME for two seconds (HOME and - on a Wii Remote
+  alone; L, R, Z and Start on a GameCube controller), just after saving:
+  Settings > Return to: RiftWii goes back to the RiftWii channel (the Wii
+  Menu without it), Wii Menu to the Wii Menu; the save is there next time.
+- [ ] **A crash** (`sd:/riftwii/gc/crash` makes one 600 pad reads in;
+  `sd:/riftwii/gc/crashblack` makes it on a blanked screen, as in a game's
+  first moments): the blue screen shows "The game stopped.", the register
+  dump (the exception, SRR0 to DAR, R0-R31, the callers, the game's ID and
+  the version) and the hint, on the TV and straight at 4:3 and 16:9; HOME
+  or A goes back (to the Homebrew Channel when it started RiftWii), the
+  next start offers the report. In Dolphin, `sd:/riftwii/gc/leave` as well
+  takes A as pressed after twenty seconds.
+- [ ] **Options**: Disc reads Fast loads sooner; 480p on a component
+  cable (the game asks first); 16:9, picked by hand (Default keeps the
+  game's own), widens the 3D (experimental: on a Wii Super Mario Eclipse's
+  colours inverted and its picture doubled); a PAL game's language
+  changes its menus.
+- [ ] **Packs**: Luigi's Mansion with a pack that changes a file.
 
 ## Known issues
 

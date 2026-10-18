@@ -33,6 +33,30 @@ void paint_key(const Theme& theme, int kind, Canvas& out);
 // nine-sliced to any size: Home's notices.
 constexpr int kCardCorner = 24;
 void paint_card9(const Theme& theme, Canvas& out);
+// A soft drop shadow 64 x 64, nine-sliced kShadowCorner in from each edge:
+// a rounded 32 x 32 shape's at (16, 16), in the theme's shadow colour made
+// deeper, fading out over 16. Under a game page's box.
+// A channel as the Wii Menu frames one, 80 x 80 to be nine-sliced
+// kChannelFrameCorner in: a soft shadow in its kChannelFrameMargin, a thin
+// grey rim with small corners (kChannelRadius) and a white line inside it,
+// see-through within so the icon shows (`fill`: the card's colour within,
+// for a channel without an icon); lit, the accent's rim and glow. The
+// corner slice holds the roundest rim (kChannelRadius at corners 2, the
+// most a theme or Settings' Channel corners asks for), so no part of its
+// curve is stretched along the edges.
+constexpr int kChannelFrameMargin = 8;
+constexpr int kChannelFrameCorner = 24;
+constexpr float kChannelRadius = 6.0f;
+void paint_channel_frame9(const Theme& theme, bool over, bool fill, Canvas& out);
+// The name label under a lit channel, 48 x 44, nine-sliced kLabelCorner
+// in: a card-coloured pill with a fine edge and a soft shadow, 6 in from
+// each side (the label's text box is the inside).
+constexpr int kLabelCorner = 20;
+constexpr int kLabelMargin = 6;
+void paint_label9(const Theme& theme, Canvas& out);
+constexpr int kShadowCorner = 24;
+constexpr int kShadowMargin = 16;
+void paint_drop_shadow9(const Theme& theme, Canvas& out);
 // A black capsule with a light grey outline, 48 x 48 (40 x 40 inside a 4
 // margin), nine-sliced: the HOME Menu's batteries.
 constexpr int kCapsuleCorner = 24;

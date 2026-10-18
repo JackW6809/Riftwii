@@ -7,7 +7,8 @@
  ***************************************************************************/
 /* Changed for RiftWii (September and October 2026), under
  * GPL-3.0-or-later: no text console on the menu's frame buffer, StopGXKeepPicture, the frame buffer accessors the launch screen and screenshots use, the display scale (widescreen and screen size), and a camera
- * that moves and scales everything drawn (the menu's transitions).
+ * that moves and scales everything drawn (the menu's transitions), the GX
+ * trace's texture hook and Menu_Render's step (settings.txt debug_gx).
  * Every change is in RiftWii's git history; NOTICE.md lists the origin. */
 
 #include <gccore.h>
@@ -30,6 +31,8 @@ static Mtx GXmodelView2D;
 int screenheight;
 int screenwidth;
 u32 FrameTimer = 0;
+void (*Menu_TextureHook)(const void* data, u16 width, u16 height, u8 format) = nullptr;
+const char* volatile menuRenderStep = "";
 
 /****************************************************************************
  * ResetVideo_Menu
@@ -203,6 +206,20 @@ int Menu_EfbHeight()
 	return vmode ? vmode->efbHeight : 480;
 }
 
+// RiftWii: a copy of the frame kept as a picture (the transitions) is
+// taken without the display copy's filter. The video mode's deflicker
+// blur would soften it once when it is copied and again when the screen
+// it is drawn into is shown. The display's filter is put back after.
+void Menu_SetPictureCopy(bool picture)
+{
+	if (!vmode) return;
+	static u8 sharp[7] = {0, 0, 21, 22, 21, 0, 0};
+	if (picture)
+		GX_SetCopyFilter(GX_FALSE, vmode->sample_pattern, GX_FALSE, sharp);
+	else
+		GX_SetCopyFilter(vmode->aa, vmode->sample_pattern, GX_TRUE, vmode->vfilter);
+}
+
 /****************************************************************************
  * The display scale (RiftWii). The menu is laid out in 640x480 units;
  * these draw it smaller than the screen about the centre: across by
@@ -309,7 +326,10 @@ static void CameraPoint(f32& x, f32& y)
 void Menu_LoadOrtho()
 {
 	Mtx44 p;
-	guOrtho(p,0,479,0,639,0,300);
+	// RiftWii: 640 x 480 units across the 640 x 480 frame, one to a pixel
+	// (libwiigui's 0..639 / 0..479 put every picture a fraction of a pixel
+	// off its pixels, so all of them were resampled a little soft).
+	guOrtho(p,0,480,0,640,0,300);
 	Menu_ScaleProjection(p);
 	GX_LoadProjectionMtx(p, GX_ORTHOGRAPHIC);
 }
@@ -399,6 +419,7 @@ void Menu_DrawImgPart(f32 x, f32 y, f32 w, f32 h, u16 texW, u16 texH, u8 data[],
 {
 	if (data == nullptr || w <= 0 || h <= 0)
 		return;
+	if (Menu_TextureHook) Menu_TextureHook(data, texW, texH, GX_TF_RGBA8);
 	GXTexObj texObj;
 	GX_InitTexObj(&texObj, data, texW, texH, GX_TF_RGBA8, GX_CLAMP, GX_CLAMP, GX_FALSE);
 	GX_LoadTexObj(&texObj, GX_TEXMAP0);
@@ -440,10 +461,13 @@ void Menu_Render()
 	}
 	GX_SetColorUpdate(GX_TRUE);
 	GX_CopyDisp(xfb[whichfb],GX_TRUE);
+	menuRenderStep = "GX_DrawDone";
 	GX_DrawDone();
 	VIDEO_SetNextFramebuffer(xfb[whichfb]);
 	VIDEO_Flush();
+	menuRenderStep = "vsync";
 	VIDEO_WaitVSync();
+	menuRenderStep = "";
 	FrameTimer++;
 }
 
@@ -457,6 +481,7 @@ void Menu_DrawImg(f32 xpos, f32 ypos, u16 width, u16 height, u8 data[],
 {
 	if(data == nullptr)
 		return;
+	if (Menu_TextureHook) Menu_TextureHook(data, width, height, GX_TF_RGBA8);
 
 	GXTexObj texObj;
 

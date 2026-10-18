@@ -11,6 +11,7 @@
 #include <cmath>
 
 #include "log.hpp"
+#include "drawtrace.hpp"
 #include "skin.hpp"
 #include "video.h"
 
@@ -66,6 +67,7 @@ float Duration(Kind k) {
     case Kind::PageForward:
     case Kind::PageBack: return 280;
     case Kind::FromBlack: return 600;
+    case Kind::Cut: return 1;
     case Kind::Fade:
     default: return 240;
     }
@@ -155,6 +157,8 @@ void Pose(const Running& r, Affine& live, Affine& old, float& oldAlpha, float& b
     case Kind::FromBlack:
         black = 1 - Ease(t);
         break;
+    case Kind::Cut:
+        break;  // the new screen as it is, the old one not drawn
     case Kind::PopOpen:
     case Kind::PopClose:
     case Kind::Fade:
@@ -169,6 +173,8 @@ void Pose(const Running& r, Affine& live, Affine& old, float& oldAlpha, float& b
 void DrawPicture(int index, const Affine& a, float alpha, const Rect* clip = nullptr) {
     const u8 al = static_cast<u8>(std::lround(Clamp01(alpha) * 255));
     if (al == 0 || !g_pic[index]) return;
+    DrawTrace trace("the old screen's picture");
+    GxTraceTexture(g_pic[index], g_w, g_h, GX_TF_RGBA8);
     // The frame's corners in menu units, then where `a` puts them, as
     // EFB pixels (the display scale from video.cpp's own conversion, so
     // the spot is exact: a slow zoom does not shimmer).
@@ -192,7 +198,7 @@ void DrawPicture(int index, const Affine& a, float alpha, const Rect* clip = nul
     GX_LoadPosMtxImm(mv, GX_PNMTX0);
     GX_InvalidateTexAll();
     GXTexObj tex;
-    GX_InitTexObj(&tex, g_pic[index], static_cast<u16>(g_w), static_cast<u16>(g_h), GX_TF_RGB565, GX_CLAMP, GX_CLAMP,
+    GX_InitTexObj(&tex, g_pic[index], static_cast<u16>(g_w), static_cast<u16>(g_h), GX_TF_RGBA8, GX_CLAMP, GX_CLAMP,
                   GX_FALSE);
     GX_InitTexObjLOD(&tex, GX_LINEAR, GX_LINEAR, 0, 0, 0, GX_FALSE, GX_FALSE, GX_ANISO_1);
     GX_LoadTexObj(&tex, GX_TEXMAP0);
@@ -227,9 +233,11 @@ void DrawPicture(int index, const Affine& a, float alpha, const Rect* clip = nul
 void Keep(int index) {
     if (!g_pic[index]) return;
     GX_SetTexCopySrc(0, 0, static_cast<u16>(g_w), static_cast<u16>(g_h));
-    GX_SetTexCopyDst(static_cast<u16>(g_w), static_cast<u16>(g_h), GX_TF_RGB565, GX_FALSE);
+    GX_SetTexCopyDst(static_cast<u16>(g_w), static_cast<u16>(g_h), GX_TF_RGBA8, GX_FALSE);
+    Menu_SetPictureCopy(true);
     GX_CopyTex(g_pic[index], GX_FALSE);
     GX_PixModeSync();
+    Menu_SetPictureCopy(false);
     g_have = true;
 }
 
@@ -256,7 +264,7 @@ float EaseBack(float t) {
 void Init() {
     g_w = Menu_XfbWidth();
     g_h = Menu_EfbHeight();
-    const u32 size = GX_GetTexBufferSize(static_cast<u16>(g_w), static_cast<u16>(g_h), GX_TF_RGB565, GX_FALSE, 0);
+    const u32 size = GX_GetTexBufferSize(static_cast<u16>(g_w), static_cast<u16>(g_h), GX_TF_RGBA8, GX_FALSE, 0);
     for (u8*& p : g_pic) p = skin::Mem2Alloc(size);
     if (!g_pic[0] || !g_pic[1]) {
         g_pic[0] = g_pic[1] = nullptr;

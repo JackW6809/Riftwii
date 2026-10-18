@@ -112,9 +112,27 @@ Leaving the game through HOME > Wii Menu saves it to
 `sd:/riftwii/wpadlog.txt`, which goes into problem reports. Link keys are
 never written out and Bluetooth addresses keep only their last byte.
 
-It is on when the menu saw a Wii U Pro Controller. `wpad_log = on` in
-`settings.txt` keeps it for every launch (Dolphin tests), `wpad_log = off`
-never. Not in code builds or games that clear MEM1's top.
+It is on when the menu saw a Wii U Pro Controller: a pairing alone is not
+enough, because the log takes 43 KB of the game's MEM2 and the blob 10 KB of
+MEM1 (Newer Super Mario Bros. Wii from an RVZ ran out of MEM2 with them).
+`wpad_log = on` in `settings.txt` keeps it for every launch (Dolphin tests),
+`wpad_log = off` never. Not in code builds or games that clear MEM1's top.
+
+Test builds (`make -f Makefile.wii WII_DEFINES=-DRIFTWII_TEST_LIMITS`) can
+also run a game short of memory, to find out whether a crash is one:
+`sd:/riftwii/test_limits.txt` with `game_mem1_kib = N`, `game_mem2_kib = M`
+or `game_mem2_top_kib = T` takes that many KiB off the end of the game's
+MEM1 arena, the start of its MEM2 arena or its end. In Dolphin, Newer Super
+Mario Bros. Wii v1.30 runs with 336 KiB less MEM2 and dies at the start with
+352 KiB less.
+
+The same blob runs the Wii U Pro Controller translator and keeps a trace of
+the game's Bluetooth traffic in the log (docs/BLUETOOTH.md).
+`pro_controller = off` keeps the trace and leaves the traffic alone;
+`pro_controller = every` takes every link as a Pro Controller, so the
+translator runs in Dolphin (whose Wii Remote then has no buttons of its
+own). `build-dolphin/wlog_memdump.py` saves the log from the running game's
+memory when HOME > Wii Menu cannot be reached.
 
 What the logs showed: right after a controller connects, the game's Wii
 Remote library reads one byte at address 0x1770, past the end of a Wii
@@ -140,9 +158,31 @@ cheats' hook on jumps to another executable, `480p` the 480p fix,
 `returnto` the return-to patch, `consoletype` the console type RiftWii
 writes at 0x8000002C on a Wii, `prerun` the code handler's run before the
 game's entry, `closepart` the partition close before a Homebrew Channel
-app (CTGP) starts, `wpadlog` the Wii Remote log. `boot.log` names each one left out. Start with all of them,
+app (CTGP) starts, `wpadlog` the Wii Remote log, `musicresume` the menu's
+music coming back after an SD, USB or burned-disc launch's cIOS reload (it
+fades out before the reload either way). `identify` lets a
+WiiWare or Virtual Console game start with RiftWii's loader even when ES
+won't run it as its own title (only for testing in Dolphin, whose ES
+refuses that to anything but the Wii Menu; the game's saves may not open).
+`boot.log` names each one left out. Start with all of them,
 then halve the list. The PMEX Remix crash on a Wii (2.7.0 RC9.2) was found
 this way: it was the crash recorder.
+
+A code build (REX, Project+, a `gameconfig.txt` build) can also start
+without these extras at all, picked at Start (or `code_build_extras =
+off` for autorun): only its codes, `gameconfig.txt`'s words, the code
+handler's run before the game and the GameCube adapter when one is
+plugged in. REX went black on a tester's Wii U (2610-412).
+
+`build-dolphin/sim.sh` runs one code-build launch on a card image
+without folder sync and scores it (PASS or BLACK); `sim_matrix.sh` runs
+every code-build card with the extras on and off. Test builds' keys in
+`test_limits.txt`: `console_type_as_wii = 1` writes the console type in
+Dolphin as on a console. Dolphin's IOS leaves MEM2's top where the same
+IOS does on a Wii (0x935e0000 under Brawl's IOS36, 0x933e0000 under
+IOS58), so a game needs no squeeze to have a Wii's memory;
+`wii_mem2_top = 1` forces IOS58's layout, and `game_mem2_top_kib`
+alone builds a layout no Wii has (Project+ goes black in it).
 
 `debug_crash` in the same file breaks the game on purpose, to try the
 crash recorder: `debug_crash = pad` puts a read from address 0x28 at the
@@ -151,6 +191,22 @@ hex address. In Dolphin, turn on MMU emulation (`FELK_MMU=1` for
 `build-dolphin/felk-run.sh`), or the bad read is only a warning and the
 game crashes a few steps later instead. The next RiftWii start writes
 `sd:/riftwii/gamecrash.txt`. Never leave it in a tester's settings.
+
+## A menu that freezes only on a console
+
+`debug_gx` in `settings.txt` watches the menu's drawing
+(`wii/menu/drawtrace.hpp`). `debug_gx = watch`: for a minute after a
+game's page opens, and whenever the frames stop with the GUI not halted,
+the menu's watchdog thread logs a `GUI watch` line once a second: the
+frame count, where the GUI thread is (`render step "GX_DrawDone"` is a
+GPU that never finished its frame), whether the menu's own thread is
+suspended, and how often GX's command buffer filled up. `debug_gx =
+drawdone` adds the GX trace: the GUI waits for the GPU after every
+element it draws and keeps the last 16 in memory (class, name, last
+picture's address, size and format); when the frames stop, `GX trace`
+lines name them, the one the GPU stopped in first. Drawing is slower with
+it. Off by default; a GX buffer that filled up is logged either way
+(`Graphics: the menu's drawing ran ahead of the GPU`).
 
 ## Releasing
 
@@ -184,22 +240,19 @@ game crashes a few steps later instead. The next RiftWii start writes
 4. Screenshots for the notes go in `docs/screenshots/` and are committed
    before the tag; the notes load them from
    `raw.githubusercontent.com/KakarottoCake/Riftwii/<tag>/docs/screenshots/`.
-   `gh release create vYYMM-N --prerelease` with three files: the zip,
+   `gh release create vYYMM-N` (not `--prerelease`) with three files: the zip,
    `riftwii.dol` (what the in-app update downloads) and
    `riftwii-update.pack`. The notes give what changed and the DOL's
    SHA-256, and end with a "License and source" line: GPL-3.0-or-later,
    the source at the tag, the credits in `NOTICE.md`.
-5. Release candidates and stable releases. A release candidate is a beta
-   build like any other (`--prerelease`, titled "RiftWii YYMM-N RC1") that
-   testers go through with `docs/TESTING.md`. A stable release is that
-   same commit, rebuilt with `make -f Makefile.wii RIFTWII_STABLE=1` and
-   published without `--prerelease` (so it is GitHub's latest release),
-   titled "RiftWii Stable YYMM-N". The flag is the only difference from
-   the tested build: with it, Settings > Updates on Automatic follows
-   Stable although the version has a dash. Leave it out and every player
-   on Automatic ends up on Beta. Players on the release candidate are not
-   offered the stable build (it has the same version), and need not be:
-   it is the same code.
+5. Every release is for everyone. It is published as GitHub's latest
+   release (no `--prerelease`), titled "RiftWii YYMM-N", and every
+   RiftWii updates to it: the update check reads `/releases/latest`.
+   There is no Stable or Beta any more. Older builds still have that
+   setting: on Stable they read the latest release too, but on Beta they
+   take the newest release of all, pre-releases included, so a test
+   build for a few testers goes out as a DOL in a message, never as a
+   GitHub pre-release.
 6. When a third-party piece is added: a row in `NOTICE.md` (what, where
    from with the commit, license), `SPDX-FileCopyrightText` lines (one per
    holder, above the license line) in each file that follows it, and a

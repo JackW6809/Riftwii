@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "riftwii/inputicons.hpp"
 #include "riftwii/skinpaint.hpp"
 #include "riftwii/theme.hpp"
 
@@ -380,7 +381,7 @@ static void test_theme_color_keys() {
 
 static void test_theme_images() {
     const auto& images = theme_images();
-    EXPECT_EQ(images.size(), 55U);
+    EXPECT_EQ(images.size(), 73U);
 
     // Unique names.
     for (std::size_t i = 0; i < images.size(); ++i) {
@@ -402,9 +403,9 @@ static void test_theme_images() {
     EXPECT_EQ(images[0].w, 640);
     EXPECT_EQ(images[0].h, 480);
 
-    EXPECT_EQ(std::string(images[45].name), "pointer4");
-    EXPECT_EQ(images[45].w, 96);
-    EXPECT_EQ(images[45].h, 96);
+    EXPECT_EQ(std::string(images[63].name), "pointer4");
+    EXPECT_EQ(images[63].w, 96);
+    EXPECT_EQ(images[63].h, 96);
 }
 
 static void test_case_insensitivity_and_boolean_formats() {
@@ -504,6 +505,70 @@ static void test_painted_images() {
     EXPECT_TRUE(round_tile.at(8, 8).a < square_tile.at(8, 8).a);
 }
 
+// The stick and D-pad pictures RiftWii draws itself (the GameCube controls
+// popup's badges): named like Kenney's, inside the same area as his.
+static void test_drawn_input_icons() {
+    EXPECT_EQ(input_icon_for_button("Stick"), std::string("stick"));
+    EXPECT_EQ(input_icon_for_button("D-pad"), std::string("dpad"));
+    const Rgba ink{10, 20, 30, 255};
+
+    Canvas stick(0, 0);
+    EXPECT_TRUE(paint_input_icon("stick", 32, ink, stick));
+    EXPECT_EQ(stick.width(), 32);
+    EXPECT_EQ(int(stick.at(16, 16).a), 255);  // the stick's top
+    EXPECT_EQ(int(stick.at(24, 16).a), 0);    // the groove round it
+    EXPECT_EQ(int(stick.at(26, 16).a), 255);  // the rim
+    EXPECT_EQ(int(stick.at(0, 0).a), 0);
+    EXPECT_EQ(int(stick.at(31, 16).a), 0);    // Kenney's margin
+    EXPECT_EQ(int(stick.at(16, 16).g), 20);
+
+    Canvas dpad(0, 0);
+    EXPECT_TRUE(paint_input_icon("dpad", 32, ink, dpad));
+    EXPECT_EQ(int(dpad.at(16, 16).a), 0);    // the hole at its middle
+    EXPECT_EQ(int(dpad.at(16, 6).a), 255);   // the up arm
+    EXPECT_EQ(int(dpad.at(26, 15).a), 255);  // the right arm
+    EXPECT_EQ(int(dpad.at(6, 6).a), 0);      // between two arms
+}
+
+// The channel frames are drawn nine-sliced kChannelFrameCorner in from
+// each edge (wii/menu/skin.cpp's DrawNine): the slices between the corners
+// are stretched to the tile's size, so they must hold straight edges only.
+// Any of the rim's curve, glow or shadow there would be drawn wider than the
+// icon's clip. Checked at every corners value up to the roundest (2: a
+// theme's most, and Settings' Rounder), lit and plain, with and without the
+// card within.
+static void test_channel_frame_slices() {
+    EXPECT_EQ(kChannelFrameMargin, 8);
+    EXPECT_EQ(kChannelFrameCorner, 24);
+    EXPECT_TRUE(kChannelRadius == 6.0f);
+    EXPECT_TRUE(2 * kChannelFrameCorner < 80);
+    const auto same = [](Rgba a, Rgba b) { return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a; };
+    const float corner_values[] = {0.0f, 0.5f, 1.0f, 2.0f};
+    for (float corners : corner_values) {
+        Theme theme;
+        theme.corners = corners;
+        for (int kind = 0; kind < 4; ++kind) {
+            const bool over = (kind & 1) != 0, fill = (kind & 2) != 0;
+            Canvas frame(0, 0);
+            paint_channel_frame9(theme, over, fill, frame);
+            EXPECT_EQ(frame.width(), 80);
+            EXPECT_EQ(frame.height(), 80);
+            const int first = kChannelFrameCorner, last = 80 - kChannelFrameCorner;
+            int curved = 0;
+            for (int along = first + 1; along < last; ++along) {
+                for (int across = 0; across < 80; ++across) {
+                    if (!same(frame.at(along, across), frame.at(first, across))) ++curved;  // top and bottom edges
+                    if (!same(frame.at(across, along), frame.at(across, first))) ++curved;  // left and right edges
+                }
+            }
+            if (curved != 0)
+                std::cerr << "corners " << corners << ", kind " << kind << ": " << curved
+                          << " pixels differ in the stretched slices" << std::endl;
+            EXPECT_EQ(curved, 0);
+        }
+    }
+}
+
 int main() {
     test_default_theme();
     test_parse_theme_color();
@@ -513,6 +578,8 @@ int main() {
     test_theme_color_keys();
     test_theme_images();
     test_painted_images();
+    test_drawn_input_icons();
+    test_channel_frame_slices();
     test_case_insensitivity_and_boolean_formats();
 
     if (g_failures == 0) {

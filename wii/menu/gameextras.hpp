@@ -3,6 +3,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "frontend.hpp"
 #include "riftwii/cheats.hpp"
@@ -16,8 +17,10 @@ namespace riftwii::wii {
 
 // Reads the game's cheat file. With `download` and the online setting on,
 // a missing file is fetched first. False with `status` saying why there
-// are no cheats (no file, none in the archive, offline...).
-bool LoadGameCheats(const std::string& game_id, bool download, CheatFile& out, std::string& status);
+// are no cheats (no file, none in the archive, offline...). `revision` is
+// the disc header's revision byte: a file with a section per release gives
+// only that release's cheats (riftwii/cheats.hpp).
+bool LoadGameCheats(const std::string& game_id, int revision, bool download, CheatFile& out, std::string& status);
 
 // What the last launch of the game found about its borders (boot.cpp
 // writes sd:/riftwii/choices/<ID>.video): a sentence for the game page,
@@ -37,9 +40,20 @@ bool CheckCodeBuilds(const FrontendState& state, std::string& error);
 // Which games were started from RiftWii (sd:/riftwii/history.txt), read
 // once.
 const PlayHistory& History();
-// Counts a start of the game and saves the history.
+// Counts a start of the game (or of a profile's tile, by its key) and saves the history.
 void RecordPlay(const std::string& game_id);
+// The tile launched (the game ID, or a profile's key), kept in
+// sd:/riftwii/last_tile.txt even with the history off: a problem report
+// then shows the choices that ran (riftwii/profiles.hpp's launched_choices_key).
+void RememberLaunchedTile(const std::string& key);
+// Drops a tile from the history (a profile removed).
+void ForgetPlays(const std::string& game_id);
 // "Played 3 times, last on 9/21" for the game page; empty when never.
 std::string PlayNote(const std::string& game_id);
+
+// Home's own order (sd:/riftwii/order.txt, riftwii/homeorder.hpp), read
+// once; and written back after the player moves a game.
+const std::vector<std::string>& HomeOrder();
+void SaveHomeOrder(const std::vector<std::string>& order);
 
 }  // namespace riftwii::wii

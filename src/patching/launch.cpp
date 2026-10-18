@@ -76,8 +76,56 @@ std::string pack_title(const LaunchPackage& p) {
     return title;
 }
 
+int gc_sram_language(const std::string& name) {
+    int number = 0;
+    for (const char* language : kGcLanguages) {
+        if (name == language) return number;
+        ++number;
+    }
+    return -1;
+}
+
+bool gc_pal_game(const std::string& id) {
+    if (id.size() < 4) return false;
+    // P: Europe, D: Germany, F: France, S: Spain, I: Italy, X and Y:
+    // other European releases, U: Australia (all PAL).
+    const std::string pal_regions = "PDFSIXYU";
+    return pal_regions.find(id[3]) != std::string::npos;
+}
+
+bool gc_widescreen_on(const GameSettings& game, const GcConsoleSettings& console) {
+    // Only when picked for the game. Widening the 3D is experimental: on
+    // a Wii Super Mario Eclipse's colours came out inverted and its picture
+    // doubled with it, so Default keeps the game's own picture whatever
+    // Settings and the Wii's TV say.
+    (void)console;
+    return game.gc_widescreen == "16:9";
+}
+
+bool gc_progressive_on(const GameSettings& game, const std::string& id, const GcConsoleSettings& console) {
+    if (gc_pal_game(id)) return false;
+    if (game.gc_progressive == "480p") return true;
+    if (game.gc_progressive == "game") return false;
+    return console.wii_progressive;
+}
+
+int gc_language_number(const GameSettings& game, const GcConsoleSettings& console) {
+    if (game.gc_language == "game") return -1;
+    if (game.gc_language != "global") return gc_sram_language(game.gc_language);
+    // Settings' names (gamelang.hpp) of the GameCube's six languages, in
+    // kGcLanguages' order; Japanese, Chinese and Korean are not among them.
+    static const char* const kSettingsNames[] = {"en", "de", "fr", "es", "it", "nl"};
+    for (int number = 0; number < 6; ++number)
+        if (console.game_language == kSettingsNames[number]) return number;
+    if (console.game_language != "console") return -1;
+    // libogc's CONF_LANG_ENGLISH (1) to CONF_LANG_DUTCH (6) are the same
+    // six in the same order.
+    if (console.wii_language >= 1 && console.wii_language <= 6) return console.wii_language - 1;
+    return -1;
+}
+
 bool needs_launch_pipeline(bool has_selected_packages, const std::string& save_mode) {
-    return has_selected_packages || save_mode == "separate" || save_mode == "fresh";
+    return has_selected_packages || save_mode == "separate" || save_mode == "fresh" || save_mode == "emunand";
 }
 
 void PackIndex::add(const std::string& xml) {
@@ -314,7 +362,7 @@ std::vector<std::size_t> LaunchModel::packs_with_nothing_picked() const {
 }
 
 SaveOverride resolve_save_override(const std::string& save_mode, const std::string& xml_dir,
-                                   const std::string& game_id) {
+                                   const std::string& game_id, const std::string& shared_nand) {
     SaveOverride none;
     if (!xml_dir.empty() || game_id.empty()) return none;
     if (save_mode == "separate") {
@@ -331,6 +379,18 @@ SaveOverride resolve_save_override(const std::string& save_mode, const std::stri
         o.dir = dir;
         o.clone = false;
         o.note = "saves separate at " + dir + " (fresh start)";
+        return o;
+    }
+    // Shared with the other loaders that use this emulated NAND: the
+    // Wii's save is copied in once, only when the folder has none for
+    // this game yet (a save already there is the player's and stays). An
+    // empty data folder is no save: the other loader makes it up front.
+    if (save_mode == "emunand" && !shared_nand.empty()) {
+        SaveOverride o;
+        o.dir = shared_nand;
+        o.clone = true;
+        o.clone_into_empty = true;
+        o.note = "saves in the shared emulated NAND at " + shared_nand + " (the Wii's save copied in when it has none)";
         return o;
     }
     return none;
@@ -353,6 +413,17 @@ std::string LaunchModel::save() const {
     if (game.rumble == "off") text += "*riftwii*\trumble\toff\n";
     if (game.speaker == "off") text += "*riftwii*\tspeaker\toff\n";
     if (game.region_strings == "on") text += "*riftwii*\tregionstrings\ton\n";
+    // Fast is the default while drive timing can freeze games on a Wii
+    // (the ARAM streaming race); a "fast" saved before stays fast.
+    if (game.gc_disc_reads == "drive") text += "*riftwii*\tgcdiscreads\tdrive\n";
+    if (game.gc_card == "shared") text += "*riftwii*\tgccard\tshared\n";
+    // "global", the default, is written as nothing.
+    if (game.gc_progressive == "480p" || game.gc_progressive == "game")
+        text += "*riftwii*\tgcprogressive\t" + game.gc_progressive + "\n";
+    if (game.gc_widescreen == "16:9" || game.gc_widescreen == "game")
+        text += "*riftwii*\tgcwidescreen\t" + game.gc_widescreen + "\n";
+    if (game.gc_language == "game" || gc_sram_language(game.gc_language) >= 0)
+        text += "*riftwii*\tgclanguage\t" + game.gc_language + "\n";
     for (const LaunchPackage& p : packages) {
         // Only this game's packs: the file is per game ID, and another
         // game's pack could not be turned on here anyway.
@@ -394,7 +465,7 @@ void LaunchModel::restore(const std::string& text) {
             const std::string key = line.substr(t1 + 1, t2 - t1 - 1);
             const std::string value = line.substr(t2 + 1);
             if (key == "saves") {
-                if (value == "nand" || value == "separate" || value == "fresh") save_mode = value;
+                if (value == "nand" || value == "separate" || value == "fresh" || value == "emunand") save_mode = value;
             } else if (key == "cheats") {
                 game.cheats = value == "on";
             } else if (key == "cheat") {
@@ -423,6 +494,16 @@ void LaunchModel::restore(const std::string& text) {
                 game.speaker = value == "off" ? "off" : "on";
             } else if (key == "regionstrings") {
                 game.region_strings = value == "on" ? "on" : "off";
+            } else if (key == "gcdiscreads") {
+                game.gc_disc_reads = value == "drive" ? "drive" : "fast";
+            } else if (key == "gccard") {
+                game.gc_card = value == "shared" ? "shared" : "own";
+            } else if (key == "gcprogressive") {
+                game.gc_progressive = value == "480p" || value == "game" ? value : "global";
+            } else if (key == "gcwidescreen") {
+                game.gc_widescreen = value == "16:9" || value == "game" ? value : "global";
+            } else if (key == "gclanguage") {
+                game.gc_language = value == "game" || gc_sram_language(value) >= 0 ? value : "global";
             }
             continue;
         }

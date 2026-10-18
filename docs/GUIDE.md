@@ -15,12 +15,14 @@ Everything about installing and using RiftWii. The [README](../README.md) has th
     older d2x or on a cIOS that is not d2x. A USB drive may be FAT32 or NTFS, or a drive
     formatted as WBFS by a WBFS manager or USB loader (its games are
     listed straight from the drive). The SD card and the USB drive both
-    need 512-byte sectors;
+    need 512-byte sectors. A Wii U's own storage drive (formatted by the
+    Wii U) can't be read: RiftWii recognises it, says so once, and leaves
+    it alone, so it can stay plugged in;
   - Dolphin's compressed `.rvz` images, from the same places (below).
 
 ## Installing
 
-1. Download `riftwii-vX.Y.Z-beta.zip` from the
+1. Download the newest `riftwii-vYYMM-N.zip` from the
    [releases](https://github.com/KakarottoCake/Riftwii/releases).
 2. Copy the zip's `sd-card` folder onto your SD card, merging it with
    what is there. That puts RiftWii in `sd:/apps/riftwii/`.
@@ -79,7 +81,8 @@ The tiles show each game's cover, the name of the one you point at
 under them. Covers come from GameTDB while Home is open (about a second
 each, the page on screen first) and are kept in `sd:/riftwii/covers`;
 a game GameTDB has no cover for shows its name. **Home tiles** in
-Settings switches to name tiles, or to the shelf.
+Settings switches to 3D covers, the carousel, the shelf, channels or
+name tiles.
 
 On the **shelf**, your games stand as boxes, spine out. The one you're
 on slides out and turns to show its front; Left and Right move along the
@@ -94,6 +97,19 @@ Each box's spine and front come from GameTDB's full
 cover scan, fetched after the covers while Home is open and kept in
 `sd:/riftwii/boxes`. A game GameTDB has no scan for gets a white spine
 with its name and its cover on the front.
+
+The **carousel** uses the same boxes, fanned out on an arc with every
+front showing: the one you're on stands forward in the middle, and the
+others turn away and drop back the further out they are. It moves and
+opens games as the shelf does.
+
+With **3D covers**, GameTDB's pictures of the cases (each one turned a
+little) stand close together round a ring with no end: past the last game
+comes the first again. The one you're on stands large in front and the
+ring's far side shows small behind it. Left and Right turn the ring (hold
+one to speed up), and the pointer picks and drags as on the shelf. The
+pictures come from GameTDB while Home is open and are kept in
+`sd:/riftwii/covers3d`; a game without one shows its cover meanwhile.
 
 With **Channels**, each tile plays the game's own animated icon, the one
 the Wii Menu shows for a disc channel, and the tile you're on shows the
@@ -115,14 +131,33 @@ Games you start show on the Wii Message Board with how long you
 played, as discs from the Wii Menu do (`message_board = off` in
 `sd:/riftwii/settings.txt` turns that off).
 
-Pick a game to open its page. It shows how often you played it, and
-these rows:
+Pick a game to open its page: its box on the left, its name in the band
+at the top with a line of facts (its ID, year, genre, how many can play,
+whether it plays online, how often you played it), and large tiles. The
+D-pad moves between the tiles, A opens the one that is lit, and the line
+under them says what it does. The prompts at the bottom right name the
+buttons that work on the screen (A, B, +); with the pointer, they can be
+pressed too.
+
+- **Play** (the large tile, or Plus) starts the game; it says how many
+  mods are on.
 
 - **Mods** opens the packs made for this game. Each pack has an On/Off
   switch; once it is on, its settings show under it, with arrows on
   either side of the value (Minus steps back). A pack whose XML is broken
   shows the error under it. Settings that several packs share show once,
   as in Riivolution.
+- **About** shows what GameTDB says about it: when it came
+  out, its genre, who made it, its age rating, how many can play (and
+  online, with the server it would use), the controllers it needs and
+  those it also takes, each marked *Connected* or *Not connected* when
+  the Wii can tell, and its story. The details come from GameTDB's
+  database of every Wii game, `sd:/riftwii/wiitdb-<language>.zip` (about
+  2 MB, in the menu's language with English where there is no
+  translation): the first visit offers to download it, and a `wiitdb.xml`
+  another loader left on the card is used when it is there. The first page opened reads
+  it for all your games at once (a few seconds); after that they open at
+  once, from `sd:/riftwii/gameinfo-<language>.txt`.
 - **Saves**: *On the Wii* saves as usual. *SD, from Wii save* keeps this
   game's saves on the SD card, starting from a copy of the Wii's save
   (`sd:/riftwii/saves/<ID>/clone`); *SD, fresh start* starts a new one
@@ -141,6 +176,9 @@ these rows:
   show **Set values**: A asks for each value on a keypad (0-9, A-F; +
   is OK), with the cheat's notes above it, and turns the cheat on.
   **Its values** under it changes them later.
+- **Favourite** (under the box) puts the game in Home's Favourites view.
+- **Options** opens the game's own settings, a list of rows; the tile
+  says how many differ from Settings:
 - **Picture width**, **Deflicker** and **Black borders** change how the
   game draws its picture, like USB Loader GX's video settings:
   - *Picture width*: 720 fills the TV from side to side; many games
@@ -183,7 +221,7 @@ these rows:
 
   *Default* follows Settings, where the same rows apply to every game.
 
-**Start** (or Plus) boots the game with what you chose; with nothing on,
+**Play** (or Plus) boots the game with what you chose; with nothing on,
 the game starts as it is. While it starts, its progress prints on
 screen. Your choices are saved for each game.
 
@@ -194,9 +232,13 @@ A to keep going. Each arrow goes away at its end of the list.
 
 ### Settings
 
-The gear at the bottom right (or **2**) opens Settings. Its rows come in
-groups: *Games* (the defaults for every game), *Menu*, *Finding games*,
-*Online* and *More*. The note under the list explains the row you are on.
+The gear at the bottom right (or **2**) opens Settings: nine tiles, each
+showing what it is set to now. *Picture* and *Games* are the defaults for
+every game; then *Controllers*, *Home*, *Menu* (language, theme, font,
+sounds, music), *Online*, *Drives* (finding games), *Help* (reports,
+tutorial, the channel, reset, credits) and *Exit*. Each opens a short
+list; the note under it explains the row you are on, and B goes back to
+the tiles.
 
 - **Language**: English, Español, 日本語, Português, Italiano, Français,
   한국어 (Korean) or *Wii* to follow the console. Korean needs **Menu font** set
@@ -207,7 +249,7 @@ groups: *Games* (the defaults for every game), *Menu*, *Finding games*,
 - **Picture width**, **Deflicker**, **Black borders**, **Video mode**,
   **Aspect ratio**, **Game language**, **Game cIOS**, **Online server**:
   the defaults for every game.
-- **Home tiles**: covers, shelf, channels or names.
+- **Home tiles**: covers, 3D covers, carousel, shelf, channels or names.
 - **Games from**: *SD and USB*, *SD card* or *USB drive*: which drive's
   games Home lists.
 - **Play history**: *Off* stops counting the games you start (Recently
@@ -231,9 +273,11 @@ groups: *Games* (the defaults for every game), *Menu*, *Finding games*,
   Leaving Settings, RiftWii offers to restart its menu to show it (once,
   for the theme and the font together). The choice is
   saved as `theme = <folder>` in `sd:/riftwii/settings.txt`
-  (`theme = default` for the default). The zip comes with two:
-  *Midnight* (dark) and *Bookshelf* (a light wooden bookcase: your covers
-  stand on its shelves, with paper panels). More in [THEMES.md](THEMES.md).
+  (`theme = default` for the default). The zip comes with three:
+  *Midnight* (dark), *Bookshelf* (a light wooden bookcase: your covers
+  stand on its shelves, with paper panels) and *Indigo* (indigo and violet
+  glass on a fine dark grid, gold for what is lit). More in
+  [THEMES.md](THEMES.md).
 - **Clock**: how Home's clock writes the time: *12-hour* (with AM and
   PM), *24-hour*, or *Automatic*, as the menu's language writes it. Saved
   as `clock = auto`, `12` or `24`.
@@ -267,8 +311,7 @@ groups: *Games* (the defaults for every game), *Menu*, *Finding games*,
 - **Menu IOS**: IOS 58, or a d2x cIOS slot (248 to 252). Pick the slot that has
   fakemote to use USB DS3/DS4 pads as Wii Remotes.
 - **Find network packs (RiiFS)** and **Copy network packs again** (below).
-- **Look for games again**, **Updates** (Stable or Beta, below),
-  **Check for a new version** (on GitHub; with downloads on, RiftWii also
+- **Look for games again**, **Check for a new version** (on GitHub; with downloads on, RiftWii also
   looks at every start and asks before it updates), and **Leave RiftWii**,
   which opens the HOME Menu (below).
 - **Send a problem report**: see Reporting a problem below.
@@ -292,6 +335,34 @@ the Wii Menu if Priiloader is not installed) or **Power off**. **Close**,
 B or HOME goes back, so a HOME pressed by mistake costs nothing. Without
 a pointer, the D-pad moves between the buttons, starting on Close. The
 bar at the bottom shows each Wii Remote's batteries.
+
+### WiiWare and Virtual Console games
+
+The WiiWare and Virtual Console games installed on your Wii are on Home
+with your other games, badged **WII**, each with its own icon and banner
+in the Channels view. Those USB Loader GX keeps in an emulated NAND on
+the SD card (its channel folder, `sd:/nands/01` unless you changed it)
+are there too, badged **SD**. **Settings > Games from > Wii channels**
+shows only these.
+
+A channel game has a page like any game: **Play**, **Cheats**,
+**Options** (the picture, language and the other game settings),
+**Favourite** and **About**. RiftWii starts it itself, on the same
+launch screen as a disc, so the cheats, the settings, screenshots, the
+crash recorder, the GameCube adapter, the Wii U Pro Controller and the
+Wii Menu button's way back to RiftWii work as they do for discs. This
+needs a d2x cIOS, as SD and USB games do; when it cannot start a game
+from the Wii itself, the Wii starts it as the Wii Menu would, without
+those extras. A game in an emulated NAND keeps its saves in that folder.
+
+To add games from `.wad` files, put them in a folder named `wad` (or `wads`) at the
+top of the SD card and pick **Settings > Drives > Install WAD files**.
+They go into that emulated NAND (the Wii itself is not changed) and show
+up on Home. RiftWii decrypts them with your own Wii's key, read when you
+install; it carries no key itself.
+
+A game whose data was removed from the Wii to make room can't start:
+RiftWii says so when you pick it.
 
 ### RVZ games
 
@@ -459,11 +530,23 @@ A few things to know:
   reached a match). Older builds that go in `sd:/codes` with
   `gameconfig.txt` at the top of the card (Project M, Brawl Minus,
   Legacy XP's setup for USB loaders) use the same files.
-- These builds use all of the game's main memory, so RiftWii puts its
-  crash recorder and the GameCube controller adapter for Wii U in the
-  console's second memory instead (experimental on a Wii U: tell us how
-  it goes). In-game screenshots stay off. `boot.log` says where each one
-  went, or why it is off.
+- Press Start with a code mod on and RiftWii asks how to start it:
+  - **With RiftWii's extras**: the crash recorder, Return to RiftWii
+    from the HOME Menu, the game page's video and other settings, and
+    the GameCube controller adapter for Wii U (in the console's second
+    memory, as these builds use all of the game's main memory).
+    Project+ runs this way.
+  - **Without extras**: as the mod's own loader starts it: its codes,
+    `gameconfig.txt` and the GameCube controller adapter when one is
+    plugged in, nothing else (HOME > Wii Menu goes to the Wii Menu).
+    Try this when a mod stays on a black screen.
+  A launch without the menu (autorun, another loader) starts with the
+  extras, or without them with `code_build_extras = off` in
+  `sd:/riftwii/settings.txt`.
+- Either way, a code build runs under IOS58 (the Homebrew Channel's) or
+  the cIOS RiftWii's menu runs on, and the game is told it has its own
+  IOS, as the launcher Project+ and its mods ship with (MinimaLauncher)
+  does. Brawl's own IOS36 is what the disc asks for.
 - PMEX Remix is very heavy for a real Wii: it can lag (on the character
   select screen, for one) and its own start screen recommends Dolphin.
   That is the build, not RiftWii.
@@ -709,32 +792,31 @@ launch:
 
 Boot.log lists them under "Game fixes".
 
-## Stable and beta versions
+## Versions and updates
 
-Versions are numbered the way Dolphin numbers its own. A stable version
-is named after the year and month it came out (2610 is October 2026; it
-was called 2.7.0), and testers have checked it on real Wiis. A beta
-version is that stable version plus the number of changes made since
-(2610-123), so a higher number is always newer. Betas come more often and
-carry new fixes and features that are not checked yet. **Settings >
-Updates** picks which ones RiftWii offers: **Stable** only stable
-versions, **Beta** every new version. A stable version starts on Stable
-and a beta on Beta. (Versions before October 2026 were numbered like
-2.7.0 and 3.3.9-beta.)
+Versions are numbered the way Dolphin numbers its own: the year and
+month of the release line (2610 is October 2026), then the number of
+changes made since (2610-123), so a higher number is always newer.
+(Versions before October 2026 were numbered like 2.7.0 and 3.3.9-beta.)
+
+There is one kind of release: every new version is for everyone, and
+RiftWii offers the newest one. Earlier versions had a Stable and a Beta
+choice in Settings; a version that had it set to either still updates to
+the newest release.
 
 An update from inside RiftWii also brings the themes that come with it
-(Bookshelf, Midnight) and the channel installer (`apps/riftwii_channel`)
-up to date, the first time the new version starts online. Themes you
-made or downloaded and your `music.ogg` are left alone; changes you made
-to Bookshelf or Midnight themselves are replaced, so copy such a theme
-to a folder of its own name first.
+(Bookshelf, Indigo, Midnight) and the channel installer
+(`apps/riftwii_channel`) up to date, the first time the new version starts
+online. Themes you made or downloaded and your `music.ogg` are left alone;
+changes you made to Bookshelf, Indigo or Midnight themselves are replaced,
+so copy such a theme to a folder of its own name first.
 
 An update is installed only when its download matches the SHA-256
 GitHub gives for it. While the new RiftWii is being put in place, the
 power button waits until it is: the screen stays on for a moment, then
 the Wii turns off.
 
-**Experimental** features are in stable versions too, but they are not
+**Experimental** features are in releases too, but they are not
 yet confirmed on real Wiis and may not work on yours. The menu marks
 them (a note before the launch, or "Experimental" in the Settings note):
 

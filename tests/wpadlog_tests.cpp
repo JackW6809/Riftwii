@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // The Wii Remote log (riftwii/wpadlog.hpp, runtime/rtwlog.h): finding the
 // print stubs and the HOME Menu exit in a game's code, and the saved log as
-// text, with keys and addresses kept out of it.
+// text, with keys and addresses kept out of it; the Bluetooth trace and the
+// Pro Controller translator's counts.
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -33,10 +34,13 @@ static std::vector<std::uint8_t> words(const std::vector<std::uint32_t>& list) {
 
 // A log file the way the blob leaves it.
 struct LogFile {
-    static constexpr std::size_t kHeader = 32;
+    static constexpr std::size_t kHeader = 40;
     static constexpr std::size_t kEntry = 152;
-    std::vector<std::uint8_t> bytes = std::vector<std::uint8_t>(kHeader + kEntry * RTWLOG_ENTRIES, 0);
+    static constexpr std::size_t kPro = kHeader + kEntry * RTWLOG_ENTRIES;
+    static constexpr std::size_t kBt = kPro + sizeof(rtwlog_pro);
+    std::vector<std::uint8_t> bytes = std::vector<std::uint8_t>(sizeof(rtwlog_file), 0);
     std::uint32_t total = 0;
+    std::uint32_t packets = 0;
 
     LogFile() {
         put32(bytes, 0, RTWLOG_MAGIC);
@@ -60,6 +64,27 @@ struct LogFile {
         }
         ++total;
         put32(bytes, 20, total);
+    }
+
+    // The translator's count number `field` (rtwlog_pro's order).
+    void pro(std::size_t field, std::uint32_t v) { put32(bytes, kPro + 4 * field, v); }
+
+    // Traced packet number `packets`.
+    void packet(double seconds, std::uint8_t kind, std::uint8_t flags, std::uint16_t handle, std::uint16_t cid,
+                const std::vector<std::uint8_t>& data) {
+        const std::size_t at = kBt + 28 * rtwlog_bt_slot(packets);
+        put32(bytes, at, static_cast<std::uint32_t>(seconds * 60750000.0 / 256.0));
+        bytes[at + 4] = kind;
+        bytes[at + 5] = flags;
+        bytes[at + 6] = static_cast<std::uint8_t>(handle >> 8);
+        bytes[at + 7] = static_cast<std::uint8_t>(handle);
+        bytes[at + 8] = 0;
+        bytes[at + 9] = static_cast<std::uint8_t>(data.size());
+        bytes[at + 10] = static_cast<std::uint8_t>(cid >> 8);
+        bytes[at + 11] = static_cast<std::uint8_t>(cid);
+        for (std::size_t i = 0; i < data.size() && i < RTWLOG_BT_BYTES; ++i) bytes[at + 12 + i] = data[i];
+        ++packets;
+        pro(9, packets);
     }
 };
 
@@ -145,6 +170,7 @@ int main() {
         std::string text, error;
         EXPECT_TRUE(riftwii::describe_wpad_log(log.bytes.data(), log.bytes.size(), text, error));
         EXPECT_TRUE(has(text, "Wii Remote log: RMCE01, 6 message(s), 2 print function(s) hooked"));
+        EXPECT_TRUE(has(text, "Pro Controller test: off\n"));
         EXPECT_TRUE(has(text, "[   0.000] WUDSecurityCallback:\n"));
         // Eight arguments, seven kept (r4-r10): the last one shows as "?".
         EXPECT_TRUE(has(text, "DISCOVER RESULT:  xx:xx:xx:xx:xx:5f   \"Nintendo RVL-CNT-01-UC\" (?)"));
@@ -156,20 +182,111 @@ int main() {
         EXPECT_TRUE(has(text, "ack error --> report ID = 22, error code = 3"));
     }
 
-    // More messages than fit: the first 320, a note, then the last 128 in order.
+    // The Pro Controller test's state, from the header.
+    {
+        LogFile log;
+        put32(log.bytes, 32, RTWLOG_PROBE_CHANGED);
+        put32(log.bytes, 36, 0x801d5a10u);
+        log.add(0.0, "hello\n", {});
+        std::string text, error;
+        EXPECT_TRUE(riftwii::describe_wpad_log(log.bytes.data(), log.bytes.size(), text, error));
+        EXPECT_TRUE(has(text, "Pro Controller test: on, the firmware probe at 0x801d5a10 reads 0x0016\n"));
+        put32(log.bytes, 32, RTWLOG_PROBE_NOT_FOUND);
+        EXPECT_TRUE(riftwii::describe_wpad_log(log.bytes.data(), log.bytes.size(), text, error));
+        EXPECT_TRUE(has(text, "the firmware probe was not found in this game"));
+        // A version 1 log (no probe state) is another version.
+        put32(log.bytes, 4, 1);
+        EXPECT_FALSE(riftwii::describe_wpad_log(log.bytes.data(), log.bytes.size(), text, error));
+    }
+
+    // More messages than fit: the first 160, a note, then the last 64 in order.
     {
         LogFile log;
         for (std::uint32_t n = 0; n < 600; ++n) log.add(n * 0.01, "message %d\n", {n});
         std::string text, error;
         EXPECT_TRUE(riftwii::describe_wpad_log(log.bytes.data(), log.bytes.size(), text, error));
         EXPECT_TRUE(has(text, "message 0\n"));
-        EXPECT_TRUE(has(text, "message 319\n"));
-        EXPECT_FALSE(has(text, "message 320\n"));
-        EXPECT_TRUE(has(text, "... 152 message(s) not kept ..."));
-        EXPECT_FALSE(has(text, "message 471\n"));
-        EXPECT_TRUE(has(text, "message 472\n"));
+        EXPECT_TRUE(has(text, "message 159\n"));
+        EXPECT_FALSE(has(text, "message 160\n"));
+        EXPECT_TRUE(has(text, "... 376 message(s) not kept ..."));
+        EXPECT_FALSE(has(text, "message 535\n"));
+        EXPECT_TRUE(has(text, "message 536\n"));
         EXPECT_TRUE(has(text, "message 599\n"));
-        EXPECT_TRUE(text.find("message 472\n") < text.find("message 599\n"));
+        EXPECT_TRUE(text.find("message 536\n") < text.find("message 599\n"));
+    }
+
+    // The Bluetooth trace: named events and commands, addresses cut to their
+    // last byte, link keys never shown, who ended a link, the translator's
+    // counts and changes.
+    {
+        LogFile log;
+        log.add(0.0, "BTA_Init() is started\n", {});
+        log.pro(0, 1);  // translating
+        log.pro(1, 1);  // hooked
+        log.pro(2, 1);
+        log.pro(3, 250);
+        log.pro(4, 1);
+        log.pro(10, 900);
+        log.pro(16, 2);
+        log.pro(17, 5);
+        log.packet(0.5, RTWLOG_BT_COMMAND, 0, 0, 0, {0x03, 0x0C, 0x00});
+        log.packet(0.6, RTWLOG_BT_COMMAND, 0, 0, 0,
+                   {0x0B, 0x04, 0x16, 0x93, 0x11, 0x22, 0x33, 0x44, 0x55, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x12});
+        log.packet(1.1, RTWLOG_BT_EVENT, 0, 0, 0,
+                   {0x03, 0x0B, 0x00, 0x21, 0x00, 0x93, 0x11, 0x22, 0x33, 0x44, 0x55, 0x01, 0x00});
+        log.packet(1.3, RTWLOG_BT_OUT, 2, 0x21, 0x41, {0xA2, 0x12, 0x04, 0x30});
+        log.packet(1.3, RTWLOG_BT_SENT, 0, 0x21, 0x41, {0xA2, 0x12, 0x04, 0x34});
+        log.packet(1.4, RTWLOG_BT_IN, 0, 0x21, 0x01, {0x06, 0x05, 0x04, 0x00, 0x40, 0x00, 0x41, 0x00});
+        log.packet(1.5, RTWLOG_BT_EVENT, 0, 0, 0, {0x05, 0x04, 0x00, 0x21, 0x00, 0x13});
+        std::string text, error;
+        EXPECT_TRUE(riftwii::describe_wpad_log(log.bytes.data(), log.bytes.size(), text, error));
+        EXPECT_TRUE(has(text, "Pro Controller translator: on; 1 Pro Controller link(s), 250 report(s) rebuilt, 1 "
+                              "extension ID(s)"));
+        EXPECT_TRUE(has(text, "2 read(s) of the Wii Remote's memory answered in the Pro's place, 5 other report(s)"));
+        EXPECT_TRUE(has(text, "Bluetooth trace: 7 packet(s); 900 data report(s)"));
+        EXPECT_TRUE(has(text, "HCI command 0x0c03 (Reset): 03 0c 00"));
+        // Link Key Request Reply: the address's last byte, then nothing of the key.
+        EXPECT_TRUE(has(text, "(Link Key Request Reply): 0b 04 16 93 xx xx xx xx xx ** ** ** ** ** ** **"));
+        EXPECT_FALSE(has(text, "aa bb"));
+        EXPECT_TRUE(has(text, "(Connection Complete): 03 0b 00 21 00 93 xx xx xx xx xx 01 00"));
+        EXPECT_FALSE(has(text, "11 22 33"));
+        EXPECT_TRUE(has(text, "to   0x0021 cid 0x0041, 4 byte(s) (reporting mode): a2 12 04 30  [as the game asked; "
+                              "the translator sent the next line instead]"));
+        EXPECT_TRUE(has(text, "sent 0x0021 cid 0x0041, 4 byte(s) (reporting mode): a2 12 04 34\n"));
+        EXPECT_TRUE(has(text, "from 0x0021 cid 0x0001, 8 byte(s) (L2CAP Disconnection Request)"));
+        EXPECT_TRUE(has(text, "handle 0x0021, reason 0x13: the controller ended it"));
+        EXPECT_TRUE(text.find("BTA_Init") < text.find("HCI command 0x0c03"));
+        // A log of an older version (2610-408 wrote 4) is not read.
+        put32(log.bytes, 4, 4);
+        EXPECT_FALSE(riftwii::describe_wpad_log(log.bytes.data(), log.bytes.size(), text, error));
+    }
+    // Translator off: said so; not hooked: said so.
+    {
+        LogFile log;
+        log.pro(1, 1);
+        std::string text, error;
+        EXPECT_TRUE(riftwii::describe_wpad_log(log.bytes.data(), log.bytes.size(), text, error));
+        EXPECT_TRUE(has(text, "Pro Controller translator: off"));
+        LogFile unhooked;
+        EXPECT_TRUE(riftwii::describe_wpad_log(unhooked.bytes.data(), unhooked.bytes.size(), text, error));
+        EXPECT_TRUE(has(text, "Bluetooth trace: off"));
+    }
+
+    // The encryption tables: nine boxes of 256 (each 0..255 once) after a
+    // 48-byte answer table, found at the answer table; one repeated value
+    // in a box, or eight boxes only, and nothing is found.
+    {
+        std::vector<std::uint8_t> data(0x100 + 48 + 9 * 256 + 0x40, 0x5A);
+        const std::size_t answers = 0x100;
+        for (std::size_t box = 0; box < 9; ++box) {
+            for (std::size_t i = 0; i < 256; ++i) {
+                data[answers + 48 + 256 * box + i] = static_cast<std::uint8_t>((i * 7 + box * 13) & 0xFF);
+            }
+        }
+        std::vector<riftwii::CodeSpan> spans = {riftwii::CodeSpan{data.data(), data.size(), 0x80290000u}};
+        EXPECT_EQ(riftwii::find_extension_tables(spans), 0x80290100u);
+        data[answers + 48 + 256 * 8 + 3] = data[answers + 48 + 256 * 8 + 4];
+        EXPECT_EQ(riftwii::find_extension_tables(spans), 0u);
     }
 
     // Not a log, or another version: refused with a reason.

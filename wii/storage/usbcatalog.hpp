@@ -9,6 +9,7 @@
 
 #include "riftwii/redirect.hpp"
 #include "riftwii/rvz.hpp"
+#include "riftwii/titles.hpp"
 #include "riftwii/usbgame.hpp"
 #include "resident.hpp"
 
@@ -45,6 +46,13 @@ struct ImageGame {
     RvzSupport rvz_support = RvzSupport::Supported;
     std::vector<std::string> rvz_reasons;
     std::uint64_t rvz_disc_bytes = 0;
+    std::uint32_t rvz_chunk_bytes = 0;  // its block size (Dolphin's word), filled then too
+    // A GameCube image (sd:/games/<folder>/game.iso): started by RiftWii's
+    // own loader (wii/launch/gclaunch.hpp), not d2x.
+    bool gamecube = false;
+    // A patch-only mod listed as the game it makes (wii/launch/gcpatch.hpp):
+    // `path` is the patch, this the original it is made from.
+    std::string gc_patch_source;
 };
 
 struct ImageCatalog {
@@ -91,6 +99,10 @@ void release_usb_driver();
 // menu did not have to choose. The launch's d2x drive is matched to it
 // (umsdev.cpp), so both read the same drive.
 bool usb_picked_drive(std::uint32_t& sector_bytes, std::uint64_t& sector0_hash);
+// The last USB scan found only a Wii U's own drive (riftwii/imagevolume.hpp,
+// classify_drive_block0): the menu says so once and leaves the drive alone
+// instead of reporting a broken drive at every start.
+bool usb_only_wiiu_drive();
 std::uint64_t usb_sector0_hash(const std::uint8_t* sector, std::size_t bytes);
 // Opens a listed game that is not checked yet: its pieces, disc header and
 // d2x fragment list, filling title, revision and disc number (and the ID
@@ -140,8 +152,15 @@ bool sd_file_pieces(const std::string& sd_path, std::uint64_t& size, std::vector
 // A game's name from the title list (GameTDB, in the menu's language),
 // else `internal`, the disc header's.
 std::string GameDisplayName(const std::string& id, const std::string& internal);
+// GameTDB's title list, when one is on the card (downloaded or kept): false
+// without a list. With one, `title` gets the name for `id` (6 characters or
+// a 4-character WiiWare or Virtual Console code), empty when it has none.
+bool GameTitleListed(const std::string& id, std::string& title);
 // Reads the title list again (after a language change or a download).
 void ReloadTitles();
+// The title list the last scan read, without reading or downloading it
+// now; null when there is none yet.
+const TitleTable* LoadedTitles();
 // Names (and sorts) a scanned catalog's games again from the title list.
 void RenameGames(ImageCatalog& catalog);
 // Whether a cIOS slot holds a launchable (non-stub) title.

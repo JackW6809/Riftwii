@@ -37,7 +37,11 @@ Holds theme information:
 Controls the painted parts' shape:
 
 - `corners`: corner roundness multiplier, from `0` (square corners) to `2`
-  (twice as round). The default is `1`.
+  (twice as round). The default is `1`. A player can override it for the
+  Channels view's tiles alone in Settings > Home > Channel corners (shown
+  while Home is in the Channels view; `channel_corners` in `settings.txt`):
+  `theme` (the default) keeps this value, and `square`, `slight`, `round`
+  and `rounder` use `0`, `0.5`, `1` and `2` in every theme.
 - `gloss`: `yes` or `no`. A shine across the top half of buttons, tiles
   and option boxes. The default is `no`.
 - `bar`: `dip` or `bump`. Home's bottom bar sinks in the middle with the
@@ -91,8 +95,8 @@ shows:
 | `bar` | `#DEDEE4` | Home's bottom bar, the banner screen's and the title bands (a shade under the backdrop) |
 | `backdrop` | `#ECECEF` | Behind every screen |
 | `backdrop_stripe` | `#E3E3E8` | The backdrop's thin stripes |
-| `banner_stripe` | `#FFFFFF14` | Stripes over a game page's banner |
-| `banner_tint` | `#00000000` | Mixed into each game's own colour (a game page's banner, plain spines and backs on the shelf) by its alpha: `00` keeps the games' colours, `FF` gives every game this colour |
+| `banner_stripe` | `#FFFFFF14` | Stripes over a game page's banner while it shows the game's colour (no box art on the card yet) |
+| `banner_tint` | `#00000000` | Mixed into each game's own colour and over its blurred box art (a game page's banner, plain spines and backs on the shelf) by its alpha: `00` keeps the games' colours, `FF` gives every game this colour |
 | `divider` | `#E8E8EE` | Between list rows |
 | `scroll_track` | `#E6E6EC` | A list's scroll track |
 | `scroll_thumb` | `#A8A8B4` | A list's scroll thumb |
@@ -133,21 +137,26 @@ Pictures ending in `_over` are the highlighted versions. Transparency
 | `switch_on` / `switch_off` | 68x40 | On/Off switches |
 | `panel_game` | 580x240 | The white panel behind a game page's list |
 | `panel_settings` | 580x284 | The white panel behind Settings |
+| `popup` | 580x284 | A popup's box: the title in a band across its top 44 pixels, a narrower band across the bottom 18 |
 | `bar` | 640x124 | Home's bottom bar (its top edge is a curve; see `bar` under [shape]) |
-| `banner_stripes` | 640x192 | Drawn over a game page's banner |
+| `banner_stripes` | 640x192 | Drawn over a game page's banner while it shows the game's colour; once the game's box art is on the card, the banner is that art, blurred |
 | `arrow_left` / `arrow_left_over`, `arrow_right` / `arrow_right_over` | 48x48 | Home's page arrows |
 | `scroll_up` / `scroll_up_over`, `scroll_down` / `scroll_down_over` | 44x44 | A list's scroll arrows |
 | `icon_drives` | 28x28 | Drive icon |
 | `icon_gear` | 28x28 | Gear icon |
 | `icon_search` | 28x28 | Magnifier icon on the search button |
 | `icon_star`, `icon_star_on` | 28x28 | Favourite button on a game's banner: not a favourite, a favourite |
+| `tile9`, `tile9_over`, `tile9_primary`, `tile9_primary_over` | 64x64 | The game page's and Settings' tiles, stretched with 24-pixel corners kept: plain, lit, the main one (Play), the main one lit |
+| `prompt_button` | 24x24 | The round badge under a button's name in the prompts along the bottom of a screen, for a button without a picture of its own (A, B, +, -, 1, 2, HOME, C and Z have Kenney's, drawn in `glyph`) |
+| `icon_play`, `icon_mods`, `icon_cheats`, `icon_saves`, `icon_info`, `icon_help` | 28x28 | The game page's tiles: Play, Mods, Cheats, Saves, About; Help in Settings |
+| `icon_picture`, `icon_controllers`, `icon_online`, `icon_home`, `icon_sound`, `icon_power` | 28x28 | Settings' tiles: Picture, Controllers, Online, Home screen, Look and sound, Leave RiftWii |
 | `icon_disc` | 40x40 | Disc icon (name and channel tiles) |
 | `disc_case` | 128x176 | The Disc drive's box: its cover tile, and its front and back on the shelf |
 | `pointer1` to `pointer4` | 96x96 | Each player's pointer; the fingertip must be at the centre (48, 48) |
 | `shelf` | 256x64 | Home's shelf: rows 0-47 are its top (the far edge first), rows 48-63 its front edge. It repeats along the shelf, so make the left and right edges meet |
 | `background_wide` | 856x480 | `background` for a widescreen menu (optional) |
 | `bar_wide` | 856x124 | `bar` for a widescreen menu, its dip (or bump) in the middle (optional) |
-| `background_shelf` / `background_shelf_wide` | 640x480 / 856x480 | `background` / `background_wide` while Home shows the shelf (Settings > Home tiles > Shelf), for a background drawn to go with Home's rows of covers (optional) |
+| `background_shelf` / `background_shelf_wide` | 640x480 / 856x480 | `background` / `background_wide` while Home shows the shelf, the carousel or 3D covers (Settings > Home tiles), for a background drawn to go with Home's rows of covers (optional) |
 | `background_plain` / `background_plain_wide` | 640x480 / 856x480 | `background` / `background_wide` on every screen but Home, for a background drawn around Home (Bookshelf: its wall without the shelves) (optional) |
 | `background_channels` / `background_channels_wide` | 640x480 / 856x480 | `background` / `background_wide` while Home shows Channels, for a background drawn to go with its three rows (Bookshelf: a shelf under each) (optional) |
 
