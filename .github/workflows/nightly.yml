@@ -63,6 +63,11 @@ jobs:
     name: CI
     needs: check
     if: needs.check.outputs.build == 'true'
+    # A called workflow gets no more than its caller grants: CI's Wii build
+    # reads main's artifact for its size report (actions: read).
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ needs.check.outputs.sha }}
