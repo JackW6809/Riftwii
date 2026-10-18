@@ -40,7 +40,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: main
+          # The schedule builds main. A dry run builds the branch it was
+          # started from, so a change to this workflow and its tools can be
+          # tried before it is merged.
+          ref: ${{ inputs.dry_run && github.ref || 'main' }}
           fetch-depth: 0
       # As CI does: a fork has none of RiftWii's tags.
       - name: Fetch the release tags
@@ -195,7 +198,8 @@ jobs:
   report:
     name: Report a failure
     needs: [check, ci, build, publish]
-    if: ${{ failure() }}
+    # A dry run's failure shows in its own run; only real nights open the issue.
+    if: ${{ failure() && !inputs.dry_run }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
