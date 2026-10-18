@@ -102,6 +102,7 @@
 #include "i18n.hpp"
 #include "loadersettings.hpp"
 #include "memorybudget.hpp"
+#include "crash.hpp"
 #include "log.hpp"
 #include "ios_reload.hpp"
 #include "menuios.hpp"
@@ -449,6 +450,10 @@ void InitGUIThreads()
 	WPAD_SetPowerButtonCallback(RemotePowerPressed);
 	if (LWP_CreateThread(&guithread, UpdateGUI, nullptr, nullptr, 24576, 70) < 0)
 		ExitApp();
+	// A crash in either thread also says where the other one was: the
+	// GUI thread draws what the menu's thread builds and takes down.
+	riftwii::wii::CrashWatchThread("Menu thread", menuthread);
+	riftwii::wii::CrashWatchThread("GUI thread", guithread);
 	HaltGui();
 	g_watchdogOn = true;
 	LWP_CreateThread(&g_watchdog, MenuWatchdog, nullptr, nullptr, 8192, 80);
@@ -2753,10 +2758,12 @@ static void RunUpdate(const std::string& latest)
 		    tr("RiftWii {1} is installed ({2}). It runs the next time RiftWii starts. Leave to the Homebrew Channel now and start it again?",
 			    {latest, where}),
 		    tr("Leave"), tr("Later")) == 0) {
+		logf("Update: the player chose Leave; RiftWii closes so the Homebrew Channel can start %s\n", latest.c_str());
 		ExitRequested = 1;
 		ResumeGui();
 		while (1) usleep(THREAD_SLEEP);
 	}
+	logf("Update: the player chose Later; %s runs at the next start\n", latest.c_str());
 	SetHomeNotice(tr("RiftWii {1} is installed. Start RiftWii again to use it.", {latest}));
 }
 

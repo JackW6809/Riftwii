@@ -7,6 +7,7 @@
 #include <ogc/lwp_watchdog.h>
 #include <ogc/video.h>
 #include <tuxedo/ppc/exception.h>
+#include <tuxedo/thread.h>
 
 #include <cstdarg>
 #include <cstdio>
@@ -35,7 +36,21 @@ struct CrashInfo {
     unsigned exid;
     u32 pc, lr, msr, cr, ctr, dar, dsisr;
     u32 gpr[32];
+    lwp_t thread;  // the one that crashed
 };
+
+// Threads whose place goes into the report when another one crashes
+// (CrashWatchThread): the menu's and the GUI's. What one of them was
+// doing is often what broke the other: in 2610-454 the GUI thread found
+// Home's page window zeroed during an in-app update, and the report could
+// not say where the menu thread was at that moment.
+struct WatchedThread {
+    const char* name;
+    lwp_t thread;
+};
+constexpr unsigned kWatchedMax = 4;
+WatchedThread g_watched[kWatchedMax];
+unsigned g_watchedCount = 0;
 
 CrashInfo g_info;
 volatile int g_crashing = 0;
@@ -83,6 +98,47 @@ void Append(std::size_t& at, const char* format, ...) {
     if (n > 0) at += static_cast<std::size_t>(n);
 }
 
+// The stack's saved return addresses: back chain at 0(sp), LR at 4(sp).
+void AppendBacktrace(std::size_t& at, u32 sp) {
+    for (unsigned i = 0; i < kBacktraceFrames && Plausible(sp); ++i) {
+        const u32 next = *reinterpret_cast<const u32*>(sp);
+        if (!Plausible(next) || next <= sp) break;
+        Append(at, " %08X", *reinterpret_cast<const u32*>(next + 4));
+        sp = next;
+    }
+}
+
+const char* ThreadStateName(const KThread& thread) {
+    if (thread.suspend != 0) return "suspended";
+    switch (thread.state) {
+        case KTHR_STATE_RUNNING: return "ready";
+        case KTHR_STATE_WAITING: return "waiting";
+        case KTHR_STATE_WAITING_MUTEX: return "waiting for a mutex";
+        case KTHR_STATE_FINISHED: return "finished";
+        default: return "not started";
+    }
+}
+
+// Where each watched thread other than the crashed one stopped: the
+// context the scheduler saved when it last switched away from it. A
+// libogc lwp_t is the bitwise NOT of the thread's KThread, which starts
+// with that context (LWP_GetSelf and LWP_ThreadIsSuspended read it so).
+// Its own lines, not "PC ..." or "Stack:" at the start: tools that read
+// crash.txt take those as the crashed thread's.
+void AppendWatchedThreads(std::size_t& at) {
+    for (unsigned i = 0; i < g_watchedCount; ++i) {
+        const WatchedThread& watched = g_watched[i];
+        if (watched.thread == LWP_THREAD_NULL || watched.thread == g_info.thread) continue;
+        const u32 address = ~static_cast<u32>(watched.thread);
+        if (!Plausible(address)) continue;
+        const KThread& thread = *reinterpret_cast<const KThread*>(address);
+        Append(at, "%s (%s): PC %08X  LR %08X  SP %08X\n  its stack:", watched.name, ThreadStateName(thread),
+               thread.ctx.pc, thread.ctx.lr, thread.ctx.gpr[1]);
+        AppendBacktrace(at, thread.ctx.gpr[1]);
+        Append(at, "\n");
+    }
+}
+
 void BuildReport() {
     std::size_t at = 0;
     const CrashInfo& c = g_info;
@@ -93,16 +149,11 @@ void BuildReport() {
         Append(at, "R%02d %08X  R%02d %08X  R%02d %08X  R%02d %08X\n", r, c.gpr[r], r + 1, c.gpr[r + 1], r + 2,
                c.gpr[r + 2], r + 3, c.gpr[r + 3]);
     }
-    // The stack's saved return addresses: back chain at 0(sp), LR at 4(sp).
     Append(at, "Stack:");
-    u32 sp = c.gpr[1];
-    for (unsigned i = 0; i < kBacktraceFrames && Plausible(sp); ++i) {
-        const u32 next = *reinterpret_cast<const u32*>(sp);
-        if (!Plausible(next) || next <= sp) break;
-        Append(at, " %08X", *reinterpret_cast<const u32*>(next + 4));
-        sp = next;
-    }
-    Append(at, "\nIOS%d. The addresses are in this release's riftwii.elf.\n", IOS_GetVersion());
+    AppendBacktrace(at, c.gpr[1]);
+    Append(at, "\n");
+    AppendWatchedThreads(at);
+    Append(at, "IOS%d. The addresses are in this release's riftwii.elf.\n", IOS_GetVersion());
 }
 
 // Prints `text` with every line indented, clear of the TV's overscan.
@@ -234,6 +285,7 @@ void RiftPanic(unsigned exid, PPCContext* ctx) {
     asm volatile("mfspr %0, 19" : "=r"(g_info.dar));
     asm volatile("mfspr %0, 18" : "=r"(g_info.dsisr));
     std::memcpy(g_info.gpr, ctx->gpr, sizeof(g_info.gpr));
+    g_info.thread = LWP_GetSelf();
     u32 sda2, sda;
     asm volatile("mr %0, 2" : "=r"(sda2));
     asm volatile("mr %0, 13" : "=r"(sda));
@@ -262,5 +314,9 @@ void CrashInstall() {
 }
 
 void CrashSetPhase(CrashPhase phase) { g_phase = phase; }
+
+void CrashWatchThread(const char* name, lwp_t thread) {
+    if (g_watchedCount < kWatchedMax) g_watched[g_watchedCount++] = WatchedThread{name, thread};
+}
 
 }  // namespace riftwii::wii
