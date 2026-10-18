@@ -123,9 +123,9 @@ jobs:
           # when it can't be told.
           # The build image may not carry gh: then the API answers the same.
           if command -v gh >/dev/null; then
-            stable=$(gh release view --repo KakarottoCake/Riftwii --json tagName --jq .tagName 2>/dev/null || true)
+            stable=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
           else
-            stable=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/KakarottoCake/Riftwii/releases/latest 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1 || true)
+            stable=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" "https://api.github.com/repos/$GITHUB_REPOSITORY/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1 || true)
           fi
           sha256=$(sha256sum riftwii.dol | cut -d' ' -f1 | tr a-f A-F)
           size=$(stat -c %s riftwii.dol)
