@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <ogc/lwp.h>
+
 // RiftWii's crash screen. libogc sends an unhandled exception (a bad
 // pointer, a bad jump, an illegal instruction) to a panic function; ours
 // notes the registers, then resumes the crashed thread in a recovery
@@ -18,5 +20,8 @@ void CrashInstall();
 // Where the screen is: before the menu's video, the menu (libwiigui),
 // or the text console of the launch screen.
 void CrashSetPhase(CrashPhase phase);
+// A thread whose place (its PC, LR and the return addresses on its stack)
+// the report also gives when another thread crashes. At most four.
+void CrashWatchThread(const char* name, lwp_t thread);
 
 }  // namespace riftwii::wii
