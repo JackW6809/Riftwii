@@ -36,6 +36,8 @@
 #define GC_BT_READ_BYTES 256u
 #define GC_BT_REMOTES 4u    /* one per GameCube port */
 #define GC_BT_KEYS 8u
+#define GC_BT_REPORT_SLOTS 12u  /* gc_bt.reports */
+#define GC_BT_DROP_LOG 3u
 #define GC_BT_COMMANDS 6u   /* HCI commands waiting for the controller to take another */
 
 /* One IOS request with its vectors and small input buffers. */
@@ -114,6 +116,30 @@ struct gc_bt {
     uint32_t last_event;    /* code << 16 | the opcode or first bytes */
     uint8_t event_log[4][8];  /* the first four events' first bytes, for the trace */
     uint32_t event_lengths;   /* their lengths, a byte each */
+    /* Link diagnostics (issue #135: a remote connects on a Wii U's vWii but
+     * its reports barely arrive). Plain counters, read by the trace. */
+    uint32_t acl_submitted;   /* ACL-in reads handed to IOS */
+    uint32_t acl_ok;          /* completed with data */
+    uint32_t acl_errors;      /* completed with a negative result */
+    uint32_t acl_zero;        /* completed with length 0 */
+    int32_t acl_last_error;
+    uint32_t drop_short;      /* bt_on_acl's drops, one counter per check */
+    uint32_t drop_handle;
+    uint32_t drop_continuation;
+    uint32_t drop_l2_length;
+    uint32_t drop_cid;
+    uint16_t reports[GC_BT_REPORT_SLOTS];  /* input reports seen: 0x20, 0x21, 0x22, 0x30-0x37, any other */
+    uint32_t event_submitted;     /* HCI event reads handed to IOS */
+    uint32_t event_ok;
+    uint32_t event_failed;        /* completed with 0 bytes or an error */
+    uint32_t completed_packets;   /* the sum of Number Of Completed Packets events */
+    uint32_t out_submitted;       /* ACL-out writes handed to IOS */
+    uint32_t out_ok;
+    uint32_t out_errors;
+    uint32_t acl_stamp;           /* timebase (low word) when the newest ACL-in read completed */
+    uint32_t acl_gap_max;         /* the longest time between two ACL-in completions, timebase ticks */
+    uint32_t drop_logged;         /* dropped packets kept in drop_log */
+    uint8_t drop_log[GC_BT_DROP_LOG][8];  /* the first bytes of the first dropped packets */
 };
 
 #define GC_BT_STAGE_CLOSED 0u

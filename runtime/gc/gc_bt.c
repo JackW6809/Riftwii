@@ -30,6 +30,7 @@
 #define GC_EV_CONNECTION_COMPLETE 0x03u
 #define GC_EV_CONNECTION_REQUEST 0x04u
 #define GC_EV_DISCONNECTED 0x05u
+#define GC_EV_NUMBER_OF_COMPLETED_PACKETS 0x13u
 #define GC_EV_COMMAND_COMPLETE 0x0Eu
 #define GC_EV_COMMAND_STATUS 0x0Fu
 #define GC_EV_RETURN_LINK_KEYS 0x15u
@@ -73,6 +74,9 @@ static int bt_claim(struct gc_bt_rq* rq, uint32_t reply) {
     gc_invalidate((uint32_t)(uintptr_t)rq->ipc, sizeof(rq->ipc));
     if (rq->data) gc_invalidate(rq->data, rq->length);
     rq->result = (int32_t)rq->ipc[1];
+    /* When IOS answered, not when the next poll gets to it: for the gap
+     * between ACL reads (only the ACL requests' stamps are read). */
+    __asm__ volatile("mftb %0" : "=r"(rq->pad[0]));
     rq->state = GC_BT_RQ_DONE;
     return 1;
 }
@@ -213,7 +217,11 @@ static void bt_acl(struct gc_bt* bt, uint32_t handle, uint32_t cid, const uint8_
     gc_flush((uint32_t)(uintptr_t)bt->out, sizeof(bt->out));
     bt_transfer(bt, rq, GC_USB_BLKMSG, GC_BT_EP_ACL_OUT, bt->out, length + 8);
     rq->data = 0;
-    if (bt_send(bt, rq)) bt_wait_write(bt);
+    if (bt_send(bt, rq)) {
+        bt->out_submitted++;
+        if (bt_wait_write(bt)) bt->out_ok++;
+        else bt->out_errors++;
+    }
 }
 
 static struct gc_bt_remote* bt_by_handle(struct gc_bt* bt, uint32_t handle) {
@@ -317,6 +325,11 @@ static void bt_on_event(struct gc_bt* bt, const uint8_t* e, uint32_t length) {
         bt_command(bt, GC_HCI_LINK_KEY_NEGATIVE, reply, 6);
         return;
     }
+    if (code == GC_EV_NUMBER_OF_COMPLETED_PACKETS) {
+        /* A handle count, then (handle, packets) pairs. */
+        for (i = 0; i < p[0] && 1 + 4 * i + 4 <= e[1]; ++i) bt->completed_packets += bt_le16(p + 1 + 4 * i + 2);
+        return;
+    }
     if (code == GC_EV_PIN_REQUEST) {
         /* Syncing is the Wii Menu's job; a remote that is not synced is refused. */
         bt_copy(reply, p, 6);
@@ -364,6 +377,10 @@ static void bt_on_input(struct gc_bt* bt, struct gc_bt_remote* r, const uint8_t*
     const uint32_t id = p[1];
     uint8_t q[7];
     if (length < 4 || p[0] != 0xA1) return;
+    {
+        const uint32_t slot = id >= 0x30 && id <= 0x37 ? 3 + (id - 0x30) : id >= 0x20 && id <= 0x22 ? id - 0x20 : 11;
+        if (bt->reports[slot] != 0xFFFFu) bt->reports[slot]++;
+    }
     if (id >= 0x20 && id <= 0x3F && id != 0x3D) {
         r->core[0] = p[2];
         r->core[1] = p[3];
@@ -504,19 +521,50 @@ static void bt_on_signal(struct gc_bt* bt, struct gc_bt_remote* r, uint32_t slot
     }
 }
 
+/* Keeps the first bytes of the first few packets bt_on_acl drops. */
+static void bt_note_drop(struct gc_bt* bt, const uint8_t* a, uint32_t length) {
+    uint8_t* log;
+    uint32_t i;
+    if (bt->drop_logged >= GC_BT_DROP_LOG) return;
+    log = bt->drop_log[bt->drop_logged++];
+    for (i = 0; i < 8; ++i) log[i] = i < length ? a[i] : 0;
+}
+
 static void bt_on_acl(struct gc_bt* bt, const uint8_t* a, uint32_t length) {
     const uint32_t handle = bt_le16(a) & 0x0FFFu;
     const uint32_t flags = bt_le16(a) >> 12;
     struct gc_bt_remote* r = bt_by_handle(bt, handle);
     uint32_t l2_length, cid, slot;
-    if (length < 8 || r == 0 || (flags & 3u) == 1u) return;  /* continuations: none expected this small */
+    if (length < 8) {
+        bt->drop_short++;
+        bt_note_drop(bt, a, length);
+        return;
+    }
+    if (r == 0) {
+        bt->drop_handle++;
+        bt_note_drop(bt, a, length);
+        return;
+    }
+    if ((flags & 3u) == 1u) {  /* continuations: none expected this small */
+        bt->drop_continuation++;
+        bt_note_drop(bt, a, length);
+        return;
+    }
     bt->acl_count++;
     l2_length = bt_le16(a + 4);
     cid = bt_le16(a + 6);
-    if (l2_length + 8 > length) return;
+    if (l2_length + 8 > length) {
+        bt->drop_l2_length++;
+        bt_note_drop(bt, a, length);
+        return;
+    }
     slot = (uint32_t)(r - bt->remotes);
     if (cid == GC_L2_SIGNALLING) bt_on_signal(bt, r, slot, a + 8, l2_length);
     else if (cid == GC_BT_LOCAL_CID + 2 * slot + 1) bt_on_input(bt, r, a + 8, l2_length);
+    else {
+        bt->drop_cid++;
+        bt_note_drop(bt, a, length);
+    }
 }
 
 /* --- Driving it ----------------------------------------------------- */
@@ -525,7 +573,10 @@ static void bt_read(struct gc_bt* bt, struct gc_bt_rq* rq, uint32_t ioctl, uint3
     bt_transfer(bt, rq, ioctl, endpoint, buf, GC_BT_READ_BYTES);
     rq->data = (uint32_t)(uintptr_t)buf;
     rq->length = GC_BT_READ_BYTES;
-    bt_send(bt, rq);
+    if (bt_send(bt, rq)) {
+        if (endpoint == GC_BT_EP_ACL_IN) bt->acl_submitted++;
+        else bt->event_submitted++;
+    }
 }
 
 static void bt_open(struct gc_bt* bt) {
@@ -578,6 +629,23 @@ static void bt_update_leds(struct gc_bt* bt) {
     }
 }
 
+/* Counts a finished ACL-in read and the time since the one before it. */
+static void bt_note_acl_done(struct gc_bt* bt, const struct gc_bt_rq* rq) {
+    const uint32_t stamp = rq->pad[0];
+    if (rq->result > 0) bt->acl_ok++;
+    else if (rq->result == 0) bt->acl_zero++;
+    else {
+        bt->acl_errors++;
+        bt->acl_last_error = rq->result;
+    }
+    if (bt->acl_stamp != 0) {
+        /* Replies are polled slot by slot, so a few are older than the last. */
+        const int32_t gap = (int32_t)(stamp - bt->acl_stamp);
+        if (gap > 0 && (uint32_t)gap > bt->acl_gap_max) bt->acl_gap_max = (uint32_t)gap;
+    }
+    if (bt->acl_stamp == 0 || (int32_t)(stamp - bt->acl_stamp) > 0) bt->acl_stamp = stamp ? stamp : 1;
+}
+
 void gc_bt_poll(struct gc_rt_context* ctx, struct gc_bt* bt) {
     uint32_t i, msr;
     if (bt->stage == GC_BT_STAGE_FAILED) return;
@@ -594,13 +662,19 @@ void gc_bt_poll(struct gc_rt_context* ctx, struct gc_bt* bt) {
     for (i = 0; i < GC_BT_EVENT_READS && bt->stage != GC_BT_STAGE_FAILED; ++i) {
         struct gc_bt_rq* rq = &bt->events[i];
         if (rq->state != GC_BT_RQ_DONE) continue;
-        if (rq->result > 0) bt_on_event(bt, bt->event_buf[i], (uint32_t)rq->result);
-        else bt->last_error = rq->result;
+        if (rq->result > 0) {
+            bt->event_ok++;
+            bt_on_event(bt, bt->event_buf[i], (uint32_t)rq->result);
+        } else {
+            bt->event_failed++;
+            bt->last_error = rq->result;
+        }
         bt_read(bt, rq, GC_USB_INTRMSG, GC_BT_EP_EVENTS, bt->event_buf[i]);
     }
     for (i = 0; i < GC_BT_ACL_READS && bt->stage != GC_BT_STAGE_FAILED; ++i) {
         struct gc_bt_rq* rq = &bt->acl[i];
         if (rq->state != GC_BT_RQ_DONE) continue;
+        bt_note_acl_done(bt, rq);
         if (rq->result > 0) bt_on_acl(bt, bt->acl_buf[i], (uint32_t)rq->result);
         else bt->last_error = rq->result;
         bt_read(bt, rq, GC_USB_BLKMSG, GC_BT_EP_ACL_IN, bt->acl_buf[i]);

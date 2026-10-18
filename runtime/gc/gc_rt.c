@@ -474,6 +474,21 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
             w[GC_TR_PAD_ERRS] = w[GC_TR_PAD_ERRS] << 8 | bt->port_err[i];
         }
         gc_copy((uint8_t*)&w[GC_TR_BT_EVENT_LOG], &bt->event_log[0][0], 32);
+        w[GC_TR_BT_ACL_SUBMITTED] = bt->acl_submitted;
+        w[GC_TR_BT_ACL_OK] = bt->acl_ok;
+        w[GC_TR_BT_ACL_ERRORS_ZERO] = (bt->acl_errors & 0xFFFFu) << 16 | (bt->acl_zero & 0xFFFFu);
+        w[GC_TR_BT_ACL_LAST_ERROR] = (uint32_t)bt->acl_last_error;
+        w[GC_TR_BT_DROPS_SHORT_HANDLE] = (bt->drop_short & 0xFFFFu) << 16 | (bt->drop_handle & 0xFFFFu);
+        w[GC_TR_BT_DROPS_CONT_LENGTH] = (bt->drop_continuation & 0xFFFFu) << 16 | (bt->drop_l2_length & 0xFFFFu);
+        w[GC_TR_BT_DROPS_CID] = bt->drop_cid;
+        for (i = 0; i < GC_BT_REPORT_SLOTS; i += 2) w[GC_TR_BT_REPORTS + i / 2] = (uint32_t)bt->reports[i] << 16 | bt->reports[i + 1];
+        w[GC_TR_BT_EVENT_SUBMITTED] = bt->event_submitted;
+        w[GC_TR_BT_EVENT_DONE] = (bt->event_ok & 0xFFFFu) << 16 | (bt->event_failed & 0xFFFFu);
+        w[GC_TR_BT_COMPLETED_PACKETS] = bt->completed_packets;
+        w[GC_TR_BT_OUT_SUBMITTED] = bt->out_submitted;
+        w[GC_TR_BT_OUT_DONE] = (bt->out_ok & 0xFFFFu) << 16 | (bt->out_errors & 0xFFFFu);
+        w[GC_TR_BT_ACL_GAP_MAX] = bt->acl_gap_max;
+        gc_copy((uint8_t*)&w[GC_TR_BT_DROP_LOG], &bt->drop_log[0][0], sizeof(bt->drop_log));
     }
     if (ctx->card) {
         const struct gc_card* card = (const struct gc_card*)(uintptr_t)ctx->card;

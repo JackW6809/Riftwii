@@ -24,7 +24,8 @@ DECIMAL = {'seq', 'commands', 'reads', 'read_bytes', 'sd_requests', 'failures', 
            'stream_refills', 'ai_dmas', 'ar_dmas', 'alarms', 'beats', 'guard_hits', 'bt_events', 'bt_acl',
            'card_reads', 'card_flushes', 'card_dirty', 'vi_configures', 'projections', 'stream_starved',
            'stream_fetch_busy', 'stream_buffered', 'orthographics', 'ar_waits', 'ar_wait_longest',
-           'ar_wait_timeouts'}
+           'ar_wait_timeouts', 'bt_acl_submitted', 'bt_acl_ok', 'bt_event_submitted', 'bt_completed_packets',
+           'bt_out_submitted', 'bt_acl_gap_max'}
 
 
 def word_names():

@@ -132,7 +132,20 @@ enum gc_trace_word {
     GC_TR_RVZ_TICKS,
     GC_TR_RVZ_ERROR,
     GC_TR_BT_PORTS, /* each remote slot's port (gc_ports.h), a byte each from slot 0 in the top byte; 0xFF none */
-    GC_TR_PAD_ERRS, /* each port's err as the game got it after the remotes' fill, port 1 in the top byte; 0xFF none */
+    GC_TR_BT_ACL_SUBMITTED, GC_TR_BT_ACL_OK, GC_TR_BT_ACL_ERRORS_ZERO, /* errors << 16 | zero-length completions */
+    GC_TR_BT_ACL_LAST_ERROR,
+    GC_TR_BT_DROPS_SHORT_HANDLE, /* bt_on_acl's drops, 16 bits each: too short << 16 | unknown handle */
+    GC_TR_BT_DROPS_CONT_LENGTH, /* continuation flags << 16 | l2cap length mismatch */
+    GC_TR_BT_DROPS_CID, /* unknown cid */
+    GC_TR_BT_REPORTS, /* 6 words, 16 bits each: 0x20 0x21 | 0x22 0x30 | 0x31 0x32 | 0x33 0x34 | 0x35 0x36 | 0x37 other */
+    GC_TR_BT_EVENT_SUBMITTED = GC_TR_BT_REPORTS + 6,
+    GC_TR_BT_EVENT_DONE, /* completed with data << 16 | failed (0 bytes or an error) */
+    GC_TR_BT_COMPLETED_PACKETS, /* Number Of Completed Packets, summed */
+    GC_TR_BT_OUT_SUBMITTED, /* ACL-out writes */
+    GC_TR_BT_OUT_DONE, /* completed ok << 16 | failed */
+    GC_TR_BT_ACL_GAP_MAX, /* longest time between two ACL-in completions, timebase ticks (60.75 MHz on a Wii) */
+    GC_TR_BT_DROP_LOG, /* 6 words: the first 3 dropped ACL packets' first 8 bytes */
+    GC_TR_PAD_ERRS = GC_TR_BT_DROP_LOG + 6, /* each port's err as the game got it after the remotes' fill, port 1 in the top byte; 0xFF none */
     GC_TR_WORDS
 };
 typedef char gc_trace_fits[(GC_TR_WORDS * 4 <= 512) ? 1 : -1];
