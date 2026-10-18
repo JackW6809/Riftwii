@@ -268,7 +268,14 @@ it. Off by default; a GX buffer that filled up is logged either way
    Actions > Nightly > Run workflow starts one by hand; `dry_run` builds
    and packs without publishing (the files are on the run's page).
    Hand-made betas, release candidates and stable releases are as above;
-   a nightly never sets `RIFTWII_STABLE`.
+   a nightly never sets `RIFTWII_STABLE`. A night that fails (CI, build or
+   publish) opens an issue titled "Nightly failed", or comments on the one
+   already open, with the commit and the run's link.
+   The YYMM of a nightly's version is `RIFTWII_BASE`, read by
+   `Makefile.wii` from `project(Riftwii VERSION ...)` in `CMakeLists.txt`.
+   It never moves by itself: the maintainer bumps it (with
+   `RIFTWII_BASE_TAG`) at the start of each month, before that month's
+   first nightly, or the nightly keeps publishing last month's "2610-...".
 
 ## Ground rules
 

@@ -171,6 +171,14 @@ def main():
                 data = data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
             files.append(("sd-card/riftwii/themes/%s/%s" % (theme.name, f.name), data))
 
+    # Plugins (docs/PLUGINS.md) sit next to boot.dol, as Makefile.plugin
+    # leaves them (name.version.rwp). A build without any has no folder:
+    # then there is nothing to add.
+    plugins = ROOT / "build-plugins" / "plugins"
+    if plugins.is_dir():
+        for f in sorted(p for p in plugins.iterdir() if p.is_file() and p.suffix == ".rwp"):
+            files.append(("sd-card/apps/riftwii/plugins/%s" % f.name, f.read_bytes()))
+
     out = pathlib.Path(args.out)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for path, data in files:

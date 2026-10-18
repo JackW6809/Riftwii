@@ -111,12 +111,22 @@ jobs:
           python3 tools/make_release_zip.py "$version" riftwii.dol build-channel/installer.dol "out/riftwii-v$version.zip" --nightly
           python3 tools/make_update_pack.py "out/riftwii-v$version.zip" out/riftwii-update.pack
           echo "version=$version" >> "$GITHUB_OUTPUT"
-      # The changes since the last release, newest first, from the commits'
+      # The changes since the last release and since the last stable one, newest first, from the commits'
       # subject lines.
       - name: Release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           version=${{ steps.pack.outputs.version }}
           since=$(git describe --tags --abbrev=0 --match 'v*' HEAD)
+          # The latest stable release (what "latest" points to); no section
+          # when it can't be told.
+          # The build image may not carry gh: then the API answers the same.
+          if command -v gh >/dev/null; then
+            stable=$(gh release view --repo KakarottoCake/Riftwii --json tagName --jq .tagName 2>/dev/null || true)
+          else
+            stable=$(curl -fsS -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/KakarottoCake/Riftwii/releases/latest 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1 || true)
+          fi
           sha256=$(sha256sum riftwii.dol | cut -d' ' -f1 | tr a-f A-F)
           size=$(stat -c %s riftwii.dol)
           {
@@ -126,6 +136,12 @@ jobs:
             echo
             git log --no-merges --format='- %s' "$since..HEAD"
             echo
+            if [ -n "$stable" ] && git rev-parse -q --verify "refs/tags/$stable" >/dev/null; then
+              echo "## Changes since the last stable release (${stable#v})"
+              echo
+              git log --no-merges --format='- %s' "$stable..HEAD"
+              echo
+            fi
             echo "## Download"
             echo
             echo "\`riftwii-v$version.zip\`: copy its \`sd-card\` folder onto your SD card and let it replace the files (and \`usb-drive\` onto your USB drive if you use one). \`riftwii.dol\` is the same build as the zip's \`boot.dol\` (SHA256 $sha256, $size bytes). \`riftwii-update.pack\` is what the in-app update reads; you don't need to download it."
@@ -168,3 +184,29 @@ jobs:
             --title "RiftWii $VERSION Nightly" \
             --notes-file out/notes.md \
             "out/riftwii-v$VERSION.zip" out/riftwii.dol out/riftwii-update.pack
+
+  # A failed night must not pass unseen: one issue, commented on again by
+  # each following failure until someone closes it.
+  report:
+    name: Report a failure
+    needs: [check, ci, build, publish]
+    if: ${{ failure() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.check.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="Nightly failed"
+          body="The nightly for \`${SHA:-unknown}\` failed: $RUN_URL"
+          number=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number,title --jq "[.[] | select(.title == \"$title\")][0].number // empty")
+          if [ -n "$number" ]; then
+            gh issue comment "$number" -R "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
