@@ -22,6 +22,7 @@
 
 #include "boot.hpp"
 #include "gcadapter.hpp"
+#include "launchwatch.hpp"
 #include "memlimits.hpp"
 #include "menumusic.hpp"
 #include "netsock.hpp"
@@ -83,6 +84,7 @@ const std::string& last_reload_detail() { return g_reload_detail; }
 
 void release_wii_remotes() {
     if (g_wii_remotes_released) return;
+    LaunchWatchRemotesGone();
     WPAD_Shutdown();
     g_wii_remotes_released = true;
 }
@@ -95,6 +97,7 @@ void release_wii_remotes() {
 
 ReloadResult reload_ios(int version, std::string& error, bool force) {
     CoverLoaderHold();  // no SD read in flight across the reload
+    LaunchWatchRemotesGone();  // the Wii Remotes go with the IOS
     // Launches stop the music before they close the log; this is for any
     // reload that comes without that: no audio may run across a reload
     // (LaunchMusicPauseForReload says what it did on a Wii).

@@ -32,6 +32,7 @@
 #include "d2xsd.hpp"
 #include "di.hpp"
 #include "ios_reload.hpp"
+#include "launchwatch.hpp"
 #include "menuios.hpp"
 #include "menumusic.hpp"
 #include "log.hpp"
@@ -2346,6 +2347,7 @@ bool boot_after_unmount(const DiscProbe& probe, BootOptions& options, const Save
     // The last moment for the menu's music: libogc shuts down next, and
     // the game then takes the DSP and the audio interrupt.
     LaunchMusicEnd("the game starts next");
+    LaunchWatchStop();  // its thread must not wake inside the game
     SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
     store32(0x800000F4, bi2);
     if (options.install_resident && resident.data_bytes != 0 && resident.data_base != resident.stage_base) {
@@ -3366,6 +3368,7 @@ bool boot_channel(ChannelBootFiles files, std::string& error) {
     // The last moment for the menu's music, as for a disc game: libogc
     // shuts down next, and the game then takes the DSP.
     LaunchMusicEnd("the game starts next");
+    LaunchWatchStop();  // its thread must not wake inside the game
     SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
     dolboot_system_call_vector();
     reinterpret_cast<void (*)()>(dol.entry)();

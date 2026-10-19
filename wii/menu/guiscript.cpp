@@ -97,6 +97,7 @@ void Shot(const std::string& path, const void* xfb, int width, int height) {
 }
 
 bool g_fail_launch = false;
+int g_stall_launch = 0;
 bool g_launch_shots = false;
 
 // Runs commands until one needs frames to pass.
@@ -150,6 +151,8 @@ void Advance(const void* xfb, int width, int height) {
             g_launch_shots = true;
         } else if (cmd == "failnext") {
             g_fail_launch = true;
+        } else if (cmd == "stallnext") {
+            words >> g_stall_launch;
         } else if (cmd == "crash") {
             logf("guiscript: crashing on purpose\n");
             asm volatile("trap");  // a program exception, in Dolphin too
@@ -172,6 +175,8 @@ void Advance(const void* xfb, int width, int height) {
 }  // namespace
 
 bool GuiScriptFailLaunch() { return g_fail_launch; }
+
+int GuiScriptStallLaunch() { return g_stall_launch; }
 
 void GuiScriptLaunchShot(int percent, const void* xfb, int width, int height) {
     if (g_launch_shots) Shot("sd:/riftwii/launch_" + std::to_string(percent) + ".bmp", xfb, width, height);

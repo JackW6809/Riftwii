@@ -12,6 +12,7 @@
 #include <cstring>
 
 #include "covers.hpp"
+#include "launchwatch.hpp"
 #include "log.hpp"
 #include "netsock.hpp"
 #include "memlimits.hpp"
@@ -135,6 +136,7 @@ bool WarmRestart(RestartKind kind, const std::string& message, bool unmount) {
     LogClose();
     if (unmount) fatUnmount("sd:");
     AUDIO_StopDMA();
+    LaunchWatchStop();  // a failed launch's: its thread must not wake in the new start
     SYS_ResetSystem(SYS_SHUTDOWN, 0, 0);
     u32 level;
     _CPU_ISR_Disable(level);

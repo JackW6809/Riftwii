@@ -17,6 +17,8 @@
 //   finalshot <path>     save the launch screen once the menu has left
 //                        (on a dump, which press 2 on the game page starts)
 //   failnext             the next launch fails at once (tests the way back)
+//   stallnext <seconds>  the next launch stands still that long before it
+//                        starts, without a log line (tests the launch watch)
 //   crash                a trap instruction (tests wii/core/crash.cpp)
 //   launchshots          save the launch screen at each progress stage
 //                        while the card is up (sd:/riftwii/launch_<n>.bmp)
@@ -37,6 +39,8 @@ void GuiScriptAfterFrame(const void* xfb, int width, int height);
 void GuiScriptFinalShot(const void* xfb, int width, int height);
 // Whether the script asked the next launch to fail (failnext).
 bool GuiScriptFailLaunch();
+// Seconds the script asked the next launch to stand still (stallnext), or 0.
+int GuiScriptStallLaunch();
 // The crash screen, saved as sd:/riftwii/crashscreen.bmp when a script
 // was loaded (Dolphin's frame dump misses screens drawn without GX).
 void GuiScriptCrashShot(const void* xfb, int width, int height);

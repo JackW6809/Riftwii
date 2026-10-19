@@ -142,6 +142,7 @@ The build compiles every folder into one, so no two files share a name.
 | File | What |
 | --- | --- |
 | `progress.cpp` | The launch screen's progress line |
+| `launchwatch.cpp` | Shows the launch screen's held log when B is pressed or the launch stops moving |
 | `menuios.cpp` | Which IOS the menu runs under (58 or a d2x cIOS slot) |
 | `ios_reload.cpp` | IOS reloads, and telling Dolphin apart from a Wii |
 | `channel.cpp` | Offering and installing the Wii Menu channel |

@@ -21,6 +21,7 @@
 
 #include "d2xsd.hpp"
 #include "i18n.hpp"
+#include "launchwatch.hpp"
 #include "loadersettings.hpp"
 #include "log.hpp"
 #include "riftwii/sha256.hpp"
@@ -350,6 +351,11 @@ uint32_t HostVideoFramebuffer() { return reinterpret_cast<uint32_t>(VIDEO_GetCur
 // PAL: red came out blue, yellow cyan. The game's own mode on the frame on
 // screen, two retraces for the handler to apply it, then libogc shut down.
 void HostShutDownForGame(uint32_t tv_mode) {
+    // A plugin's launch hands the machine to the game here, so the launch
+    // watch stops first, as a disc game's does in boot.cpp: its thread must
+    // not wake inside the game, nor print over the picture being set up.
+    LaunchWatchStop();
+
     // RWP_TV_KEEP (a test switch) leaves the encoder as the menu set it.
     if (tv_mode != RWP_TV_KEEP) {
         GXRModeObj* mode = &TVNtsc480IntDf;

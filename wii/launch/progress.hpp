@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <gctypes.h>
+
 // The progress line of the launch screen: what the launch is doing and a
 // bar with its percentage, drawn straight into the framebuffer under the
 // log (the GUI is stopped by then). Every call is a no-op until
@@ -17,5 +19,8 @@ void ProgressStage(const char* stage, int percent);
 // Progress within the current stage: `done` of `total` maps onto
 // from..to percent.
 void ProgressWithin(unsigned long long done, unsigned long long total, int from, int to);
+// gettime() at the last new stage or step of the bar (0 before
+// ProgressAttach): the launch watch's sign of life.
+u64 ProgressMovedAt();
 
 }  // namespace riftwii::wii

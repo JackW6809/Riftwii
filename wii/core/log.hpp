@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <gctypes.h>
+
 // printf-style logging for the console/boot path: goes to the on-screen
 // console (and the USB Gecko when one is attached, see ConsoleStart) and,
 // while a log file is open, to the SD card as well.
@@ -30,5 +32,20 @@ public:
 // Writes what a LogBatch held back to the card now: before a step inside
 // the batch that could hang.
 void LogSync();
+// The launch screen without its log (a tester: "we don't need to see the
+// code"): lines are kept, their last 4 KB in a static ring, instead of
+// printed, until LogShowHeld clears the console's window, prints them and
+// goes back to echoing: a failed launch, or the launch watch
+// (wii/launch/launchwatch.hpp) for one that seems stuck, shows what
+// happened. Safe to call from another thread.
+void LogHoldScreen();
+void LogShowHeld();
+// The same for the crash screen: does not wait for a line being printed
+// (the crash may be inside it) and takes no heap.
+void LogShowHeldForCrash();
+// Whether lines are being held, and gettime() at the last one held (or at
+// LogHoldScreen): the launch watch's sign of life.
+bool LogHolding();
+u64 LogHeldLastAt();
 
 }  // namespace riftwii::wii

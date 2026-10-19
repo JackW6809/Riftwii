@@ -3,6 +3,7 @@
 #include "progress.hpp"
 
 #include <gccore.h>
+#include <ogc/lwp_watchdog.h>
 
 #include <cstdio>
 #include <cstring>
@@ -41,6 +42,7 @@ int g_x = 0, g_y = 0, g_width = 0;
 int g_percent = 0;
 int g_screen_height = 0;
 char g_stage[64] = "";
+u64 g_moved_at = 0;  // gettime() at the last new stage or step of the bar
 
 // Fills whole pixel pairs: x and width are rounded to even.
 void Fill(int x, int y, int width, int height, Yuv c) {
@@ -95,12 +97,14 @@ void ProgressAttach(void* xfb, int fb_width, int fb_height, int x, int y, int wi
     g_width = width & ~1;
     g_percent = 0;
     std::strcpy(g_stage, "Getting ready");
+    g_moved_at = gettime();
     Redraw();
 }
 
 void ProgressStage(const char* stage, int percent) {
     std::snprintf(g_stage, sizeof(g_stage), "%s", stage);
     if (percent > g_percent) g_percent = percent > 100 ? 100 : percent;
+    g_moved_at = gettime();
     Redraw();
     // Test screenshots, only while the card is certainly up.
     if (g_xfb && g_percent <= 60) GuiScriptLaunchShot(g_percent, g_xfb, g_stride * 2, g_screen_height);
@@ -112,7 +116,10 @@ void ProgressWithin(unsigned long long done, unsigned long long total, int from,
     const int percent = from + static_cast<int>((to - from) * done / total);
     if (percent <= g_percent) return;
     g_percent = percent;
+    g_moved_at = gettime();
     Redraw();
 }
+
+u64 ProgressMovedAt() { return g_moved_at; }
 
 }  // namespace riftwii::wii

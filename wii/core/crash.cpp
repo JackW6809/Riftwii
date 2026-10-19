@@ -154,6 +154,12 @@ void ShowOnScreen() {
         VIDEO_Flush();
         std::printf("\x1b[37m\x1b[44m\x1b[2J\x1b[2;0H");
     } else if (g_phase == CrashPhase::Console) {
+        // A quiet launch screen held its log back: what led up to the
+        // crash goes first, as it did when the log was printed as it came.
+        // Echo stays off, so the report's lines saved to the log next do
+        // not print twice.
+        LogShowHeldForCrash();
+        LogEchoToScreen(false);
         std::printf("\n\n");
     } else {
         return;  // no picture yet
