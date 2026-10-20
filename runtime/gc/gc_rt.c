@@ -517,6 +517,51 @@ typedef char gc_fake_log_fits[(GC_TR_RVZ_GROUPS - GC_TR_PROJECTION_CALLERS == GC
 static uint32_t gc_read16(uint32_t address) { return *(volatile uint16_t*)(uintptr_t)address; }
 static void gc_write16(uint32_t address, uint32_t value) { *(volatile uint16_t*)(uintptr_t)address = (uint16_t)value; }
 
+static uint32_t gc_saturate16(uint32_t count) { return count > 0xFFFFu ? 0xFFFFu : count; }
+
+/* The pad path's counters (gc_paddiag.h) as the trace's GC_PT_* words. */
+static void gc_trace_pad_path(const struct gc_rt_context* ctx, uint32_t* w) {
+    const struct gc_bt* bt = (const struct gc_bt*)(uintptr_t)ctx->bt;
+    const struct gc_pad_diag* d;
+    uint32_t port;
+    w[GC_PT_PAD_READS] = ctx->pad_reads;
+    if (bt == 0) return;
+    d = &bt->diag;
+    if (ctx->gcad) {
+        const struct gc_gcad* ad = (const struct gc_gcad*)(uintptr_t)ctx->gcad;
+        w[GC_PT_ADAPTER] = (uint32_t)ad->g.link << 24 | (ad->version & 0xFFu) << 16 | (ad->filled & 0xFFu) << 8 |
+                           ((uint32_t)ad->g.dev_id & 0xFFu);
+    }
+    w[GC_PT_CALLS] = d->calls;
+    w[GC_PT_FIRST_TBU] = d->first_tbu;
+    w[GC_PT_FIRST_TB] = d->first_tb;
+    w[GC_PT_LAST_TB] = d->last_tb;
+    w[GC_PT_GAP_MAX] = d->gap_max;
+    w[GC_PT_STATUS] = d->last_status;
+    w[GC_PT_STATUS_MOVES] = gc_saturate16(d->status_moves) << 16 | gc_saturate16(d->unusable);
+    w[GC_PT_RESULT] = (d->last_result >> 28) << 28 | (d->result_mismatch & 0x0FFFFFFFu);
+    w[GC_PT_AGE] = d->age_last;
+    w[GC_PT_AGE_MAX] = d->age_max;
+    w[GC_PT_CONSOLE] = d->console_id;
+    w[GC_PT_FILLS] = d->fills;
+    w[GC_PT_OVERWRITE_OURS] = d->overwrite_ours;
+    w[GC_PT_OVERWRITE_SEEN] = d->overwrite_seen;
+    for (port = 0; port < GC_PD_PORTS; ++port) {
+        const struct gc_pad_port_diag* p = &d->port[port];
+        uint32_t* out = &w[GC_PT_PORT + port * GC_PD_PORT_WORDS];
+        out[0] = (uint32_t)p->owner << 24 | (uint32_t)p->slot << 16 | (uint32_t)p->raw_err << 8 | p->out_err;
+        out[1] = p->final_nonzero;
+        out[2] = (uint32_t)p->last_buttons << 16 | (uint32_t)p->last_stick[0] << 8 | p->last_stick[1];
+        out[3] = (uint32_t)p->last_stick[2] << 24 | (uint32_t)p->last_stick[3] << 16 | (uint32_t)p->last_trigger[0] << 8 |
+                 p->last_trigger[1];
+        out[4] = gc_saturate16(p->raw_absent) << 16 | gc_saturate16(p->raw_none);
+        out[5] = gc_saturate16(p->raw_other) << 16 | gc_saturate16(p->changed);
+        out[6] = gc_saturate16(p->remote_fills) << 16 | gc_saturate16(p->remote_nonzero);
+        out[7] = p->src_nonzero;
+        out[8] = p->last_src;
+    }
+}
+
 /* One record of the trace (gc_rt.h), with interrupts held off so it
  * cannot meet a read on the card; skipped while a read is going on. */
 static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
@@ -539,6 +584,15 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_WHERE] = where;
     w[GC_TR_TBU] = tbu;
     w[GC_TR_TBL] = tbl;
+    if (where == GC_TRACE_PADPATH) {
+        /* The pad path's own layout, in the same slot ring. */
+        gc_trace_pad_path(ctx, w);
+        sector = gc_trace_slot(ctx, ctx->trace_seq);
+        result = gc_sd_write_locked(ctx, sector, 1, ctx->trace_buf);
+        ctx->busy = 0;
+        gc_irq_restore(msr);
+        return result;
+    }
     w[GC_TR_COMMANDS] = ctx->commands;
     w[GC_TR_READS] = ctx->reads;
     w[GC_TR_READ_BYTES] = ctx->read_bytes;
@@ -1462,6 +1516,7 @@ static void gc_leave(struct gc_rt_context* ctx) {
         if (card->dirty_count != 0) return;
     }
     gc_trace(ctx, GC_TRACE_LEAVE);
+    gc_trace(ctx, GC_TRACE_PADPATH);  /* the pad path's counters as the game left (a run shorter than 300 reads has none else) */
     /* A Wii Remote's motor would otherwise run on until its link drops. */
     if (ctx->bt) gc_bt_stop_rumble(ctx, (struct gc_bt*)(uintptr_t)ctx->bt);
     msr = gc_irq_off();  /* the game stops here: IOS takes the console over */
@@ -1923,12 +1978,122 @@ void gc_on_pad_motor(struct gc_rt_context* ctx, uint32_t chan, uint32_t command)
     if (ctx->gcad) gc_gcad_motor((struct gc_gcad*)(uintptr_t)ctx->gcad, chan, command);
 }
 
+/* The four PADStatus (12 bytes each) the game asked for, read and written
+ * by the hook: anything else (a function found as PADRead that takes other
+ * arguments) is left alone rather than followed. 0: not usable. */
+#ifndef GC_PAD_NO_CONTROLLER
+#define GC_PAD_NO_CONTROLLER 0xFFu  /* PADStatus err -1 */
+#endif
+static uint32_t gc_pad_status_address(uint32_t status) {
+    if (status < 0x80000000u || status > 0x81800000u - 4u * 12u || (status & 1u) != 0) return 0;
+    return status;
+}
+
+/* The hook's first step, before the game's own PADRead runs (gc_entry.S):
+ * the pad path's diagnostic (gc_paddiag.h) notes when the game calls, and
+ * compares the PADStatus it is about to overwrite with what the last call
+ * left in it, to see whether the game changed it in between. */
+void gc_on_pad_before(struct gc_rt_context* ctx, uint32_t status) {
+    struct gc_pad_diag* d;
+    uint32_t now, tbu, port;
+    if (ctx->bt == 0) return;
+    d = &((struct gc_bt*)(uintptr_t)ctx->bt)->diag;
+    __asm__ volatile("mftbu %0" : "=r"(tbu));
+    __asm__ volatile("mftb %0" : "=r"(now));
+    if (d->calls == 0) {
+        d->first_tbu = tbu;
+        d->first_tb = now;
+    } else if (now - d->last_tb > d->gap_max) {
+        d->gap_max = now - d->last_tb;
+    }
+    d->calls++;
+    d->last_tb = now;
+    if (d->report_tb != 0) {
+        d->age_last = now - d->report_tb;
+        if (d->age_last > d->age_max) d->age_max = d->age_last;
+    }
+    status = gc_pad_status_address(status);
+    if (status == 0) {
+        d->unusable++;
+        return;
+    }
+    if (d->last_status != 0 && d->last_status != status) d->status_moves++;
+    if (d->last_status == status && d->written_valid) {
+        const uint8_t* now_bytes = (const uint8_t*)(uintptr_t)status;
+        for (port = 0; port < GC_PD_PORTS; ++port) {
+            const uint8_t* ours = &d->written[12 * port];
+            const uint8_t* found = now_bytes + 12 * port;
+            /* The buttons and err only: the SDK's PADClamp (the game's own,
+             * between its reads) rewrites the sticks and triggers in place
+             * as a matter of course. */
+            const int different = ours[0] != found[0] || ours[1] != found[1] || ours[10] != found[10];
+            if (!different) continue;
+            d->port[port].changed++;
+            if (d->overwrite_ours == 0 && (ours[0] | ours[1]) != 0) {
+                d->overwrite_ours = port << 24 | (uint32_t)ours[10] << 16 | (uint32_t)ours[0] << 8 | ours[1];
+                d->overwrite_seen = (uint32_t)found[10] << 16 | (uint32_t)found[0] << 8 | found[1];
+            }
+        }
+    }
+    d->last_status = status;
+}
+
+/* After the fills (gc_on_pad_read): what each port was before and after
+ * RiftWii's writes, who plays there, and what the game was left with.
+ * `raw_err`: each port's err as the game's own read gave it; `adapter_err`:
+ * after the GameCube adapter's fill. */
+static void gc_pad_note(struct gc_bt* bt, uint32_t status, uint32_t result, const uint8_t* raw_err,
+                        const uint8_t* adapter_err) {
+    struct gc_pad_diag* d = &bt->diag;
+    const uint8_t* pad = (const uint8_t*)(uintptr_t)status;
+    uint32_t port, slot, i;
+    d->last_result = result;
+    for (port = 0; port < GC_PD_PORTS; ++port) {
+        struct gc_pad_port_diag* p = &d->port[port];
+        const uint8_t* s = pad + 12 * port;
+        const uint32_t buttons = (uint32_t)s[0] << 8 | s[1];
+        const uint32_t channel_bit = 0x80000000u >> port;
+        uint32_t owner;
+        slot = 0xFFu;
+        for (i = 0; i < GC_BT_REMOTES; ++i)
+            if (bt->port_of[i] == port) slot = i;
+        if (raw_err[port] != GC_PAD_NO_CONTROLLER) owner = GC_PD_OWNER_PAD;
+        else if (adapter_err[port] != GC_PAD_NO_CONTROLLER) owner = GC_PD_OWNER_ADAPTER;
+        else if (slot < GC_BT_REMOTES) owner = gc_bt_owner_kind(&bt->remotes[slot]);
+        else owner = GC_PD_OWNER_NONE;
+        if (raw_err[port] == 0) p->raw_none++;
+        else if (raw_err[port] == GC_PAD_NO_CONTROLLER) p->raw_absent++;
+        else p->raw_other++;
+        p->raw_err = raw_err[port];
+        p->out_err = s[10];
+        p->owner = (uint8_t)owner;
+        p->slot = (uint8_t)slot;
+        if (buttons != 0) {
+            p->final_nonzero++;
+            p->last_buttons = (uint16_t)buttons;
+            for (i = 0; i < 4; ++i) p->last_stick[i] = s[2 + i];
+            p->last_trigger[0] = s[6];
+            p->last_trigger[1] = s[7];
+            if (owner >= GC_PD_OWNER_REMOTE) p->remote_nonzero++;
+        }
+        /* The game's own return value names the ports it found nothing on;
+         * a port RiftWii filled is a controller that the value still says
+         * is not there. */
+        if ((result & channel_bit) && s[10] != GC_PAD_NO_CONTROLLER) d->result_mismatch++;
+    }
+    for (i = 0; i < 12 * GC_PD_PORTS; ++i) d->written[i] = pad[i];
+    d->written_valid = 1;
+}
+
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
     const uint32_t n = ctx->pad_reads++;
-    /* The four PADStatus (12 bytes each) the game asked for, read and
-     * written below: anything else (a function found as PADRead that takes
-     * other arguments) is left alone rather than followed. */
-    if (status < 0x80000000u || status > 0x81800000u - 4u * 12u || (status & 1u) != 0) status = 0;
+    uint8_t raw_err[GC_PD_PORTS], adapter_err[GC_PD_PORTS];
+    uint32_t i;
+    status = gc_pad_status_address(status);
+    for (i = 0; i < GC_PD_PORTS; ++i) {
+        raw_err[i] = status != 0 ? ((const uint8_t*)(uintptr_t)status)[12 * i + 10] : GC_PAD_NO_CONTROLLER;
+        adapter_err[i] = raw_err[i];
+    }
     gc_guard(ctx);  /* once a frame: IOS rewrites its counter there all the time */
     gc_stream_fetch(ctx);  /* the music ring's top-up, once a frame */
     /* The adapter's controllers first: they take their ports before the
@@ -1937,6 +2102,7 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
         struct gc_gcad* ad = (struct gc_gcad*)(uintptr_t)ctx->gcad;
         gc_gcad_poll(ctx, ad);
         gc_gcad_fill(ad, (uint8_t*)(uintptr_t)status);
+        for (i = 0; i < GC_PD_PORTS; ++i) adapter_err[i] = ((const uint8_t*)(uintptr_t)status)[12 * i + 10];
     }
     if (ctx->bt && status != 0) {
         struct gc_bt* bt = (struct gc_bt*)(uintptr_t)ctx->bt;
@@ -1946,8 +2112,12 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
             gc_bt_poll(ctx, bt);
             gc_bt_fill(bt, (uint8_t*)(uintptr_t)status);
         }
+        gc_pad_note(bt, status, result, raw_err, adapter_err);
     }
-    if (n % 300 == 0) gc_trace(ctx, GC_TRACE_PAD);
+    if (n % 300 == 0) {
+        gc_trace(ctx, GC_TRACE_PAD);
+        gc_trace(ctx, GC_TRACE_PADPATH);  /* the pad path's counters, a record of their own */
+    }
     /* The test of the motor: the game's own PADControlMotor, rumble at
      * the 30th read of every 240 and stop at the 150th. */
     if ((ctx->flags & GC_FLAG_RUMBLE_TEST) && ctx->test_motor != 0 && ctx->bt && (n % 120) == 30) {

@@ -21,7 +21,9 @@ import struct
 HEADER = os.path.join(os.path.dirname(__file__), '..', 'runtime', 'gc', 'gc_rt.h')
 MAGIC = 0x52575452  # "RWTR"
 RECORD_BYTES = 512
-WHERE = {1: 'read', 2: 'pad', 3: 'ai', 4: 'ar', 5: 'jump', 6: 'beat', 7: 'fatal', 8: 'command', 9: 'leave', 10: 'restart'}
+WHERE = {1: 'read', 2: 'pad', 3: 'ai', 4: 'ar', 5: 'jump', 6: 'beat', 7: 'fatal', 8: 'command', 9: 'leave', 10: 'restart',
+         11: 'padpath'}
+WHERE_PADPATH = 11  # its records use the gc_padpath_word enum (the pad path's counters, issue #135)
 # Counters read better in decimal; everything else (addresses, registers) in hex.
 # gc_video.h's GC_VI_WIDTH_KEPT, set in the vi_mode word.
 VI_WIDTH_KEPT = 0x10000
@@ -32,10 +34,10 @@ DECIMAL = {'seq', 'commands', 'reads', 'read_bytes', 'sd_requests', 'failures', 
            'ar_wait_timeouts', 'restarts'}
 
 
-def word_names():
+def word_names(enum_name='gc_trace_word', end_name='GC_TR_WORDS', prefix='GC_TR_'):
     """The enum's names in order, with the gaps its '= X + n' entries leave."""
     text = open(HEADER).read()
-    body = re.search(r'enum gc_trace_word \{(.*?)\};', text, re.S).group(1)
+    body = re.search(r'enum %s \{(.*?)\};' % enum_name, text, re.S).group(1)
     body = re.sub(r'/\*.*?\*/', '', body, flags=re.S)
     names = []
     for entry in (e.strip() for e in body.split(',')):
@@ -52,8 +54,8 @@ def word_names():
             while len(names) < index:
                 names.append('%s_%d' % (base.strip(), len(names) - first))
         names.append(name)
-    names.remove('GC_TR_WORDS')
-    return [n.replace('GC_TR_', '').lower() for n in names]
+    names.remove(end_name)
+    return [n.replace(prefix, '', 1).lower() for n in names]
 
 
 def main():
@@ -62,21 +64,27 @@ def main():
     parser.add_argument('--all', action='store_true', help='show words that are zero everywhere too')
     args = parser.parse_args()
 
-    names = word_names()
+    # Two layouts share the file: the main record, and the pad path's (where=padpath).
+    layouts = {False: word_names(), True: word_names('gc_padpath_word', 'GC_PT_WORDS', 'GC_PT_')}
     data = open(args.trace, 'rb').read()
     records = []
     for at in range(0, len(data) - RECORD_BYTES + 1, RECORD_BYTES):
-        words = struct.unpack_from('>%dI' % len(names), data, at)
+        words = struct.unpack_from('>%dI' % (RECORD_BYTES // 4), data, at)
         if words[0] == MAGIC:
             records.append(words)
     records.sort(key=lambda words: words[1])
     print('%d record(s)' % len(records))
 
-    shown = [i for i, name in enumerate(names)
-             if name not in ('magic', 'tbu') and (args.all or any(r[i] for r in records))]
+    shown = {}
+    for padpath in (False, True):
+        of_kind = [r for r in records if (r[2] == WHERE_PADPATH) == padpath]
+        shown[padpath] = [i for i, name in enumerate(layouts[padpath])
+                          if name not in ('magic', 'tbu') and (args.all or any(r[i] for r in of_kind))]
     for record in records:
         fields = []
-        for i in shown:
+        padpath = record[2] == WHERE_PADPATH
+        names = layouts[padpath]
+        for i in shown[padpath]:
             name, value = names[i], record[i]
             if name == 'where':
                 fields.append('where=%s' % WHERE.get(value, value))

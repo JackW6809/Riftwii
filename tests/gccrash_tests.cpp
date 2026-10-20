@@ -122,6 +122,41 @@ void test_remotes() {
     EXPECT_TRUE(text.find("A Wii U Pro Controller connected (extension ID 01 20)") != std::string::npos);
     EXPECT_TRUE(text.find("Last extension ID 0x01 0x20, last report mode 0x34") != std::string::npos);
     EXPECT_TRUE(text.find("left X 288-3712, right X 0-0, left Y 0-0, right Y 256-3840.") != std::string::npos);
+    // The pad path (issue #135): a Classic Controller on port 1 whose
+    // presses reach the PADStatus, with the game's own read finding no
+    // controller and its return value still naming the port.
+    EXPECT_TRUE(text.find("Pad path") == std::string::npos);
+    record(trace, 3, 8, GC_TRACE_PADPATH);  // after the newest main record, in a layout of its own
+    put(trace, 3, GC_PT_PAD_READS, 1881);
+    put(trace, 3, GC_PT_TBU, 1);
+    put(trace, 3, GC_PT_TBL, 100000);
+    put(trace, 3, GC_PT_CALLS, 1881);
+    put(trace, 3, GC_PT_FIRST_TBU, 0);
+    put(trace, 3, GC_PT_FIRST_TB, 4294967296u - 60750000u * 10u + 100000u);  // 10 s before, wrapped
+    put(trace, 3, GC_PT_LAST_TB, 100000 - 60750);
+    put(trace, 3, GC_PT_STATUS, 0x80412340u);
+    put(trace, 3, GC_PT_RESULT, 0x80000000u | 12u);
+    put(trace, 3, GC_PT_FILLS, 1800);
+    put(trace, 3, GC_PT_PORT + 0, 5u << 24 | 0u << 16 | 0xFFu << 8 | 0x00u);
+    put(trace, 3, GC_PT_PORT + 1, 33);
+    put(trace, 3, GC_PT_PORT + 2, 0x0100u << 16 | 0x7Fu << 8 | 0x81u);
+    put(trace, 3, GC_PT_PORT + 4, 5u << 16 | 0u);
+    put(trace, 3, GC_PT_PORT + 7, 40);
+    put(trace, 3, GC_PT_OVERWRITE_OURS, 0x00000100u);
+    put(trace, 3, GC_PT_OVERWRITE_SEEN, 0x00FF0000u);
+    EXPECT_TRUE(riftwii::describe_gc_remotes(trace, text));
+    EXPECT_TRUE(text.find("Pad path (trace record 8, after 1881 pad reads)") != std::string::npos);
+    EXPECT_TRUE(text.find("trace record 7, after 900 pad reads") != std::string::npos);  // still the newest main record
+    EXPECT_TRUE(text.find("PADRead was called 1881 time(s), the first 10 s before this record and the last 1.0 ms") !=
+                std::string::npos);
+    EXPECT_TRUE(text.find("named a port RiftWii had filled with a controller in 12 read(s)") != std::string::npos);
+    EXPECT_TRUE(text.find("Port 1: Wii Remote 1 with a Classic Controller; the game's own read gave err no controller, "
+                          "the game was left with err none") != std::string::npos);
+    EXPECT_TRUE(text.find("left a non-zero button word 33 time(s), the last 0x00000100 with stick 0x7f 0x81") !=
+                std::string::npos);
+    EXPECT_TRUE(text.find("port 1, written err none (a controller answered) buttons 0x00000100, found err no controller") !=
+                std::string::npos);
+    EXPECT_TRUE(text.find("Port 4: nothing;") != std::string::npos);
     // Nothing at all: the device never opened.
     std::vector<std::uint8_t> early(512, 0);
     record(early, 0, 1, GC_TRACE_JUMP);

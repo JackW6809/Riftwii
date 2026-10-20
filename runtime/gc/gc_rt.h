@@ -208,6 +208,50 @@ enum gc_trace_word {
     GC_TR_WORDS
 };
 typedef char gc_trace_fits[(GC_TR_WORDS * 4 <= 512) ? 1 : -1];
+
+/* The pad path's record (where = GC_TRACE_PADPATH), written after every
+ * GC_TRACE_PAD record, for issue #135: where a Wii Remote's press goes
+ * between its parsed report and the game's PADStatus (gc_paddiag.h). The
+ * main record is full, so these have a record of their own, with the same
+ * first five words. Time base values are ticks (60750 a millisecond). */
+enum gc_padpath_word {
+    GC_PT_MAGIC, GC_PT_SEQ, GC_PT_WHERE, GC_PT_TBU, GC_PT_TBL,
+    GC_PT_PAD_READS, /* the game's PADReads so far (ctx->pad_reads) */
+    GC_PT_CALLS, /* PADReads seen before the game's own read ran (the hook's first step) */
+    GC_PT_FIRST_TBU, /* the time base's upper word at the first of them */
+    GC_PT_FIRST_TB, /* ... and its lower word */
+    GC_PT_LAST_TB, /* ... the lower word at the last */
+    GC_PT_GAP_MAX, /* the longest gap between two */
+    GC_PT_STATUS, /* the PADStatus address of the last call */
+    GC_PT_STATUS_MOVES, /* calls whose address differed from the call before << 16 | calls RiftWii could not
+                         * use the address of (low 16 bits) */
+    GC_PT_RESULT, /* the last PADRead return value (the game's mask of ports with no controller) << 28 |
+                   * the PADReads whose result named a port RiftWii had filled with a controller */
+    GC_PT_AGE, /* how old the newest Wii Remote report was at the last call, ticks */
+    GC_PT_AGE_MAX, /* ... the oldest seen */
+    GC_PT_CONSOLE, /* the console's chip ID word (0xCD8005A0), 0: not readable at the launch */
+    GC_PT_FILLS, /* PADReads with at least one Wii Remote ready to play */
+    GC_PT_OVERWRITE_OURS, /* the first non-zero PADStatus RiftWii wrote that was changed before the next call:
+                           * port << 24 | err << 16 | buttons as written; 0: none seen */
+    GC_PT_OVERWRITE_SEEN, /* ... err << 16 | buttons as found there */
+    GC_PT_ADAPTER, /* the GameCube adapter's state (the main record's GC_TR_GCAD), 0: not in use */
+    /* Then four ports of GC_PD_PORT_WORDS words each:
+     *  +0 owner (gc_paddiag.h's GC_PD_OWNER_*) << 24 | Wii Remote slot (0xFF none) << 16 | the err the game's own
+     *     read gave << 8 | the err the game was left with (0xFF no controller, 0 none, 0xFE not ready, 0xFD transfer)
+     *  +1 PADReads that left a non-zero button word on the port
+     *  +2 the last non-zero button word << 16 | stick x << 8 | stick y, as left (signed bytes)
+     *  +3 C-stick x << 24 | C-stick y << 16 | L << 8 | R, from the same PADStatus
+     *  +4 the game's own read gave err -1 (no controller) << 16 | err 0, counts that stop at 65535
+     *  +5 ... any other err << 16 | calls that found the PADStatus changed since RiftWii wrote it
+     *  +6 times a Wii Remote was written here << 16 | ... with a non-zero button word
+     *  +7 ... where the remote's own report had a button held (before the map turned it into GameCube buttons)
+     *  +8 the remote's core 0 << 24 | core 1 << 16 | extension 4 << 8 | extension 5 at the last such fill
+     * (GC_PT_WORDS is written as the plain sum 36 so tools/gc_trace.py can read the enum.) */
+    GC_PT_PORT,
+    GC_PT_WORDS = GC_PT_PORT + 36
+};
+#define GC_PD_PORT_WORDS 9u
+typedef char gc_padpath_fits[(GC_PT_WORDS * 4 <= 512 && GC_PT_WORDS == GC_PT_PORT + 4 * GC_PD_PORT_WORDS) ? 1 : -1];
 /* where: what wrote the record */
 #define GC_TRACE_READ 1u
 #define GC_TRACE_PAD 2u
@@ -219,6 +263,7 @@ typedef char gc_trace_fits[(GC_TR_WORDS * 4 <= 512) ? 1 : -1];
 #define GC_TRACE_COMMAND 8u /* a DVDLow command that is not a read */
 #define GC_TRACE_LEAVE 9u   /* the player held HOME: ES_LaunchTitle is next */
 #define GC_TRACE_RESTART 10u /* the game is restarted (Reset): MEM1 goes back as it was at the jump */
+#define GC_TRACE_PADPATH 11u /* the pad path's counters (gc_padpath_word), not the main record's layout */
 /* The last records of the trace go round; the others stay. */
 #define GC_TRACE_RING 16u
 
@@ -505,6 +550,7 @@ void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where);
 uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, uint32_t aram, uint32_t length);
 void gc_after_ar_dma(struct gc_rt_context* ctx);
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result);
+void gc_on_pad_before(struct gc_rt_context* ctx, uint32_t status);
 void gc_on_pad_motor(struct gc_rt_context* ctx, uint32_t chan, uint32_t command);
 uint32_t gc_on_vi_configure(struct gc_rt_context* ctx, uint32_t mode);
 void gc_on_reset_system(struct gc_rt_context* ctx, uint32_t* args);

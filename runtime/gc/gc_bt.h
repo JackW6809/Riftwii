@@ -33,6 +33,7 @@
 #include <stdint.h>
 
 #include "gc_controls.h"
+#include "gc_paddiag.h"
 #include "gc_pro.h"
 
 #define GC_BT_EVENT_READS 2u
@@ -160,6 +161,8 @@ struct gc_bt {
     uint32_t fake_log[GC_BT_FAKE_STEPS * 2];
     /* What each button presses (gc_controls.h), filled by the loader. */
     struct gc_map map;
+    /* The pad path's diagnostic counters (gc_paddiag.h), for the trace. */
+    struct gc_pad_diag diag;
 };
 
 /* gc_bt.progress: a bit for each step a tester's trace should show,
@@ -207,6 +210,9 @@ struct gc_rt_context;
  * the game's PADStatus[4]). */
 void gc_bt_poll(struct gc_rt_context* ctx, struct gc_bt* bt);
 void gc_bt_fill(struct gc_bt* bt, uint8_t* status);
+/* gc_paddiag.h's GC_PD_OWNER_* for a remote (alone, with a Nunchuk, with a
+ * Classic Controller, a Pro Controller), for the diagnostic. */
+uint32_t gc_bt_owner_kind(const struct gc_bt_remote* r);
 /* PADControlMotor(chan, command) from the game: the port's rumble is noted
  * (command 1 rumbles, 0 and 2 stop) and goes to the remote on that port
  * with the next PADRead. `allowed`: Settings' Wii Remote rumble (and the

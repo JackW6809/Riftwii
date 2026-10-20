@@ -80,7 +80,8 @@ constexpr std::uint32_t kStreamBytes = 4 * GC_STREAM_CHUNK;
 // Hollywood's registers through the uncached mirror: AHBPROT, whose all
 // ones means the PPC may read the rest, and HW_CLOCKS (riftwii/gcclock.hpp).
 constexpr std::uint32_t kAhbprot = 0xCD800064;
-constexpr std::uint32_t kHwClocks = 0xC0000000 | kHwClocksAddress;
+constexpr std::uint32_t kChipId = 0xCD8005A0;  // Latte's ID word on a vWii; Hollywood's own on a Wii
+constexpr std::uint32_t kHwClocks =0xC0000000 | kHwClocksAddress;
 
 std::uint32_t be32(const std::uint8_t* p) {
     return (std::uint32_t(p[0]) << 24) | (std::uint32_t(p[1]) << 16) | (std::uint32_t(p[2]) << 8) | p[3];
@@ -2480,7 +2481,17 @@ bool LaunchGcNative(const GcImage& image, const GcOverlayPlan* pack, const GcLau
     // The Wii Remotes' state (gc_bt.h), zeroed in MEM2's stage: the blob
     // opens the Bluetooth controller at the game's first PADRead.
     ctx->bt = bt_addr;
-    static_cast<gc_bt*>(staged(bt_addr))->map = controls;
+    auto* wii_remotes = static_cast<gc_bt*>(staged(bt_addr));
+    wii_remotes->map = controls;
+    // For the pad-path diagnostic (issue #135): the console's chip ID word,
+    // which tells a Wii (Hollywood) from a Wii U's vWii (Latte) in a trace.
+    // Only read with hardware access, as HW_CLOCKS is; 0 means not read.
+    if (load32(kAhbprot) == 0xFFFFFFFF) wii_remotes->diag.console_id = load32(kChipId);
+    if (wii_remotes->diag.console_id != 0)
+        logf("GameCube: pad diagnostic on, console chip ID word 0x%08x\n",
+             static_cast<unsigned>(wii_remotes->diag.console_id));
+    else
+        logf("GameCube: pad diagnostic on, console chip ID word not read (no hardware access)\n");
     // The GameCube adapter for Wii U: its driver runs from the game's
     // PADRead on the handle the menu opened (gc_gcad.h); its controllers
     // take their ports before the Wii Remotes.

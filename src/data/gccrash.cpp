@@ -100,15 +100,116 @@ std::string bt_stage_name(std::uint32_t stage) {
     }
 }
 
+// The time base ticks as milliseconds with one decimal (60750 ticks a
+// millisecond: the Wii's time base).
+std::string ticks_text(std::uint32_t ticks) {
+    const std::uint64_t tenths = static_cast<std::uint64_t>(ticks) * 10u / 60750u;
+    return std::to_string(tenths / 10) + "." + std::to_string(tenths % 10) + " ms";
+}
+
+std::string pad_err_name(std::uint32_t err) {
+    switch (err & 0xFFu) {
+        case 0x00: return "none (a controller answered)";
+        case 0xFF: return "no controller";
+        case 0xFE: return "not ready";
+        case 0xFD: return "transfer error";
+        default: return byte_hex(err);
+    }
+}
+
+std::string pad_owner_name(std::uint32_t owner, std::uint32_t slot) {
+    const std::string remote = "Wii Remote " + std::to_string(slot + 1);
+    switch (owner) {
+        case GC_PD_OWNER_PAD: return "a GameCube controller";
+        case GC_PD_OWNER_ADAPTER: return "the GameCube adapter";
+        case GC_PD_OWNER_REMOTE: return remote + " alone";
+        case GC_PD_OWNER_NUNCHUK: return remote + " with a Nunchuk";
+        case GC_PD_OWNER_CLASSIC: return remote + " with a Classic Controller";
+        case GC_PD_OWNER_PRO: return remote + " (a Wii U Pro Controller)";
+        default: return "nothing";
+    }
+}
+
+// The pad path (gc_paddiag.h): where a press can be lost between a parsed
+// Wii Remote report and what the game's PADRead leaves in its PADStatus.
+// Empty for a trace from a build without it.
+std::string describe_pad_path(const std::uint8_t* record) {
+    const std::uint32_t calls = word(record, GC_PT_CALLS);
+    if (calls == 0) return "The pad hook's first step (before the game's own PADRead) has not run, or no remote state exists.\n";
+    const std::uint64_t first = static_cast<std::uint64_t>(word(record, GC_PT_FIRST_TBU)) << 32 |
+                                word(record, GC_PT_FIRST_TB);
+    const std::uint64_t now = static_cast<std::uint64_t>(word(record, GC_PT_TBU)) << 32 | word(record, GC_PT_TBL);
+    const std::uint32_t since_last = word(record, GC_PT_TBL) - word(record, GC_PT_LAST_TB);
+    const std::uint32_t moves = word(record, GC_PT_STATUS_MOVES);
+    const std::uint32_t result = word(record, GC_PT_RESULT);
+    std::string text = "The game's PADRead was called " + std::to_string(calls) + " time(s), the first " +
+                       std::to_string((now - first) / 60750000u) + " s before this record and the last " +
+                       ticks_text(since_last) + " before it; longest gap between two calls " +
+                       ticks_text(word(record, GC_PT_GAP_MAX)) + ".\n";
+    text += "PADStatus at " + hex(word(record, GC_PT_STATUS)) + ", at a different address " +
+            std::to_string(moves >> 16) + " time(s), an address RiftWii could not use " +
+            std::to_string(moves & 0xFFFFu) + " time(s).\n";
+    text += "The game's PADRead returned mask " + hex(result & 0xF0000000u) + " last (bits for ports with no controller), " +
+            "and named a port RiftWii had filled with a controller in " + std::to_string(result & 0x0FFFFFFFu) +
+            " read(s).\n";
+    text += "A Wii Remote was ready to play in " + std::to_string(word(record, GC_PT_FILLS)) +
+            " read(s); the newest remote report was " + ticks_text(word(record, GC_PT_AGE)) +
+            " old at the last call (oldest " + ticks_text(word(record, GC_PT_AGE_MAX)) + ").\n";
+    text += "GameCube adapter state " + hex(word(record, GC_PT_ADAPTER)) + " (0: not in use).\n";
+    text += "Console chip ID word " + (word(record, GC_PT_CONSOLE) != 0 ? hex(word(record, GC_PT_CONSOLE))
+                                                                          : std::string("not read")) +
+            ".\n";
+    for (std::uint32_t port = 0; port < GC_PD_PORTS; ++port) {
+        const std::uint32_t at = GC_PT_PORT + port * GC_PD_PORT_WORDS;
+        const std::uint32_t identity = word(record, at);
+        const std::uint32_t last = word(record, at + 2);
+        const std::uint32_t stick2 = word(record, at + 3);
+        text += "Port " + std::to_string(port + 1) + ": " + pad_owner_name(identity >> 24, (identity >> 16) & 0xFFu) +
+                "; the game's own read gave err " + pad_err_name(identity >> 8) + ", the game was left with err " +
+                pad_err_name(identity) + "; own reads gave err none " + std::to_string(word(record, at + 4) & 0xFFFFu) +
+                ", no controller " + std::to_string(word(record, at + 4) >> 16) + ", other " +
+                std::to_string(word(record, at + 5) >> 16) + ".\n";
+        text += "  A Wii Remote was written here " + std::to_string(word(record, at + 6) >> 16) + " time(s), " +
+                std::to_string(word(record, at + 6) & 0xFFFFu) + " of them with buttons; its own report had a button held " +
+                std::to_string(word(record, at + 7)) + " time(s) (last core bytes " + byte_hex(word(record, at + 8) >> 24) +
+                " " + byte_hex(word(record, at + 8) >> 16) + ", extension bytes " + byte_hex(word(record, at + 8) >> 8) +
+                " " + byte_hex(word(record, at + 8)) + ").\n";
+        text += "  The game was left a non-zero button word " + std::to_string(word(record, at + 1)) +
+                " time(s), the last " + hex(last >> 16 & 0xFFFFu) + " with stick " + byte_hex(last >> 8) + " " +
+                byte_hex(last) + ", C-stick " + byte_hex(stick2 >> 24) + " " + byte_hex(stick2 >> 16) + ", L " +
+                byte_hex(stick2 >> 8) + ", R " + byte_hex(stick2) + "; the PADStatus was found changed after RiftWii wrote it " +
+                std::to_string(word(record, at + 5) & 0xFFFFu) + " time(s).\n";
+    }
+    const std::uint32_t ours = word(record, GC_PT_OVERWRITE_OURS);
+    if (ours != 0) {
+        const std::uint32_t seen = word(record, GC_PT_OVERWRITE_SEEN);
+        text += "First press RiftWii wrote that was changed before the next call: port " + std::to_string((ours >> 24) + 1) +
+                ", written err " + pad_err_name(ours >> 16) + " buttons " + hex(ours & 0xFFFFu) + ", found err " +
+                pad_err_name(seen >> 16) + " buttons " + hex(seen & 0xFFFFu) + ".\n";
+    } else {
+        text += "No press RiftWii wrote was found changed before the next call.\n";
+    }
+    return text;
+}
+
 }  // namespace
 
 bool describe_gc_remotes(const std::vector<std::uint8_t>& trace, std::string& text) {
     const std::uint8_t* newest = nullptr;
-    std::uint32_t newest_seq = 0;
+    const std::uint8_t* newest_pad_path = nullptr;
+    std::uint32_t newest_seq = 0, newest_pad_path_seq = 0;
     for (std::size_t at = 0; at + kRecordBytes <= trace.size(); at += kRecordBytes) {
         const std::uint8_t* record = trace.data() + at;
         if (word(record, GC_TR_MAGIC) != GC_TRACE_MAGIC) continue;
         const std::uint32_t seq = word(record, GC_TR_SEQ);
+        // The pad path's records have a layout of their own (gc_padpath_word).
+        if (word(record, GC_TR_WHERE) == GC_TRACE_PADPATH) {
+            if (newest_pad_path == nullptr || seq > newest_pad_path_seq) {
+                newest_pad_path = record;
+                newest_pad_path_seq = seq;
+            }
+            continue;
+        }
         if (newest == nullptr || seq > newest_seq) {
             newest = record;
             newest_seq = seq;
@@ -162,6 +263,13 @@ bool describe_gc_remotes(const std::vector<std::uint8_t>& trace, std::string& te
             "channels " + byte_hex(first_remote >> 24) + ", ready " + std::to_string((first_remote >> 16) & 0xFFu) +
             ", extension step " + std::to_string((first_remote >> 8) & 0xFFu) + " of 4, kind " +
             std::to_string(first_remote & 0xFFu) + ".\n";
+    if (newest_pad_path != nullptr) {
+        text += "Pad path (trace record " + std::to_string(newest_pad_path_seq) + ", after " +
+                std::to_string(word(newest_pad_path, GC_PT_PAD_READS)) + " pad reads):\n";
+        text += describe_pad_path(newest_pad_path);
+    } else if (word(newest, GC_TR_PAD_READS) != 0) {
+        text += "No pad path record in the trace (this build does not write one, or fewer than 300 pad reads ran).\n";
+    }
     return true;
 }
 

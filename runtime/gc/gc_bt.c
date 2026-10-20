@@ -541,6 +541,7 @@ static void bt_on_input(struct gc_bt* bt, struct gc_bt_remote* r, const uint8_t*
     if (id >= 0x30 && id <= 0x3F) {
         bt->data_reports++;
         bt->progress |= GC_BT_SEEN_DATA;
+        __asm__ volatile("mftb %0" : "=r"(bt->diag.report_tb) : : "memory");
     }
     if ((id == 0x31 || id == 0x35) && length >= 7) bt_on_accel(r, p + 4);
     if (id == 0x32 && length >= 10) bt_copy(r->ext, p + 4, 6);
@@ -956,6 +957,27 @@ int gc_bt_home_held(const struct gc_bt* bt) {
     return 0;
 }
 
+uint32_t gc_bt_owner_kind(const struct gc_bt_remote* r) {
+    if (r->ext_step == 4 && r->ext_kind == GC_BT_EXT_PRO) return GC_PD_OWNER_PRO;
+    if (r->ext_step == 4 && r->ext_kind == GC_BT_EXT_CLASSIC) return GC_PD_OWNER_CLASSIC;
+    if (r->ext_step == 4 && r->ext_kind == GC_BT_EXT_NUNCHUK) return GC_PD_OWNER_NUNCHUK;
+    return GC_PD_OWNER_REMOTE;
+}
+
+/* For the pad diagnostic (gc_paddiag.h): did the remote's own report have
+ * anything held, before the map turned it into GameCube buttons? Only the
+ * button bits of a Wii Remote's core bytes count (the accelerometer's low
+ * bits sit in them too); a Classic Controller's button bytes are active
+ * low and its sticks are not counted. A Pro Controller's layout is
+ * gc_pro.h's and is not summed up here. */
+static uint32_t bt_source_held(const struct gc_bt_remote* r) {
+    const int extension = r->ext_step == 4;
+    if (extension && r->ext_kind == GC_BT_EXT_PRO) return 0;
+    if ((r->core[0] & 0x1Fu) || (r->core[1] & 0x9Fu)) return 1;
+    if (extension && r->ext_kind == GC_BT_EXT_CLASSIC && ((uint8_t)~r->ext[4] || (uint8_t)~r->ext[5])) return 1;
+    return 0;
+}
+
 void gc_bt_fill(struct gc_bt* bt, uint8_t* status) {
     uint32_t pads = 0, remotes = 0, i;
     /* The game's PADRead has just read every port: err is -1 where no
@@ -975,8 +997,18 @@ void gc_bt_fill(struct gc_bt* bt, uint8_t* status) {
     gc_ports_assign(pads, remotes, bt->port_of);
     for (i = 0; i < GC_BT_REMOTES; ++i) {
         const uint32_t port = bt->port_of[i];
-        if (port < GC_PORTS) bt_fill_one(&bt->map, &bt->remotes[i], status + 12 * port);
+        if (port < GC_PORTS) {
+            struct gc_pad_port_diag* d = &bt->diag.port[port];
+            const struct gc_bt_remote* r = &bt->remotes[i];
+            bt_fill_one(&bt->map, r, status + 12 * port);
+            d->remote_fills++;
+            if (bt_source_held(r)) {
+                d->src_nonzero++;
+                d->last_src = (uint32_t)r->core[0] << 24 | (uint32_t)r->core[1] << 16 | (uint32_t)r->ext[4] << 8 | r->ext[5];
+            }
+        }
     }
+    if (remotes != 0) bt->diag.fills++;
     for (i = 0; i < GC_PORTS; ++i) bt->port_err[i] = status[12 * i + 10];
 }
 
