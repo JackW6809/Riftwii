@@ -3,8 +3,10 @@
 #include "riftwii/usbgame.hpp"
 
 #include "riftwii/disc.hpp"
+#include "riftwii/langfile.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <limits>
 
@@ -131,7 +133,9 @@ bool read_wbfs_layout(const UsbContainerSource& c, std::uint32_t slot, std::uint
     if (std::memcmp(h, "WBFS", 4) != 0) { error = "WBFS magic is missing"; return false; }
     hd_count = be32(h + 4);
     const std::uint8_t hd_shift = h[8], wbfs_shift = h[9];
-    if (hd_count == 0 || hd_shift != 9 || wbfs_shift < 15 || wbfs_shift >= 32) {
+    // The block-size shift as parse_wbfs_header bounds it (MIN-05): 31 was
+    // taken here and refused there.
+    if (hd_count == 0 || hd_shift != 9 || wbfs_shift < 15 || wbfs_shift > 30) {
         error = "WBFS has unsupported or invalid sector-size shifts (requires 512-byte hard sectors)"; return false;
     }
     if (h[0x0C + slot] == 0) {
@@ -328,6 +332,113 @@ std::string cios_readiness_note(const CiosSlotState* slots, std::size_t count) {
     }
     note += ". USB games need d2x (v11 beta3 is the latest) and will not boot until it is installed.";
     return note;
+}
+
+bool is_ciso_image_name(const std::string& name) {
+    static const char kExtension[] = ".ciso";
+    const std::size_t extension_length = sizeof(kExtension) - 1;
+    if (name.empty() || name[0] == '.' || name.size() <= extension_length) return false;
+    const std::size_t start = name.size() - extension_length;
+    for (std::size_t i = 0; i < extension_length; ++i) {
+        const char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(name[start + i])));
+        if (lower != kExtension[i]) return false;
+    }
+    return true;
+}
+
+void CisoFinds::note(const std::string& path) {
+    if (paths.size() < kPathsKept) paths.push_back(path);
+    ++total;
+}
+
+void CisoFinds::merge(const CisoFinds& other) {
+    for (const std::string& path : other.paths) {
+        if (paths.size() >= kPathsKept) break;
+        paths.push_back(path);
+    }
+    total += other.total;
+}
+
+namespace {
+
+// `name` ends in `extension` (lower case, with its dot), in any case.
+bool has_extension(const std::string& name, const char* extension) {
+    const std::size_t length = std::strlen(extension);
+    if (name.size() <= length) return false;
+    for (std::size_t i = 0; i < length; ++i) {
+        const char lower = static_cast<char>(std::tolower(static_cast<unsigned char>(name[name.size() - length + i])));
+        if (lower != extension[i]) return false;
+    }
+    return true;
+}
+
+}  // namespace
+
+std::string gc_folder_skip_reason(const std::string& name) {
+    if (name.empty() || name[0] == '.') return std::string();
+    static const char* const kPlayed[] = {".iso", ".gcm", ".rvz"};
+    for (const char* extension : kPlayed)
+        if (has_extension(name, extension)) return std::string();
+    if (is_ciso_image_name(name)) return std::string();
+    static const char* const kBeside[] = {".txt", ".png", ".jpg", ".jpeg", ".nfo", ".md5", ".sfv", ".sha1"};
+    for (const char* extension : kBeside)
+        if (has_extension(name, extension)) return std::string();
+
+    const std::string convert = "convert it to ISO or RVZ with Dolphin (right-click the game, Convert File)";
+    if (has_extension(name, ".nkit.gcz")) return "an NKit image, which RiftWii does not play: " + convert;
+    if (has_extension(name, ".gcz")) return "a Dolphin .gcz image, which RiftWii does not play: " + convert;
+    if (has_extension(name, ".wia")) return "a .wia image, which RiftWii does not play: " + convert;
+    if (has_extension(name, ".tgc")) return "a .tgc demo file, which RiftWii does not play";
+    if (has_extension(name, ".zip") || has_extension(name, ".7z") || has_extension(name, ".rar"))
+        return "an archive: unpack the image inside it into this folder";
+    return "not an image RiftWii plays (it plays .iso, .gcm and .rvz)";
+}
+
+GcContainer gc_container_by_magic(const std::uint8_t* head, std::size_t size) {
+    if (head == nullptr || size < 4) return GcContainer::None;
+    const std::uint32_t magic = (std::uint32_t(head[0]) << 24) | (std::uint32_t(head[1]) << 16) |
+                                (std::uint32_t(head[2]) << 8) | head[3];
+    // Dolphin's GCZ stores its magic 0xB10BC001 little-endian, so the file
+    // starts 01 C0 0B B1.
+    const std::uint32_t gcz_magic_as_read = 0x01C00BB1u;
+    if (magic == 0x4349534Fu) return GcContainer::Ciso;  // "CISO"
+    if (magic == gcz_magic_as_read) return GcContainer::Gcz;
+    if (magic == 0x57494101u) return GcContainer::Wia;   // "WIA" 01
+    if (magic == 0x52565A01u) return GcContainer::Rvz;   // "RVZ" 01
+    return GcContainer::None;
+}
+
+std::string gc_container_skip_reason(GcContainer container) {
+    const std::string convert = "convert it in Dolphin (right-click the game, Convert File)";
+    switch (container) {
+        case GcContainer::Ciso:
+            return "it is a CISO image named like an ISO: RiftWii does not play CISO, " + convert + " to ISO or RVZ";
+        case GcContainer::Gcz:
+            return "it is a GCZ image named like an ISO: RiftWii plays ISO, GCM and RVZ; " + convert;
+        case GcContainer::Wia:
+            return "it is a WIA image named like an ISO: RiftWii plays ISO, GCM and RVZ; " + convert;
+        case GcContainer::Rvz:
+            return "it is an RVZ image named like an ISO: rename it to end in .rvz and RiftWii plays it";
+        case GcContainer::None: break;
+    }
+    return std::string();
+}
+
+std::string ciso_popup_body(const CisoFinds& finds, const std::string& help, const std::string& and_more) {
+    if (finds.paths.empty()) return std::string();
+    std::string body = help + "\n\n" + finds.paths.front();
+    const std::size_t more = finds.total - 1;
+    if (more > 0) body += " " + fill_placeholders(and_more, {std::to_string(more)});
+    return body;
+}
+
+std::string ciso_log_line(const CisoFinds& finds) {
+    if (finds.paths.empty()) return std::string();
+    std::string line = "Home: CISO DETECTED: " + finds.paths.front();
+    const std::size_t more = finds.total - 1;
+    if (more > 0) line += " and " + std::to_string(more) + " more";
+    line += " (RiftWii plays .iso, .gcm and .rvz; convert it with Dolphin)";
+    return line;
 }
 
 bool build_usb_fragments(const UsbImage& image, D2xFragmentList& out, std::string& error) {

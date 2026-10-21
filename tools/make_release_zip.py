@@ -1,58 +1,43 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 RiftWii contributors
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The release zip as docs/DEVELOPING.md's "Releasing" packs it, from a
-build: RiftWii and the channel installer under sd-card/apps, the themes,
-the folders players fill (each with a note saying what goes there), and
-the GPL's copies (LICENSE.txt, NOTICE.md, SOURCE.txt). The nightly
-workflow (.github/workflows/nightly.yml) runs it; a hand-made release
-may too, then swap in its own README.txt.
+"""riftwii-vYYMM-N.zip, the release's download, as docs/DEVELOPING.md
+(Releasing) lays it out:
 
-    python3 tools/make_release_zip.py VERSION riftwii.dol installer.dol out.zip [--nightly]
+    sd-card/apps/riftwii/          boot.dol, meta.xml, icon.png, music.ogg, plugins/
+    sd-card/apps/riftwii_channel/  boot.dol (the channel installer), meta.xml, icon.png
+    sd-card/riftwii/themes/        the themes RiftWii comes with
+    sd-card/..., usb-drive/...     the folders for games and packs, each with a note
+    README.txt, LICENSE.txt, NOTICE.md, SOURCE.txt
 
-VERSION is the DOL's (2610-123): the tag is v + VERSION, and must point
-at the commit checked out here.
+The player-facing text files are kept in release/zip/ and filled in here
+({{VERSION}}, {{TAG}}, {{COMMIT}}, {{REPO_URL}}). Text goes out with CRLF
+line ends, as players open it in Notepad.
+
+    python3 tools/make_release_zip.py --version 2610-500 --dol riftwii.dol \\
+        --channel build-channel/installer.dol --plugins build-plugins/plugins \\
+        --out riftwii-v2610-500.zip
+
+The release workflow (.github/workflows/release.yml) runs it; it works the
+same by hand. --nightly replaces README.txt with the nightly build notice.
 """
 import argparse
-import datetime
 import pathlib
 import re
 import subprocess
+import sys
+import time
 import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-REPO = "https://github.com/KakarottoCake/Riftwii"
+TEMPLATES = ROOT / "release" / "zip"
+REPO_URL = "https://github.com/KakarottoCake/Riftwii"
+VERSION = re.compile(r"^[0-9]{4}-[0-9]+$")
+PLUGIN_FILE = re.compile(r"^([A-Za-z0-9_-]{1,16})\.([A-Za-z0-9_-]{1,32})\.rwp$")
+# make_update_pack.py refuses a zip without these, so refuse it here first.
+REQUIRED_PLUGINS = ("gamecube",)
+TEXT_SUFFIXES = (".txt", ".md", ".xml", ".ini")
 
-NOTES = {
-    "sd-card/riivolution/PUT_MOD_PACKS_HERE.txt":
-        "Put unpacked mod packs (each with its own .xml file) in this folder.\n"
-        "See the README.txt next to the sd-card and usb-drive folders.\n",
-    "sd-card/wbfs/PUT_WBFS_GAMES_HERE.txt":
-        "Put .wbfs game files here (plus every .wbf1, .wbf2, ... piece when a\n"
-        "game is split), either directly or one folder below, for example:\n"
-        "  wbfs/Game [RMCE01]/RMCE01.wbfs\n"
-        "Raw .iso copies work here too (wbfs/Game [RMCE01]/RMCE01.iso), or in games. Only FAT32 cards work.\n"
-        "SD game boot is experimental: this same card also holds your mods\n"
-        "and saves.\n",
-    "sd-card/games/PUT_ISO_FILES_HERE.txt":
-        "Put raw .iso disc copies and Dolphin .rvz files here. Split .wbfs\n"
-        "games go in the wbfs folder instead. Only FAT32 cards work.\n",
-    "usb-drive/wbfs/PUT_WBFS_GAMES_HERE.txt":
-        "Put .wbfs game files here (plus every .wbf1, .wbf2, ... piece when a\n"
-        "game is split), either directly or one folder below, for example:\n"
-        "  wbfs/Game [RMCE01]/RMCE01.wbfs\n"
-        "Raw .iso copies work here too (wbfs/Game [RMCE01]/RMCE01.iso), or in games. FAT32 and NTFS drives work.\n",
-    "usb-drive/games/PUT_ISO_FILES_HERE.txt":
-        "Put raw .iso disc copies and Dolphin .rvz files here. Split .wbfs games\n"
-        "go in the wbfs folder instead. FAT32 and NTFS drives work.\n",
-}
-
-# For players, not themes/README.txt (that one is for the repository).
-THEMES_README = """Menu themes go here, one folder each (Midnight came with RiftWii).
-Pick one in RiftWii under Settings > Theme.
-To make your own, get riftwii-theme-kit from RiftWii's download page:
-it has a starter theme, picture templates and a guide.
-"""
 
 NIGHTLY_README = """RiftWii {version} (nightly)
 {rule}
@@ -85,108 +70,155 @@ RiftWii is free software under the GNU General Public License, version
 source is; NOTICE.md credits every project RiftWii contains or follows.
 """
 
-SOURCE = """RiftWii {version}: source code
-{rule}
 
-RiftWii is free software under the GNU General Public License, version 3
-or (at your option) any later version. LICENSE.txt is the license's full
-text. NOTICE.md lists every third-party component, its origin and its
-license.
-
-The complete corresponding source code of this release:
-
-  {repo}/tree/v{version}
-  (tag v{version}, commit {commit})
-
-  Source archives: {repo}/releases/tag/v{version}
-  Building: docs/DEVELOPING.md in the source.
-
-Both programs in this zip are built from it:
-  sd-card/apps/riftwii/boot.dol          Makefile.wii
-  sd-card/apps/riftwii_channel/boot.dol  Makefile.channel
-
-The Gecko code handler inside boot.dol (Gecko OS by Nuke, brkirch, Link
-and the Gecko authors, GPL-2.0-or-later) is built from
-vendor-gecko/codehandleronly.s in the same source; vendor-gecko/build.sh
-rebuilds it and checks it byte for byte.
-
-This source will stay available at those addresses for as long as this
-release is offered.
-"""
-
-
-def crlf(text):
-    return text.replace("\r\n", "\n").replace("\n", "\r\n").encode()
+def fail(message):
+    sys.exit("make_release_zip: " + message)
 
 
 def git(*args):
-    return subprocess.run(["git", "-C", str(ROOT), *args], check=True, capture_output=True, text=True).stdout.strip()
+    result = subprocess.run(["git", "-C", str(ROOT)] + list(args), capture_output=True, text=True, check=True)
+    return result.stdout.strip()
+
+
+def fill(text, values):
+    """Replace each {{NAME}}, and resize a ==== line under a title that
+    grew or shrank with the version in it."""
+    for name, value in values.items():
+        text = text.replace("{{%s}}" % name, value)
+    left = re.findall(r"\{\{[A-Z_]+\}\}", text)
+    if left:
+        fail("a template still has %s" % ", ".join(sorted(set(left))))
+    lines = text.split("\n")
+    for i in range(1, len(lines)):
+        is_underline = lines[i] and set(lines[i]) == {"="}
+        if is_underline and lines[i - 1]:
+            lines[i] = "=" * len(lines[i - 1])
+    return "\n".join(lines)
+
+
+def crlf(text):
+    return text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8")
+
+
+def release_meta_xml(version, commit_time):
+    """hbc/meta.xml with this release's version and date, as the Homebrew
+    Channel shows them."""
+    meta = (ROOT / "hbc" / "meta.xml").read_text(encoding="utf-8")
+    meta, versions = re.subn(r"<version>[^<]*</version>", "<version>%s</version>" % version, meta, count=1)
+    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime(commit_time))
+    meta, dates = re.subn(r"<release_date>[^<]*</release_date>", "<release_date>%s</release_date>" % stamp, meta, count=1)
+    if versions != 1 or dates != 1:
+        fail("hbc/meta.xml has no <version> or <release_date> to fill in")
+    return meta
+
+
+def plugin_files(folder, version):
+    """Every plugin of this build, each named for this version: a plugin
+    left over from another build would be refused on the Wii."""
+    found = {}
+    for path in sorted(folder.iterdir()):
+        match = PLUGIN_FILE.match(path.name)
+        if not path.is_file() or not match:
+            fail("%s is not a plugin file" % path)
+        if match.group(2) != version:
+            fail("%s is from another version than %s" % (path.name, version))
+        found[match.group(1)] = path
+    for name in REQUIRED_PLUGINS:
+        if name not in found:
+            fail("no %s.%s.rwp in %s" % (name, version, folder))
+    return found
+
+
+def tracked_theme_files():
+    """themes/ as the commit has it, without the kit (its own download) and
+    without themes/README.txt (written for the repository; release/zip has
+    the players' one)."""
+    listed = git("ls-files", "-z", "--", "themes").split("\0")
+    files = []
+    for name in listed:
+        if not name or name.startswith("themes/kit/") or name == "themes/README.txt":
+            continue
+        files.append(name)
+    return files
+
+
+def zip_entries(args, values, commit_time):
+    """(name in the zip, bytes) for every file, in the order they go in."""
+    apps = "sd-card/apps/"
+    entries = [
+        (apps + "riftwii/boot.dol", args.dol.read_bytes()),
+        (apps + "riftwii/meta.xml", crlf(release_meta_xml(args.version, commit_time))),
+        (apps + "riftwii/icon.png", (ROOT / "hbc" / "icon.png").read_bytes()),
+        (apps + "riftwii/music.ogg", (ROOT / "hbc" / "music.ogg").read_bytes()),
+    ]
+    for path in plugin_files(args.plugins, args.version).values():
+        entries.append((apps + "riftwii/plugins/" + path.name, path.read_bytes()))
+    channel_hbc = ROOT / "channel" / "installer" / "hbc"
+    entries += [
+        (apps + "riftwii_channel/boot.dol", args.channel.read_bytes()),
+        (apps + "riftwii_channel/meta.xml", crlf((channel_hbc / "meta.xml").read_text(encoding="utf-8"))),
+        (apps + "riftwii_channel/icon.png", (channel_hbc / "icon.png").read_bytes()),
+    ]
+    for name in tracked_theme_files():
+        entries.append(("sd-card/riftwii/" + name, (ROOT / name).read_bytes()))
+    for name in sorted(git("ls-files", "-z", "--", "release/zip").split("\0")):
+        if not name:
+            continue
+        path = ROOT / name
+        relative_path = path.relative_to(TEMPLATES).as_posix()
+        if args.nightly and relative_path == "README.txt":
+            title = "RiftWii %s (nightly)" % args.version
+            text = NIGHTLY_README.format(
+                version=args.version,
+                rule="=" * len(title),
+                date=time.strftime("%d %B %Y", time.gmtime(commit_time)),
+                repo=REPO_URL,
+            )
+        else:
+            text = fill(path.read_text(encoding="utf-8"), values)
+        entries.append((relative_path, crlf(text)))
+    entries += [
+        ("LICENSE.txt", crlf((ROOT / "LICENSE").read_text(encoding="utf-8"))),
+        ("NOTICE.md", crlf((ROOT / "NOTICE.md").read_text(encoding="utf-8"))),
+    ]
+    return entries
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("version")
-    ap.add_argument("dol")
-    ap.add_argument("installer")
-    ap.add_argument("out")
-    ap.add_argument("--nightly", action="store_true", help="write a nightly README.txt")
-    args = ap.parse_args()
-    assert re.fullmatch(r"\d{4}(-\d+)?", args.version), args.version
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    parser.add_argument("--version", required=True, help="YYMM-N, as Makefile.wii numbers the build")
+    parser.add_argument("--dol", required=True, type=pathlib.Path, help="riftwii.dol (the zip's boot.dol)")
+    parser.add_argument("--channel", required=True, type=pathlib.Path, help="build-channel/installer.dol")
+    parser.add_argument("--plugins", required=True, type=pathlib.Path, help="build-plugins/plugins")
+    parser.add_argument("--out", required=True, type=pathlib.Path)
+    parser.add_argument("--nightly", action="store_true", help="write a nightly README.txt")
+    args = parser.parse_args()
+    if not VERSION.match(args.version):
+        fail("%r is not a YYMM-N version" % args.version)
 
-    commit = git("rev-parse", "--short=7", "HEAD")
-    when = datetime.datetime.fromtimestamp(int(git("log", "-1", "--format=%ct")), datetime.timezone.utc)
-    stamp = when.timetuple()[:6]  # every entry dated by the commit: the same commit packs the same zip
+    # A zip built from changed files would name a commit that doesn't hold them.
+    changed = git("status", "--porcelain", "--untracked-files=no", "--", "hbc", "themes", "release", "channel/installer/hbc", "LICENSE", "NOTICE.md")
+    if changed:
+        fail("files the zip takes have changes not committed:\n" + changed)
 
-    meta = (ROOT / "hbc/meta.xml").read_text(encoding="utf-8")
-    meta = re.sub(r"<version>[^<]*</version>", "<version>%s</version>" % args.version, meta, count=1)
-    meta = re.sub(r"<release_date>[^<]*</release_date>",
-                  "<release_date>%s</release_date>" % when.strftime("%Y%m%d%H%M%S"), meta, count=1)
+    commit = git("rev-parse", "HEAD")
+    commit_time = int(git("show", "-s", "--format=%ct", "HEAD"))
+    values = {"VERSION": args.version, "TAG": "v" + args.version, "COMMIT": commit, "REPO_URL": REPO_URL}
 
-    files = [
-        ("sd-card/apps/riftwii/boot.dol", pathlib.Path(args.dol).read_bytes()),
-        ("sd-card/apps/riftwii/icon.png", (ROOT / "hbc/icon.png").read_bytes()),
-        ("sd-card/apps/riftwii/meta.xml", meta.encode()),
-        ("sd-card/apps/riftwii/music.ogg", (ROOT / "hbc/music.ogg").read_bytes()),
-        ("sd-card/apps/riftwii_channel/boot.dol", pathlib.Path(args.installer).read_bytes()),
-        ("sd-card/apps/riftwii_channel/icon.png", (ROOT / "channel/installer/hbc/icon.png").read_bytes()),
-        ("sd-card/apps/riftwii_channel/meta.xml", (ROOT / "channel/installer/hbc/meta.xml").read_bytes()),
-    ]
-    files += [(path, text.encode()) for path, text in NOTES.items()]
-    if args.nightly:
-        title = "RiftWii %s (nightly)" % args.version
-        files.append(("README.txt", crlf(NIGHTLY_README.format(
-            version=args.version, rule="=" * len(title), date=when.strftime("%d %B %Y"), repo=REPO))))
-    files.append(("LICENSE.txt", crlf((ROOT / "LICENSE").read_text(encoding="utf-8"))))
-    files.append(("NOTICE.md", crlf((ROOT / "NOTICE.md").read_text(encoding="utf-8"))))
-    title = "RiftWii %s: source code" % args.version
-    files.append(("SOURCE.txt", crlf(SOURCE.format(
-        version=args.version, rule="=" * len(title), repo=REPO, commit=commit))))
-    # The themes as make_update_pack.py sends them, so a card from the zip matches.
-    themes = ROOT / "themes"
-    files.append(("sd-card/riftwii/themes/README.txt", crlf(THEMES_README)))
-    for theme in sorted(p for p in themes.iterdir() if p.is_dir() and p.name != "kit"):
-        for f in sorted(p for p in theme.iterdir() if p.is_file()):
-            data = f.read_bytes()
-            if f.suffix == ".ini":
-                data = data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
-            files.append(("sd-card/riftwii/themes/%s/%s" % (theme.name, f.name), data))
-
-    # Plugins (docs/PLUGINS.md) sit next to boot.dol, as Makefile.plugin
-    # leaves them (name.version.rwp). A build without any has no folder:
-    # then there is nothing to add.
-    plugins = ROOT / "build-plugins" / "plugins"
-    if plugins.is_dir():
-        for f in sorted(p for p in plugins.iterdir() if p.is_file() and p.suffix == ".rwp"):
-            files.append(("sd-card/apps/riftwii/plugins/%s" % f.name, f.read_bytes()))
-
-    out = pathlib.Path(args.out)
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-        for path, data in files:
-            info = zipfile.ZipInfo(path, stamp)
+    # Every entry carries the commit's time, so the same commit gives the
+    # same zip.
+    stamp = time.gmtime(commit_time)[:6]
+    entries = zip_entries(args, values, commit_time)
+    names = [name for name, data in entries]
+    if len(names) != len(set(names)):
+        fail("two files would have the same name in the zip")
+    with zipfile.ZipFile(args.out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as out:
+        for name, data in entries:
+            info = zipfile.ZipInfo(name, date_time=stamp)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
-            z.writestr(info, data)
-    print("%s: %d files, %d bytes" % (out, len(files), out.stat().st_size))
+            out.writestr(info, data)
+    print("%s: %d files, %d bytes, commit %s" % (args.out, len(entries), args.out.stat().st_size, commit[:8]))
 
 
 if __name__ == "__main__":

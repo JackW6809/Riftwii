@@ -217,11 +217,24 @@ struct LaunchExtras {
     bool speaker_off = false;     // gx_speaker_off
     bool region_strings = false;  // the Region strings fix (gx_country_strings)
     bool pack_keeps_saves = false;  // a pack's <savegame> decides where the saves go
+    // The launch that starts this game again after its own Reset (the HOME
+    // Menu's), as headless_launch_arguments (riftwii/launchargs.hpp) writes
+    // it: same game, same packs, choices and settings. Empty: the Reset is
+    // left to the game, which restarts without its packs.
+    std::vector<std::string> restart_args;
 };
 void SetLaunchExtras(LaunchExtras extras);
 // What SetLaunchExtras set, for a launch that does not go through
-// boot_game (a GameCube game's, wii/launch/gcnative.cpp, reads its cheats).
+// boot_game (a GameCube game's: wii/launch/gcplugin.cpp hands its cheats to
+// the gamecube plugin).
 const LaunchExtras& CurrentLaunchExtras();
+// The GameCube adapter for a GameCube game (runtime/gc/gc_gcad.h), by
+// Settings > GameCube adapter and the rules Wii games follow on the IOS
+// the game keeps (`game_on_usb`: d2x reads the USB drive for it): true
+// with the /dev/usb/hid handle the game takes over, its HID version and
+// the adapter's v5 device id (-1: none); false when the adapter stays off
+// (the reason is in the log).
+bool TakeGcAdapterForGameCube(bool game_on_usb, std::int32_t& fd, std::uint32_t& version, std::int32_t& known_dev);
 // The menu's word on the next launch: a pack keeps its own saves.
 bool LaunchPackKeepsSaves();
 

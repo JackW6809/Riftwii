@@ -51,6 +51,15 @@ msgstr "SD 카드 읽는 중..."
 msgid "Reading the USB drive... (a big drive takes a moment)"
 msgstr "USB 드라이브를 읽는 중... (용량이 큰 드라이브는 시간이 다소 걸릴 수 있음)"
 
+msgid "{1} opens once RiftWii has finished reading the drives."
+msgstr "RiftWii가 드라이브를 다 읽으면 {1}이(가) 열립니다."
+
+msgid "RiftWii is still reading the drives."
+msgstr "RiftWii가 아직 드라이브를 읽는 중입니다."
+
+msgid "Waiting for RiftWii to finish reading the drives..."
+msgstr "RiftWii가 드라이브를 다 읽기를 기다리는 중..."
+
 msgid "Reading the disc..."
 msgstr "디스크 읽는 중..."
 
@@ -411,6 +420,12 @@ msgstr "이름 및 치트 다운로드"
 msgid "Get the latest game names"
 msgstr "최신 게임 이름 확인"
 
+msgid "Download missing covers"
+msgstr "없는 커버 다운로드"
+
+msgid "Missing covers will be downloaded when you go back to Home."
+msgstr "홈으로 돌아가면 없는 커버를 다운로드합니다."
+
 msgid "Update"
 msgstr "업데이트"
 
@@ -621,11 +636,14 @@ msgstr "메뉴 언어입니다. Wii는 본체 자체 설정을 따릅니다."
 msgid "Downloads the newest game names from GameTDB."
 msgstr "GameTDB에서 최신 게임 이름을 다운로드합니다."
 
+msgid "Downloads the covers, boxes and 3D covers Home does not have yet from GameTDB. A game GameTDB has no picture for stays without one."
+msgstr "홈에 아직 없는 커버, 박스 및 3D 커버를 GameTDB에서 다운로드합니다. GameTDB에 이미지가 없는 게임은 이미지 없이 남습니다."
+
 msgid "Shows live what the controllers in the adapter are pressing."
 msgstr "어댑터에 연결된 컨트롤러의 입력 상태를 실시간으로 보여줍니다."
 
-msgid "Reads the SD card and the USB drive again."
-msgstr "SD 카드와 USB 드라이브를 다시 읽습니다."
+msgid "Reads the SD card and the USB drive again, and retries missing covers, boxes and 3D covers."
+msgstr "SD 카드와 USB 드라이브를 다시 읽고, 없는 커버, 박스 및 3D 커버 다운로드를 다시 시도합니다."
 
 msgid "No d2x cIOS was found in slots 248 to 252, so the menu runs under IOS 58. Install d2x to play games from SD or USB."
 msgstr "슬롯 248~252에서 d2x cIOS가 발견되지 않아 메뉴가 IOS 58로 실행됩니다. SD 카드나 USB로 게임을 플레이하려면 d2x를 설치하세요."
@@ -795,8 +813,8 @@ msgstr "서비스가 종료된 닌텐도 서버 대신 이 게임이 사용하�
 msgid "Getting covers from GameTDB: {1} left"
 msgstr "GameTDB에서 커버 가져오는 중: {1} 개 남음"
 
-msgid "Covers could not be downloaded ({1}). To try again, use Settings > Look for games again."
-msgstr "커버 이미지를 ({1})에서 다운로드할 수 없습니다. 다시 시도하려면 설정 > 게임 다시 찾기를 이용하세요."
+msgid "Covers could not be downloaded ({1}). To try again, use Settings > Online > Download missing covers."
+msgstr "커버를 다운로드할 수 없습니다 ({1}). 다시 시도하려면 설정 > 온라인 > 없는 커버 다운로드를 이용하세요."
 
 msgid "Cover"
 msgstr "커버"
@@ -855,6 +873,18 @@ msgstr "실험적 기능입니다. 게임 중 1번 버튼을 누른 상태에서
 msgid "Music while the menu is open: music.ogg from sd:/riftwii, or the one in RiftWii's own folder."
 msgstr "메뉴가 열려 있을 때 재생되는 음악: sd:/riftwii 경로의 music.ogg 또는 RiftWii 폴더 내의 음악 파일입니다."
 
+msgid "Launch music"
+msgstr "실행 중 음악"
+
+msgid "Keep playing"
+msgstr "계속 재생"
+
+msgid "Fade out"
+msgstr "페이드 아웃"
+
+msgid "Keep playing: the menu's music plays on under the launch screen and fades out as the game starts. Fade out: it fades out when you start a game."
+msgstr "계속 재생: 메뉴 음악이 시작 화면에서도 계속 흐르다가 게임이 시작될 때 서서히 사라집니다. 페이드 아웃: 게임을 시작할 때 음악이 서서히 사라집니다."
+
 msgid "Music is on, but there is none to play: put a music.ogg in sd:/riftwii, or pick a theme with music."
 msgstr "음악이 켜져 있지만 재생할 음악이 없습니다. sd:/riftwii에 music.ogg를 넣거나 음악이 있는 테마를 고르세요."
 
@@ -912,8 +942,26 @@ msgstr "이 방법은 작동하지 않습니다: {1} 파일이 USB 드라이브�
 msgid "Updating RiftWii"
 msgstr "RiftWii 업데이트"
 
-msgid "RiftWii {1} is out. Downloading and installing it now; this takes a minute..."
-msgstr "RiftWii {1}이(가) 출시되었습니다. 지금 다운로드 및 설치 중이고, 시간이 조금 걸리는 중..."
+msgid "RiftWii {1} is out. Installing it now; this takes a few minutes."
+msgstr "RiftWii {1}이(가) 출시되었습니다. 지금 설치 중이며 몇 분 걸립니다."
+
+msgid "Downloading RiftWii ({1} of {2} MB)"
+msgstr "RiftWii 다운로드 중 ({1} / {2} MB)"
+
+msgid "Downloading RiftWii..."
+msgstr "RiftWii 다운로드 중..."
+
+msgid "Downloading plugins ({1} of {2} MB)"
+msgstr "플러그인 다운로드 중 ({1} / {2} MB)"
+
+msgid "Downloading plugins..."
+msgstr "플러그인 다운로드 중..."
+
+msgid "Checking the download..."
+msgstr "다운로드 확인 중..."
+
+msgid "Writing to the SD card..."
+msgstr "SD 카드에 쓰는 중..."
 
 msgid "Update failed"
 msgstr "업데이트 실패"
@@ -1317,6 +1365,9 @@ msgstr "SD 카드에 있는 Mac의 파일"
 msgid "This SD card has hidden files that macOS makes when it copies (names that start with \"._\"). RiftWii skips them, but they fill the card and can confuse other homebrew. To remove them, put the card in your Mac, open Terminal and type: dot_clean -m /Volumes/ followed by the card's name. On Windows, delete the files whose names start with \"._\"."
 msgstr "이 SD 카드에는 macOS가 파일을 복사할 때 생성하는 숨김 파일(이름이 \"._\"로 시작하는 파일)이 포함되어 있습니다. RiftWii는 이 파일들을 무시하고 넘어가지만, 카드 용량을 차지할 뿐만 아니라 다른 홈브류 프로그램에 혼란을 줄 수 있습니다. 이를 제거하려면 카드를 Mac에 연결한 뒤 터미널을 열고 `dot_clean -m /Volumes/`를 입력한 다음 카드 이름을 이어서 입력하십시오. 윈도우의 경우, 이름이 \"._\"로 시작하는 파일을 삭제하면 됩니다."
 
+msgid "RiftWii doesn't play CISO files. Convert it to ISO or RVZ with Dolphin (right-click the game, Convert File)."
+msgstr "RiftWii는 CISO 파일을 실행하지 않습니다. Dolphin으로 ISO 또는 RVZ로 변환하세요(게임을 오른쪽 클릭, 파일 변환)."
+
 msgid "This code mod can't start"
 msgstr "이 코드 모드는 시작되지 않음"
 
@@ -1400,6 +1451,15 @@ msgstr "SD 이미지를 만들까요?"
 
 msgid "Make it"
 msgstr "만들기"
+
+msgid "The SD card is too fragmented"
+msgstr "SD 카드가 너무 단편화되어 있습니다"
+
+msgid "The free space on the SD card is too scattered. {1} would be written in more than {2} pieces, which is more than RiftWii can follow, so the game would not start from it. Free up space or format the SD card (copy its files off first), then try again. Or build it anyway."
+msgstr "SD 카드의 빈 공간이 너무 흩어져 있습니다. {1}은(는) {2}개가 넘는 조각으로 기록되어 RiftWii가 따라갈 수 있는 수를 넘으므로 게임이 시작되지 않습니다. 공간을 확보하거나 SD 카드를 포맷한 뒤(먼저 파일을 복사해 두세요) 다시 시도하세요. 또는 그대로 만들 수도 있습니다."
+
+msgid "Build anyway"
+msgstr "그래도 만들기"
 
 msgid "Making {1}"
 msgstr "{1} 만들기"
@@ -2268,23 +2328,23 @@ msgstr "홈에 표시할 게임: 모든 드라이브와 Wii 본체의 게임, �
 msgid "This game's data was removed from the Wii, so it can't start."
 msgstr "이 게임의 데이터가 Wii에서 삭제되어 시작할 수 없습니다."
 
-msgid "GameCube games play in Wii mode (trial)"
-msgstr "게임큐브 게임을 Wii 모드에서 플레이할 수 있습니다(시험판)"
+msgid "GameCube games from a USB drive"
+msgstr "USB 드라이브의 게임큐브 게임"
 
-msgid "WiiWare and Virtual Console games on Home"
-msgstr "WiiWare와 버추얼 콘솔 게임이 홈에 표시됩니다"
+msgid "The Wii U's GameCube adapter in GameCube games"
+msgstr "게임큐브 게임에서 Wii U 게임큐브 어댑터"
 
-msgid "A game can have more Home tiles, each with its own mods"
-msgstr "한 게임에 홈 타일을 더 만들고 타일마다 다른 MOD를 쓸 수 있습니다"
+msgid "GameCube mods built with libogc, like Sonic Riders TE"
+msgstr "Sonic Riders TE 같은 libogc 게임큐브 MOD"
 
-msgid "Put the games on Home in your own order"
-msgstr "홈의 게임을 원하는 순서로 놓을 수 있습니다"
+msgid "WiiWare and VC: launch screen and screenshots"
+msgstr "WiiWare와 VC: 실행 화면과 스크린샷"
 
-msgid "Indigo: a third built-in theme"
-msgstr "Indigo: 세 번째 기본 테마"
+msgid "Problem reports can be sent again"
+msgstr "문제 보고서를 다시 보낼 수 있습니다"
 
-msgid "Saves can be shared with USB Loader GX's emulated NAND"
-msgstr "세이브를 USB Loader GX의 에뮬레이트 NAND와 공유할 수 있습니다"
+msgid "A smaller RiftWii: half the download"
+msgstr "더 작아진 RiftWii: 다운로드 절반"
 
 msgid "Memory for RiftWii's extras"
 msgstr "RiftWii 추가 기능이 쓰는 메모리"
@@ -2330,6 +2390,9 @@ msgstr "Wii 리모컨"
 
 msgid "Nunchuk"
 msgstr "눈차크"
+
+msgid "Wii U Pro Controller"
+msgstr "Wii U 프로 컨트롤러"
 
 msgid "Classic Controller"
 msgstr "클래식 컨트롤러"
@@ -2627,3 +2690,42 @@ msgstr "\"{1}\" 타일이 자체 MOD와 설정, 그리고 sd:/riftwii/profiles�
 
 msgid "Removed \"{1}\". This page is the game's own again."
 msgstr "\"{1}\" 타일을 제거했습니다. 이 페이지는 다시 게임 자체의 페이지입니다."
+
+msgid "A part of RiftWii is missing (the {1} add-on). Update RiftWii again."
+msgstr "RiftWii의 일부({1} 애드온)가 없습니다. RiftWii를 다시 업데이트해 주세요."
+
+msgid "A part of RiftWii is damaged (the {1} add-on). Update RiftWii again."
+msgstr "RiftWii의 일부({1} 애드온)가 손상되었습니다. RiftWii를 다시 업데이트해 주세요."
+
+msgid "The {1} add-on is from a different RiftWii ({2}, this one is {3}). Update RiftWii again."
+msgstr "{1} 애드온은 다른 RiftWii의 것입니다({2}, 이 RiftWii는 {3}). RiftWii를 다시 업데이트해 주세요."
+
+msgid "There was not enough memory for the {1} add-on. Restart RiftWii and try again."
+msgstr "{1} 애드온에 필요한 메모리가 부족했습니다. RiftWii를 다시 시작한 뒤 다시 시도해 주세요."
+
+msgid "The {1} add-on did not start. Send a problem report so this can be fixed."
+msgstr "{1} 애드온이 시작되지 않았습니다. 이 문제가 해결될 수 있도록 오류 보고서를 보내주세요."
+
+msgid "Sharper picture"
+msgstr "더 선명한 화면"
+
+msgid "Off (as made)"
+msgstr "끔 (원래대로)"
+
+msgid "Turns off the soft blur some games add."
+msgstr "일부 게임이 더하는 부드러운 흐림을 끕니다."
+
+msgid "Game speed"
+msgstr "게임 속도"
+
+msgid "Smoother (60 Hz)"
+msgstr "더 부드럽게 (60 Hz)"
+
+msgid "As made (50 Hz)"
+msgstr "원래대로 (50 Hz)"
+
+msgid "Smoother plays at 60 Hz in games that have a 60 Hz mode, on a TV that takes it; the others stay at 50 Hz."
+msgstr "60 Hz 모드가 있는 게임은 이를 지원하는 TV에서 60 Hz로 플레이합니다. 다른 게임은 50 Hz로 남습니다."
+
+msgid "Default turns 480p on when the Wii is set to 480p and a component cable is seen; pick On (480p) if your TV takes it anyway."
+msgstr "기본은 Wii가 480p로 설정되어 있고 컴포넌트 케이블이 감지될 때 480p를 켭니다. TV가 지원한다면 켬 (480p)을 고르세요."

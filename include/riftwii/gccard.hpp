@@ -42,6 +42,12 @@ struct GcCardFormat {
 // directories and two empty block tables. `card` is resized to the card.
 void gc_card_format(std::vector<std::uint8_t>& card, const GcCardFormat& format);
 
+// Recovers the flash ID that made the header's serial, for the console to
+// store in slot A's SRAM before mounting this card. Requires the whole
+// 0x200-byte header, its valid checksum pair and formatted size/encoding
+// fields. Never changes the card; on failure leaves `flash_id` unchanged.
+bool gc_card_flash_id(const std::vector<std::uint8_t>& card, std::array<std::uint8_t, 12>& flash_id);
+
 // The card's 16-bit checksum pair over `bytes` (an even count), stored as
 // two big-endian words at `out`: the sum of the words and the sum of
 // their complements, each 0xFFFF written as 0.
@@ -142,6 +148,10 @@ std::string gc_card_text_utf8(const std::string& raw, bool shift_jis);
 // formats as Shift-JIS), shared-jp.raw. A card holds one encoding's
 // file names, so Western and Japanese games cannot share one file.
 std::string gc_card_path(const std::string& game_id, bool shared);
+// The name gc_card_path gave this game's card before MIN-04 (only the ID's
+// capitals and digits), when it differs from today's and is not empty;
+// "" otherwise. Two odd IDs could share it, so it is copied, never moved.
+std::string gc_card_legacy_path(const std::string& game_id, bool shared);
 
 // Whether the game's card is Shift-JIS (a Japanese game's region letter).
 bool gc_card_shift_jis(const std::string& game_id);

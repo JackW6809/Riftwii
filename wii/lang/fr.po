@@ -51,6 +51,15 @@ msgstr "Lecture de la carte SD..."
 msgid "Reading the USB drive... (a big drive takes a moment)"
 msgstr "Lecture du stockage USB... (un grand stockage peut prendre un moment)"
 
+msgid "{1} opens once RiftWii has finished reading the drives."
+msgstr "{1} s'ouvrira une fois que RiftWii aura fini de lire les stockages."
+
+msgid "RiftWii is still reading the drives."
+msgstr "RiftWii est encore en train de lire les stockages."
+
+msgid "Waiting for RiftWii to finish reading the drives..."
+msgstr "En attente que RiftWii finisse de lire les stockages..."
+
 msgid "Reading the disc..."
 msgstr "Lecture du disque..."
 
@@ -411,6 +420,12 @@ msgstr "Télécharger noms et codes de triche"
 msgid "Get the latest game names"
 msgstr "Obtenir les derniers noms de jeux"
 
+msgid "Download missing covers"
+msgstr "Télécharger les jaquettes manquantes"
+
+msgid "Missing covers will be downloaded when you go back to Home."
+msgstr "Les jaquettes manquantes seront téléchargées au retour à l'accueil."
+
 msgid "Update"
 msgstr "Mettre à jour"
 
@@ -621,11 +636,14 @@ msgstr "Langue du menu. \"Wii\" utilise le paramètre de la console."
 msgid "Downloads the newest game names from GameTDB."
 msgstr "Télécharge les derniers noms de jeux depuis GameTDB."
 
+msgid "Downloads the covers, boxes and 3D covers Home does not have yet from GameTDB. A game GameTDB has no picture for stays without one."
+msgstr "Télécharge depuis GameTDB les jaquettes, boîtiers et jaquettes 3D qui manquent à l'accueil. Un jeu sans image sur GameTDB reste sans image."
+
 msgid "Shows live what the controllers in the adapter are pressing."
 msgstr "Affiche en direct les entrées des manettes branchées sur l'adaptateur."
 
-msgid "Reads the SD card and the USB drive again."
-msgstr "Relance la lecture de la carte SD et du stockage USB."
+msgid "Reads the SD card and the USB drive again, and retries missing covers, boxes and 3D covers."
+msgstr "Relit la carte SD et le stockage USB, et réessaie de télécharger les jaquettes, boîtiers et jaquettes 3D manquants."
 
 msgid "No d2x cIOS was found in slots 248 to 252, so the menu runs under IOS 58. Install d2x to play games from SD or USB."
 msgstr "Aucun cIOS d2x trouvé dans les slots 248 à 252, le menu tourne sous l'IOS 58. Installez d2x pour jouer depuis la SD ou l'USB."
@@ -795,8 +813,8 @@ msgstr "Serveur de remplacement pour le jeu en ligne officiel désormais fermé.
 msgid "Getting covers from GameTDB: {1} left"
 msgstr "Récupération des jacquettes GameTDB : {1} restante(s)"
 
-msgid "Covers could not be downloaded ({1}). To try again, use Settings > Look for games again."
-msgstr "Impossible de télécharger les jacquettes ({1}). Pour réessayer : Paramètres > Rechercher à nouveau les jeux."
+msgid "Covers could not be downloaded ({1}). To try again, use Settings > Online > Download missing covers."
+msgstr "Impossible de télécharger les jaquettes ({1}). Pour réessayer : Paramètres > En ligne > Télécharger les jaquettes manquantes."
 
 msgid "Cover"
 msgstr "Jacquette"
@@ -855,6 +873,18 @@ msgstr "Expérimental. En jeu, maintenez 1 et appuyez sur HOME (Manette GC : L +
 msgid "Music while the menu is open: music.ogg from sd:/riftwii, or the one in RiftWii's own folder."
 msgstr "Musique du menu : fichier music.ogg situé dans sd:/riftwii ou dans le dossier propre de RiftWii."
 
+msgid "Launch music"
+msgstr "Au lancement"
+
+msgid "Keep playing"
+msgstr "Continuer"
+
+msgid "Fade out"
+msgstr "Fondu sortant"
+
+msgid "Keep playing: the menu's music plays on under the launch screen and fades out as the game starts. Fade out: it fades out when you start a game."
+msgstr "Continuer : la musique du menu continue sous l'écran de lancement et s'estompe au démarrage du jeu. Fondu sortant : elle s'estompe dès que vous lancez un jeu."
+
 msgid "Music is on, but there is none to play: put a music.ogg in sd:/riftwii, or pick a theme with music."
 msgstr "La musique est activée, mais il n'y a rien à jouer : mettez un music.ogg dans sd:/riftwii ou choisissez un thème avec musique."
 
@@ -912,8 +942,26 @@ msgstr "Échec : {1} est sur le stockage USB. RiftWii n'accède au stockage USB 
 msgid "Updating RiftWii"
 msgstr "Mise à jour de RiftWii"
 
-msgid "RiftWii {1} is out. Downloading and installing it now; this takes a minute..."
-msgstr "RiftWii {1} est disponible. Téléchargement et installation en cours..."
+msgid "RiftWii {1} is out. Installing it now; this takes a few minutes."
+msgstr "RiftWii {1} est disponible. Installation en cours; cela prend quelques minutes."
+
+msgid "Downloading RiftWii ({1} of {2} MB)"
+msgstr "Téléchargement de RiftWii ({1} sur {2} Mo)"
+
+msgid "Downloading RiftWii..."
+msgstr "Téléchargement de RiftWii..."
+
+msgid "Downloading plugins ({1} of {2} MB)"
+msgstr "Téléchargement des plugins ({1} sur {2} Mo)"
+
+msgid "Downloading plugins..."
+msgstr "Téléchargement des plugins..."
+
+msgid "Checking the download..."
+msgstr "Vérification du téléchargement..."
+
+msgid "Writing to the SD card..."
+msgstr "Écriture sur la carte SD..."
 
 msgid "Update failed"
 msgstr "Échec de la mise à jour"
@@ -1317,6 +1365,9 @@ msgstr "Fichiers cachés macOS sur la carte SD"
 msgid "This SD card has hidden files that macOS makes when it copies (names that start with \"._\"). RiftWii skips them, but they fill the card and can confuse other homebrew. To remove them, put the card in your Mac, open Terminal and type: dot_clean -m /Volumes/ followed by the card's name. On Windows, delete the files whose names start with \"._\"."
 msgstr "Cette carte contient des fichiers système macOS commençant par \"._\". RiftWii les ignore mais ils prennent de la place. Pour les supprimer sur Mac, utilisez la commande Terminal `dot_clean -m /Volumes/[NomCarte]`. Sur Windows, supprimez manuellement les fichiers \"._\"."
 
+msgid "RiftWii doesn't play CISO files. Convert it to ISO or RVZ with Dolphin (right-click the game, Convert File)."
+msgstr "RiftWii ne lance pas les fichiers CISO. Convertissez-le en ISO ou RVZ avec Dolphin (clic droit sur le jeu, Convertir le fichier)."
+
 msgid "This code mod can't start"
 msgstr "Ce mod de code ne peut pas démarrer"
 
@@ -1400,6 +1451,15 @@ msgstr "Créer une image SD ?"
 
 msgid "Make it"
 msgstr "Créer"
+
+msgid "The SD card is too fragmented"
+msgstr "La carte SD est trop fragmentée"
+
+msgid "The free space on the SD card is too scattered. {1} would be written in more than {2} pieces, which is more than RiftWii can follow, so the game would not start from it. Free up space or format the SD card (copy its files off first), then try again. Or build it anyway."
+msgstr "L'espace libre de la carte SD est trop dispersé. {1} serait écrite en plus de {2} morceaux, plus que RiftWii ne peut en suivre, donc le jeu ne démarrerait pas. Libérez de la place ou formatez la carte SD (copiez d'abord ses fichiers), puis réessayez. Ou créez-la quand même."
+
+msgid "Build anyway"
+msgstr "Créer quand même"
 
 msgid "Making {1}"
 msgstr "Création de {1}"
@@ -2268,23 +2328,23 @@ msgstr "Les jeux qu'affiche l'Accueil : ceux de chaque support et ceux de la Wii
 msgid "This game's data was removed from the Wii, so it can't start."
 msgstr "Les données de ce jeu ont été effacées de la Wii, il ne peut donc pas démarrer."
 
-msgid "GameCube games play in Wii mode (trial)"
-msgstr "Les jeux GameCube fonctionnent en mode Wii (essai)"
+msgid "GameCube games from a USB drive"
+msgstr "Jeux GameCube depuis un USB"
 
-msgid "WiiWare and Virtual Console games on Home"
-msgstr "Jeux WiiWare et Console Virtuelle sur l'Accueil"
+msgid "The Wii U's GameCube adapter in GameCube games"
+msgstr "L'adaptateur GameCube de Wii U sur GameCube"
 
-msgid "A game can have more Home tiles, each with its own mods"
-msgstr "Un jeu peut avoir plusieurs tuiles d'accueil, chacune avec ses mods"
+msgid "GameCube mods built with libogc, like Sonic Riders TE"
+msgstr "Mods GameCube avec libogc, comme Sonic Riders TE"
 
-msgid "Put the games on Home in your own order"
-msgstr "Rangez les jeux de l'Accueil dans votre ordre"
+msgid "WiiWare and VC: launch screen and screenshots"
+msgstr "WiiWare et CV : écran de lancement et captures"
 
-msgid "Indigo: a third built-in theme"
-msgstr "Indigo : un troisième thème intégré"
+msgid "Problem reports can be sent again"
+msgstr "Les rapports de problème fonctionnent à nouveau"
 
-msgid "Saves can be shared with USB Loader GX's emulated NAND"
-msgstr "Les sauvegardes peuvent être partagées avec la NAND émulée d'USB Loader GX"
+msgid "A smaller RiftWii: half the download"
+msgstr "Un RiftWii plus léger : moitié moins à télécharger"
 
 msgid "Memory for RiftWii's extras"
 msgstr "Mémoire pour les extras de RiftWii"
@@ -2330,6 +2390,9 @@ msgstr "Wiimote"
 
 msgid "Nunchuk"
 msgstr "Nunchuk"
+
+msgid "Wii U Pro Controller"
+msgstr "Manette Pro Wii U"
 
 msgid "Classic Controller"
 msgstr "Manette Classique"
@@ -2627,3 +2690,42 @@ msgstr "\"{1}\" quitte l'accueil, avec ses propres mods et réglages, et son ima
 
 msgid "Removed \"{1}\". This page is the game's own again."
 msgstr "\"{1}\" retirée. Cette page est de nouveau celle du jeu."
+
+msgid "A part of RiftWii is missing (the {1} add-on). Update RiftWii again."
+msgstr "Une partie de RiftWii est manquante (le module {1}). Mettez RiftWii à jour à nouveau."
+
+msgid "A part of RiftWii is damaged (the {1} add-on). Update RiftWii again."
+msgstr "Une partie de RiftWii est endommagée (le module {1}). Mettez RiftWii à jour à nouveau."
+
+msgid "The {1} add-on is from a different RiftWii ({2}, this one is {3}). Update RiftWii again."
+msgstr "Le module {1} vient d'un autre RiftWii ({2}, celui-ci est {3}). Mettez RiftWii à jour à nouveau."
+
+msgid "There was not enough memory for the {1} add-on. Restart RiftWii and try again."
+msgstr "Il n'y avait pas assez de mémoire pour le module {1}. Redémarrez RiftWii et réessayez."
+
+msgid "The {1} add-on did not start. Send a problem report so this can be fixed."
+msgstr "Le module {1} n'a pas démarré. Envoyez un rapport de problème pour que cela soit corrigé."
+
+msgid "Sharper picture"
+msgstr "Image plus nette"
+
+msgid "Off (as made)"
+msgstr "Désactivé (d'origine)"
+
+msgid "Turns off the soft blur some games add."
+msgstr "Retire le léger flou que certains jeux ajoutent."
+
+msgid "Game speed"
+msgstr "Vitesse du jeu"
+
+msgid "Smoother (60 Hz)"
+msgstr "Plus fluide (60 Hz)"
+
+msgid "As made (50 Hz)"
+msgstr "D'origine (50 Hz)"
+
+msgid "Smoother plays at 60 Hz in games that have a 60 Hz mode, on a TV that takes it; the others stay at 50 Hz."
+msgstr "Plus fluide joue à 60 Hz dans les jeux qui ont un mode 60 Hz, sur une télé qui l'accepte ; les autres restent à 50 Hz."
+
+msgid "Default turns 480p on when the Wii is set to 480p and a component cable is seen; pick On (480p) if your TV takes it anyway."
+msgstr "Par défaut active le 480p quand la Wii est réglée sur 480p et qu'un câble composante est détecté ; choisissez Activé (480p) si votre télé l'accepte quand même."

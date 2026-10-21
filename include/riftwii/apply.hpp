@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -135,10 +136,21 @@ private:
 bool build_replacement(const FilePatch& patch, ContentProvider& provider,
                        std::unique_ptr<AppliedFile>& out, std::string& error);
 
+// The most patches one disc file takes. Each one wraps the file before it,
+// and reads, flattening and freeing go through every layer in turn: a pack
+// with thousands on one file ran the Wii's stack over, which has no guard
+// page to stop it (BUG-01). Real packs change a file once or a few times.
+// Measured in the Wii build (-fstack-usage, CAV-01): AppliedFile::flatten
+// takes 240 bytes a layer and ReadOverlay::read_into 144, and the launch
+// runs them on the main thread's 128 KiB stack: 512 layers came to 123 KiB
+// for flatten alone, 128 come to 30 KiB.
+constexpr std::size_t kMaxPatchesPerFile = 128;
+
 // Applies several patches that target the same disc file, in order, each one
 // seeing the result of the previous (so a later patch can overwrite bytes an
 // earlier one produced, and resizes accumulate). All entries must share the
-// same `disc`; the vector must not be empty. Output is untouched on failure.
+// same `disc`; the vector must not be empty or longer than kMaxPatchesPerFile.
+// Output is untouched on failure.
 bool apply_patches(const std::vector<FilePatch>& patches, ContentProvider& provider,
                    std::unique_ptr<AppliedFile>& out, std::string& error);
 

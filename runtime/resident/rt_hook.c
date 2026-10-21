@@ -377,6 +377,7 @@ int32_t (*rt_host_fs_read_async)(int32_t fd, uint32_t buffer, uint32_t length, u
 int32_t (*rt_host_fs_ioctl_async)(int32_t fd, uint32_t request, uint32_t in, uint32_t in_len, uint32_t out,
                                    uint32_t out_len, uint32_t callback, void* tag) = 0;
 int rt_host_fs_in_thread = 1;
+struct rt_restart_block* rt_host_restart_block = 0;
 void (*rt_host_game_callback)(uint32_t cb, int32_t result, uint32_t user_data) = 0;
 static int32_t rt_fs_open_async(struct rt_fs_state* st, const char* path, uint32_t mode, void* tag) {
     return rt_host_fs_open_async == 0 ? -1 : rt_host_fs_open_async(path, mode, st->complete_fs, tag);
@@ -618,12 +619,16 @@ int rt_on_ioctl_async(struct rt_context* ctx, uintptr_t* args, uint32_t* result)
         ctx->last_di_word_offset = word_offset;
         ctx->last_di_length = length;
         if (ctx->flags & RT_FLAG_GECKO) {
-            /* "R<word offset>:<length>\n", hex, no literals. */
+            /* "R<word offset>:<length>@<buffer>\n", hex, no literals: where
+             * a read lands tells a game's loads apart (main.dol's sections,
+             * the file table). */
             const uint32_t msr = rt_interrupts_off();
             rt_gecko_putc(ctx, 'R');
             rt_gecko_hex(ctx, word_offset);
             rt_gecko_putc(ctx, ':');
             rt_gecko_hex(ctx, length);
+            rt_gecko_putc(ctx, '@');
+            rt_gecko_hex(ctx, (uint32_t)args[4]);
             rt_gecko_putc(ctx, '\n');
             rt_interrupts_restore(msr);
         }
@@ -962,6 +967,24 @@ static int rt_fs_backing_off(struct rt_fs_state* st) {
     return 0;
 }
 
+/* The virtual SD blob beside the runtime, passing the card through to the
+ * game, has written to it and not yet seen it idle: the card refuses a read
+ * until it has programmed the write (BUG-05). */
+static int rt_vsd_writing(const struct rt_context* ctx) {
+    return ctx->vsd_writing != 0 && *(volatile const uint32_t*)(uintptr_t)ctx->vsd_writing != 0;
+}
+
+/* Whether the card reads of `rt_issue_sd_chunk` and `rt_rvz_card_read`
+ * wait in null round trips before they go out, and whether one must now. */
+static int rt_card_gated(const struct rt_context* ctx, struct rt_fs_state* fs) {
+    return (fs != 0 && rt_sd_settles(ctx, fs)) || ctx->vsd_writing != 0;
+}
+
+static int rt_card_held(const struct rt_context* ctx, struct rt_fs_state* fs) {
+    if (rt_vsd_writing(ctx)) return 1;
+    return fs != 0 && rt_sd_settles(ctx, fs) && (fs->card_busy || fs->card_wanted || rt_fs_backing_off(fs));
+}
+
 /* Starts the pause after a failed command: the next command waits 2 ms
  * after a first failure, 8 ms after a second, 32 ms after a third, 128
  * after a fourth and 512 ms after every one after that. A command sent
@@ -975,10 +998,13 @@ static void rt_fs_back_off(struct rt_fs_state* st) {
 }
 
 /* Whether a savegame command must wait before it goes to the card: a
- * read is in flight on it, or a failure's pause runs. /dev/sdio/slot0
- * only (d2x's device serves one request at a time itself). */
+ * read is in flight on it, the virtual SD blob beside the runtime has a
+ * write the card is still programming (it refuses a command then,
+ * BUG-05), or a failure's pause runs. /dev/sdio/slot0 only (d2x's
+ * device serves one request at a time itself). */
 static int rt_fs_card_blocked(const struct rt_context* ctx, struct rt_fs_state* st) {
-    return rt_sd_settles(ctx, st) && (rt_mod_reading(ctx) != 0 || rt_fs_backing_off(st));
+    if (!rt_sd_settles(ctx, st)) return 0;
+    return rt_mod_reading(ctx) != 0 || rt_vsd_writing(ctx) || rt_fs_backing_off(st);
 }
 
 /* One turn of an asynchronous wait for the card: a null round trip with
@@ -1663,18 +1689,35 @@ static int32_t rt_fs_copy_in(struct rt_context* ctx, struct rt_fs_state* st, int
     return rt_fs_ioctl_sync(st, fs_fd, RTFS_IOCTL_DELETE, (uint32_t)(uintptr_t)src, RTFS_PATH_BYTES, 0, 0);
 }
 
+/* The synchronous import, the asynchronous import job and the clone share
+ * one set of scratch (st->stats, st->attr, st->path) and the temp names
+ * .rwstage.tmp/.rwback.tmp. A game thread and an IPC callback can both
+ * start one, so the scratch is claimed with interrupts off, and a second
+ * copy is refused rather than run over the first: a GETFILESTATS answer
+ * overwritten mid-import committed a truncated save (BUG-08). */
+static int rt_fs_claim_copy(struct rt_fs_state* st) {
+    const uint32_t msr = rt_interrupts_off();
+    const int claimed = st->copy_busy == 0;
+    if (claimed) st->copy_busy = 1;
+    rt_interrupts_restore(msr);
+    return claimed;
+}
+
+static void rt_fs_release_copy(struct rt_fs_state* st) { st->copy_busy = 0; }
+
 /* A rename from outside the redirected directory into it (rt_hook.h):
  * the NAND file `src` becomes the card file `dst`, then leaves NAND.
  * `fs_fd` is the game's /dev/fs fd the rename came on. */
 static int32_t rt_fs_import(struct rt_context* ctx, struct rt_fs_state* st, int32_t fs_fd, const char* src,
                             const char* dst) {
     int32_t r;
-    if (!rt_fs_has_sync_originals(st)) {
+    if (!rt_fs_has_sync_originals(st) || !rt_fs_claim_copy(st)) {
         st->import_refused++;
         return RTFAT_EACCESS;
     }
     st->imports++;
     r = rt_fs_copy_in(ctx, st, fs_fd, src, dst, 1);
+    rt_fs_release_copy(st);
     if (r < 0) st->import_failures++;
     return r;
 }
@@ -2026,6 +2069,7 @@ static int rt_fs_job_run(struct rt_context* ctx, struct rt_fs_state* st) {
 static void rt_fs_job_end(struct rt_context* ctx, struct rt_fs_state* st) {
     struct rt_fs_job* j = &st->job;
     j->active = 0;
+    rt_fs_release_copy(st);
     j->phase = RT_FS_JOB_IDLE;
     if (j->result < 0) st->import_failures++;
     rt_fs_report_done(ctx, j->result);
@@ -2055,7 +2099,10 @@ static int rt_fs_job_start(struct rt_context* ctx, struct rt_fs_state* st, uint3
     struct rt_fs_job* j = &st->job;
     uint32_t i;
     int32_t r;
-    if (j->active || !rt_fs_has_async_originals(ctx, st)) return 0;
+    if (!rt_fs_has_async_originals(ctx, st)) return 0;
+    /* The scratch is free only while no job is active either (copy_busy is
+     * held from here to rt_fs_job_end). */
+    if (!rt_fs_claim_copy(st)) return 0;
     rt_zero_bytes((uint8_t*)j, sizeof(*j));
     j->active = 1;
     j->tag.kind = RT_FS_OP_JOB;
@@ -2075,6 +2122,7 @@ static int rt_fs_job_start(struct rt_context* ctx, struct rt_fs_state* st, uint3
         if (!rt_fs_internal_path(st, j->stage, stage_name) ||
             !rt_fs_internal_path(st, j->backup, backup_name)) {
             j->active = 0;
+            rt_fs_release_copy(st);
             return 0;
         }
     }
@@ -2137,12 +2185,11 @@ static void rt_fs_clone_unmark(struct rt_context* ctx, struct rt_fs_state* st, i
  * each name copied by rt_fs_copy_in with the same path on both sides
  * (NAND through the original IOS_Open, the card through the engine,
  * which classifies by the game's /dev/fs fd once that is known). */
-static void rt_fs_clone(struct rt_context* ctx, struct rt_fs_state* st) {
+static void rt_fs_clone_run(struct rt_context* ctx, struct rt_fs_state* st) {
     int32_t fd, engine_fd, r;
     uint32_t count, i, n;
     int listed = 0;
     char* p = st->path;
-    st->clone_pending = 0;
     if (!rt_fs_has_sync_originals(st) || st->ioctlv_sync == 0) {
         st->clone_failures++;
         return;
@@ -2223,6 +2270,23 @@ static void rt_fs_clone(struct rt_context* ctx, struct rt_fs_state* st) {
     }
     if (listed) rt_fs_clone_unmark(ctx, st, engine_fd);
     rt_fs_close_sync(st, fd);
+}
+
+/* The clone runs once, on the first game call that finds both the clone
+ * pending and the copy scratch free; one that finds an import in progress
+ * leaves it pending for a later call. Claimed with interrupts off, so two
+ * threads never both run it (BUG-08). */
+static void rt_fs_clone(struct rt_context* ctx, struct rt_fs_state* st) {
+    const uint32_t msr = rt_interrupts_off();
+    const int claimed = st->clone_pending != 0 && st->copy_busy == 0;
+    if (claimed) {
+        st->clone_pending = 0;
+        st->copy_busy = 1;
+    }
+    rt_interrupts_restore(msr);
+    if (!claimed) return;
+    rt_fs_clone_run(ctx, st);
+    rt_fs_release_copy(st);
 }
 
 /* Whether an ISFS rename crosses the directory's boundary: 1 inward
@@ -2794,11 +2858,10 @@ static int rt_issue_sd_chunk(struct rt_context* ctx, struct rt_pending* record) 
          * between. pad_request[0] counts the waits (the request line is
          * only ever flushed, never dropped). */
         struct rt_fs_state* fs = rt_fs_of(ctx);
-        if (fs != 0 && rt_sd_settles(ctx, fs)) {
+        if (rt_card_gated(ctx, fs)) {
             const uint32_t msr = rt_interrupts_off();
             int r;
-            if ((fs->card_busy || fs->card_wanted || rt_fs_backing_off(fs)) &&
-                record->pad_request[0] < RT_SD_CARD_WAITS) {
+            if (rt_card_held(ctx, fs) && record->pad_request[0] < RT_SD_CARD_WAITS) {
                 record->pad_request[0]++;
                 record->phase = RT_PHASE_SD_WAIT;
                 r = rt_sd_wait_trip(ctx, record) < 0 ? -1 : 1;
@@ -3045,11 +3108,10 @@ static int rt_rvz_on_read(struct rt_context* ctx, struct rt_rvz_state* st, uintp
 static int rt_rvz_card_read(struct rt_context* ctx, struct rt_rvz_state* st, struct rt_pending* record,
                             uint32_t sector, uint32_t sectors, uint32_t target, uint32_t phase) {
     struct rt_fs_state* fs = rt_fs_of(ctx);
-    if (fs != 0 && rt_sd_settles(ctx, fs)) {
+    if (rt_card_gated(ctx, fs)) {
         const uint32_t msr = rt_interrupts_off();
         int r;
-        if ((fs->card_busy || fs->card_wanted || rt_fs_backing_off(fs)) &&
-            record->pad_request[0] < RT_SD_CARD_WAITS) {
+        if (rt_card_held(ctx, fs) && record->pad_request[0] < RT_SD_CARD_WAITS) {
             record->pad_request[0]++;
             st->wait_sector = sector;
             st->wait_target = target;
@@ -3478,4 +3540,156 @@ void rt_on_di_complete(struct rt_context* ctx, int32_t* result, struct rt_pendin
         rt_interrupts_restore(msr);
     }
     record->in_use = 0;
+}
+
+/* --- the game's own Reset ------------------------------------------------ */
+/* riftwii/osrestart.hpp has the whole story: instead of the SDK's restart,
+ * which would load the disc's main.dol over the game and take every change
+ * RiftWii made with it, the Reset leaves a launch request on the card and
+ * goes to the RiftWii channel, which starts RiftWii, which starts the game
+ * again with the same packs. Both steps are IOS calls from the game's
+ * thread, through the game's own synchronous IOS_Ioctlv. */
+
+#define RT_ES_LAUNCH_TITLE 0x08u
+#define RT_ES_TITLE_BYTES 8u
+#define RT_ES_VIEW_BYTES 0xD8u
+/* The card goes on programming the sector after its write is accepted; the
+ * title launch that follows ends with IOS being reloaded, which would
+ * reset the card. 50 ms of the time base (60.75 MHz) is far longer than a
+ * sector takes. */
+#define RT_RESTART_SETTLE_TICKS 3037500u
+
+/* Waits for the card to finish programming a sector it has accepted. */
+static void rt_restart_settle(void) {
+    const uint32_t start = rt_fs_ticks();
+    while (rt_fs_ticks() - start < RT_RESTART_SETTLE_TICKS) {
+    }
+}
+
+static int32_t rt_restart_call(struct rt_restart* rs, uint32_t fd, uint32_t ioctl, uint32_t in_count,
+                               uint32_t out_count, struct rt_ioctlv* vec) {
+#ifdef RT_TARGET_PPC
+    return ((rt_ioctlv_sync_fn)(uintptr_t)rs->ioctlv_sync)(fd, ioctl, in_count, out_count, vec);
+#else
+    (void)rs;
+    return rt_host_fs_ioctlv_sync == 0 ? -1 : rt_host_fs_ioctlv_sync((int32_t)fd, ioctl, in_count, out_count, vec);
+#endif
+}
+
+/* "X<what>:<value>\n" over the Gecko, for the Reset's steps. */
+static void rt_restart_report(struct rt_context* ctx, uint32_t what, uint32_t value) {
+    uint32_t msr;
+    if ((ctx->flags & RT_FLAG_GECKO) == 0) return;
+    msr = rt_interrupts_off();
+    rt_gecko_putc(ctx, 'X');
+    rt_gecko_putc(ctx, what);
+    rt_gecko_putc(ctx, ':');
+    rt_gecko_hex(ctx, value);
+    rt_gecko_putc(ctx, '\n');
+    rt_interrupts_restore(msr);
+}
+
+/* One sector of the card, from `sector` (a line-aligned 512 bytes of the
+ * block), written as the savegame engine writes one (rt_fs_build_sendcmd):
+ * a CMD25 of one block on /dev/sdio/slot0, or d2x's sector and count. */
+static int32_t rt_restart_write(struct rt_context* ctx, struct rt_restart* rs, struct rt_restart_block* blk,
+                                const uint8_t* sector) {
+    struct rt_sdio_request* rq = &blk->request;
+    uint32_t ioctl;
+    uint32_t in_count;
+    uint32_t out_count;
+    if (ctx->sdio_fd == RT_RESTART_NONE) return RTFAT_EIO;
+    if (ctx->sdio_sdhc == RT_SD_D2X) {
+        rq->cmd = rs->lba;
+        rq->cmd_type = 1u;
+        blk->vec[0].data = (uint32_t)(uintptr_t)&rq->cmd;
+        blk->vec[0].len = 4;
+        blk->vec[1].data = (uint32_t)(uintptr_t)&rq->cmd_type;
+        blk->vec[1].len = 4;
+        blk->vec[2].data = (uint32_t)(uintptr_t)sector;
+        blk->vec[2].len = RT_SECTOR_BYTES;
+        ioctl = RT_SDHC_WRITE;
+        in_count = 3u;
+        out_count = 0u;
+    } else {
+        uint32_t i;
+        rq->cmd = RT_SD_CMD_WRITEMULTIBLOCK;
+        rq->cmd_type = RT_SD_CMDTYPE_AC;
+        rq->rsp_type = RT_SD_RESPONSE_R1;
+        rq->arg = ctx->sdio_sdhc ? rs->lba : rs->lba * RT_SECTOR_BYTES;
+        rq->blk_cnt = 1u;
+        rq->blk_size = RT_SECTOR_BYTES;
+        rq->dma_addr = (uint32_t)(uintptr_t)sector;
+        rq->isdma = 1u;
+        rq->pad0 = 0;
+        for (i = 0; i < 4u; ++i) blk->response[i] = 0;
+        blk->vec[0].data = (uint32_t)(uintptr_t)rq;
+        blk->vec[0].len = sizeof(*rq);
+        blk->vec[1].data = (uint32_t)(uintptr_t)sector;
+        blk->vec[1].len = RT_SECTOR_BYTES;
+        blk->vec[2].data = (uint32_t)(uintptr_t)blk->response;
+        blk->vec[2].len = 16;
+        ioctl = RT_SDIO_SENDCMD;
+        in_count = 2u;
+        out_count = 1u;
+        rt_flush_range((uintptr_t)blk->response, sizeof(blk->response));
+    }
+    rt_flush_range((uintptr_t)rq, sizeof(*rq));
+    rt_flush_range((uintptr_t)blk->vec, sizeof(blk->vec));
+    rt_flush_range((uintptr_t)sector, RT_SECTOR_BYTES);
+    return rt_restart_call(rs, ctx->sdio_fd, ioctl, in_count, out_count, blk->vec);
+}
+
+/* ES_LaunchTitle of the channel: the title ID and its ticket view the
+ * loader left in the block. Does not return when IOS takes it. */
+static int32_t rt_restart_launch(struct rt_restart* rs, struct rt_restart_block* blk) {
+    blk->vec[0].data = (uint32_t)(uintptr_t)blk->title;
+    blk->vec[0].len = RT_ES_TITLE_BYTES;
+    blk->vec[1].data = (uint32_t)(uintptr_t)blk->view;
+    blk->vec[1].len = RT_ES_VIEW_BYTES;
+    rt_flush_range((uintptr_t)blk->title, sizeof(blk->title));
+    rt_flush_range((uintptr_t)blk->view, sizeof(blk->view));
+    rt_flush_range((uintptr_t)blk->vec, sizeof(blk->vec));
+    return rt_restart_call(rs, rs->es_fd, RT_ES_LAUNCH_TITLE, 2, 0, blk->vec);
+}
+
+void rt_reset_on_os_restart(struct rt_context* ctx) {
+    struct rt_restart* rs = &ctx->restart;
+#ifdef RT_TARGET_PPC
+    struct rt_restart_block* blk = (struct rt_restart_block*)(uintptr_t)rs->block;
+#else
+    struct rt_restart_block* blk = rs->block != 0 ? rt_host_restart_block : 0;
+#endif
+    int32_t result;
+    rs->asked++;
+    rt_restart_report(ctx, 'R', rs->asked);
+    /* Nothing to go by (the loader leaves the Reset alone when the card, the
+     * channel or the game's IOS calls are missing), a thread that cannot
+     * wait for IOS (an interrupt handler), or a launch IOS already refused:
+     * the game's own restart goes on, as it would without RiftWii. */
+    if (blk == 0 || rs->lba == 0 || rs->es_fd == RT_RESTART_NONE || rs->ioctlv_sync == 0 || rs->refused != 0 ||
+        !rt_fs_in_thread()) {
+        return;
+    }
+    result = rt_restart_write(ctx, rs, blk, blk->armed);
+    rt_restart_report(ctx, 'W', (uint32_t)result);
+    if (result < 0) {
+        rs->last_result = (uint32_t)result;
+        rs->refused++;
+        /* In case part of it landed; the game's own restart that follows can
+         * take the card down while it still programs this sector, so wait
+         * as after the armed write. */
+        if (rt_restart_write(ctx, rs, blk, blk->idle) >= 0) rt_restart_settle();
+        return;
+    }
+    rs->written++;
+    rt_restart_settle();
+    result = rt_restart_launch(rs, blk);
+    /* Still here: IOS said no (the channel went, or its ticket). The request
+     * goes back to idle, so no later start of RiftWii takes it up, and the
+     * game's own restart goes on. */
+    rt_restart_report(ctx, 'L', (uint32_t)result);
+    rs->last_result = (uint32_t)result;
+    rs->refused++;
+    if (!rs->keep && rt_restart_write(ctx, rs, blk, blk->idle) >= 0) rt_restart_settle();
 }

@@ -261,6 +261,31 @@ static void test_listing_and_edge_entries() {
     EXPECT_TRUE(riftwii::Fat32Volume::mount(fx.img.reader(), lv, err, tight));
     EXPECT_FALSE(lv.lookup("/empty.bin", f, err));
     EXPECT_CONTAINS(err, "too many entries");
+    // A folder's own chain is followed no further than its largest allowed
+    // listing (MIN-03): with 16 entries of 32 bytes in 512-byte clusters,
+    // two clusters at most, where the whole chain is longer.
+    {
+        // The folder's chain (clusters 3 and 70) run on through two empty
+        // clusters, which end its listing but not its chain.
+        Fixture longer(512, 1, 0);
+        longer.img.set_fat(70, 80);
+        longer.img.set_fat(80, 81);
+        longer.img.set_fat(81, 0x0FFFFFFF);
+        riftwii::Fat32Volume lengthy;
+        EXPECT_TRUE(riftwii::Fat32Volume::mount(longer.img.reader(), lengthy, err));
+        riftwii::Fat32File whole;
+        EXPECT_TRUE(lengthy.lookup("/riivolution", whole, err));
+        std::uint64_t whole_blocks = 0;
+        for (const auto& frag : whole.fragments) whole_blocks += frag.sector_count;
+        EXPECT_EQ(whole_blocks, 4u);
+        tight.max_directory_entries = 16;
+        EXPECT_TRUE(riftwii::Fat32Volume::mount(longer.img.reader(), lv, err, tight));
+        riftwii::Fat32File capped;
+        EXPECT_TRUE(lv.lookup("/riivolution", capped, err));
+        std::uint64_t capped_blocks = 0;
+        for (const auto& frag : capped.fragments) capped_blocks += frag.sector_count;
+        EXPECT_EQ(capped_blocks, 2u);
+    }
 
     // A directory chain that loops is caught too.
     Fixture broken(512, 1, 0);
@@ -549,8 +574,217 @@ static void test_big_reads_are_chunked() {
     EXPECT_TRUE(most > 0 && most <= 512);
 }
 
+// Issue #129: a tester's WBFS file on a FAT32 drive was refused as "larger
+// than its cluster chain" while another loader played it. Each way the
+// chain walk could come up short is checked here; all of them hold, so a
+// chain the FAT really ends early (a damaged drive) is what is left, and
+// the error now says by how much.
+
+// A volume of 64 KiB clusters big enough for a file of 4 GiB - 1 (FAT32's
+// largest), backed only as far as its FATs and first clusters: the reader
+// answers zeros past that, so the test needs under a megabyte.
+struct BigVolume {
+    static constexpr std::uint32_t kBps = 512, kSpc = 128, kReserved = 32, kFats = 2, kClusters = 65600;
+    std::uint32_t fat_sectors = ((kClusters + 2) * 4 + kBps - 1) / kBps;
+    Bytes bytes;
+    BigVolume() {
+        bytes.assign(static_cast<std::size_t>(data_start() * kBps + 4ull * kSpc * kBps), 0);
+        std::uint8_t* b = bytes.data();
+        b[0] = 0xEB; b[1] = 0x58; b[2] = 0x90;
+        put16(b + 0x0B, kBps);
+        b[0x0D] = kSpc;
+        put16(b + 0x0E, kReserved);
+        b[0x10] = kFats;
+        b[0x15] = 0xF8;
+        put32(b + 0x20, static_cast<std::uint32_t>(data_start() + std::uint64_t(kClusters) * kSpc));
+        put32(b + 0x24, fat_sectors);
+        put32(b + 0x2C, 2);
+        b[0x1FE] = 0x55; b[0x1FF] = 0xAA;
+        set_fat(0, 0x0FFFFFF8); set_fat(1, 0x0FFFFFFF); set_fat(2, 0x0FFFFFFF);
+    }
+    std::uint64_t data_start() const { return kReserved + std::uint64_t(kFats) * fat_sectors; }
+    void set_fat(std::uint32_t c, std::uint32_t v) {
+        for (std::uint32_t f = 0; f < kFats; ++f) put32(bytes.data() + (kReserved + std::uint64_t(f) * fat_sectors) * kBps + c * 4ull, v);
+    }
+    // Clusters [first, first + count) linked in order, onto `then` after the last.
+    void run(std::uint32_t first, std::uint32_t count, std::uint32_t then) {
+        for (std::uint32_t i = 0; i < count; ++i) set_fat(first + i, i + 1 < count ? first + i + 1 : then);
+    }
+    void root(const Bytes& entries) { std::memcpy(bytes.data() + data_start() * kBps, entries.data(), entries.size()); }
+    riftwii::BlockReader reader() const {
+        return [this](std::uint64_t lba, std::uint32_t count, std::uint8_t* out) {
+            for (std::uint32_t i = 0; i < count; ++i) {
+                const std::uint64_t at = (lba + i) * 512;
+                if (at + 512 <= bytes.size()) std::memcpy(out + i * 512ull, bytes.data() + at, 512);
+                else std::memset(out + i * 512ull, 0, 512);
+            }
+            return true;
+        };
+    }
+};
+
+// A file of 0xFFFFFFFF bytes in two fragments of 32768 clusters each:
+// sizes, cluster counts and the fragments' sectors stay 64-bit, and the
+// file's last byte reads.
+static void test_file_of_four_gib() {
+    BigVolume big;
+    constexpr std::uint32_t kHalf = 32768;
+    big.run(3, kHalf, 32800);
+    big.run(32800, kHalf, 0x0FFFFFFF);
+    Bytes root;
+    cat(root, short_entry("GAME    WBF", 0x20, 3, 0xFFFFFFFFu));
+    // Exactly on a cluster boundary: 65535 clusters' worth, from a chain
+    // one cluster longer (the cap stops it at 65535).
+    cat(root, short_entry("EXACT   WBF", 0x20, 3, 65535u * 65536u));
+    big.root(root);
+    riftwii::Fat32Volume v;
+    std::string err;
+    EXPECT_TRUE(riftwii::Fat32Volume::mount(big.reader(), v, err));
+    riftwii::Fat32File f;
+    EXPECT_TRUE(v.lookup("/game.wbf", f, err));
+    EXPECT_EQ(f.fragments.size(), std::size_t(2));
+    std::uint64_t capacity = 0;
+    for (const Fragment& fr : f.fragments) capacity += fr.sector_count * 512;
+    EXPECT_EQ(capacity, std::uint64_t(1) << 32);
+    EXPECT_EQ(f.fragments[1].sector, big.data_start() + std::uint64_t(32800 - 2) * BigVolume::kSpc);
+    std::uint8_t last = 0xAA;
+    EXPECT_TRUE(v.read(f, 0xFFFFFFFEu, &last, 1));
+    EXPECT_EQ(last, 0);
+    EXPECT_TRUE(v.lookup("/exact.wbf", f, err));
+    capacity = 0;
+    for (const Fragment& fr : f.fragments) capacity += fr.sector_count * 512;
+    EXPECT_EQ(capacity, std::uint64_t(f.entry.size));
+
+    // The FAT ends the chain one cluster early: refused, with the counts.
+    big.set_fat(32800 + kHalf - 2, 0x0FFFFFFF);
+    riftwii::Fat32Volume shorter;
+    EXPECT_TRUE(riftwii::Fat32Volume::mount(big.reader(), shorter, err));
+    EXPECT_FALSE(shorter.lookup("/game.wbf", f, err));
+    EXPECT_CONTAINS(err, "larger than its cluster chain");
+    EXPECT_CONTAINS(err, "4294967295 bytes (65536 clusters)");
+    EXPECT_CONTAINS(err, "the FAT links 65535 clusters");
+    EXPECT_CONTAINS(err, "damaged");
+    // The exact-size file needs one cluster fewer and still opens.
+    EXPECT_TRUE(shorter.lookup("/exact.wbf", f, err));
+}
+
+// FAT32 entries are 28 bits: the top four are reserved and some drivers
+// leave them set, on links and on the end mark. Every end mark from
+// 0x0FFFFFF8 to 0x0FFFFFFF ends a chain.
+static void test_reserved_bits_and_end_marks() {
+    Fixture fx(512, 1, 0);
+    const std::uint32_t cb = fx.img.cluster_bytes();
+    const Bytes data = pattern(3 * cb, 0x5A);
+    fx.img.write_data({80, 81, 82}, data);
+    fx.img.set_fat(80, 0xF0000051);
+    fx.img.set_fat(81, 0xA0000052);
+    fx.img.set_fat(82, 0xFFFFFFFF);
+    Bytes root;
+    cat(root, short_entry("HIGHBITSBIN", 0x20, 80, static_cast<std::uint32_t>(data.size())));
+    for (std::uint32_t mark = 0x0FFFFFF8; mark <= 0x0FFFFFFF; ++mark) {
+        const std::uint32_t c = 90 + (mark - 0x0FFFFFF8);
+        fx.img.set_fat(c, mark);
+        char name[12];
+        std::snprintf(name, sizeof name, "END%u    BIN", static_cast<unsigned>(mark - 0x0FFFFFF8));
+        cat(root, short_entry(name, 0x20, c, cb));
+    }
+    fx.img.write_dir({2}, root);
+    riftwii::Fat32Volume v;
+    std::string err;
+    EXPECT_TRUE(riftwii::Fat32Volume::mount(fx.img.reader(), v, err));
+    riftwii::Fat32File f;
+    EXPECT_TRUE(v.lookup("/highbits.bin", f, err));
+    EXPECT_EQ(f.fragments.size(), std::size_t(1));
+    EXPECT_EQ(f.fragments[0].sector_count, 3 * fx.bpc());
+    Bytes back;
+    EXPECT_TRUE(ReadAll(v, f, back));
+    EXPECT_TRUE(back == data);
+    for (int i = 0; i < 8; ++i) {
+        const std::string path = "/end" + std::to_string(i) + ".bin";
+        EXPECT_TRUE(v.lookup(path, f, err));
+        EXPECT_EQ(f.fragments.size(), std::size_t(1));
+    }
+}
+
+// With mirroring off (bit 7 of the extended flags), the active FAT named
+// there is the one walked, not FAT 0.
+static void test_active_fat_when_not_mirrored() {
+    Fixture fx(512, 1, 0);
+    const std::uint32_t cb = fx.img.cluster_bytes();
+    fx.img.write_data({100, 101}, pattern(2 * cb, 0x33));
+    // FAT 0 alone ends the chain after one cluster.
+    put32(fx.img.boot() + fx.img.reserved * 512ull + 100 * 4ull, 0x0FFFFFFF);
+    Bytes root;
+    cat(root, short_entry("TWO     BIN", 0x20, 100, 2 * cb));
+    fx.img.write_dir({2}, root);
+    riftwii::Fat32Volume v;
+    std::string err;
+    riftwii::Fat32File f;
+    EXPECT_TRUE(riftwii::Fat32Volume::mount(fx.img.reader(), v, err));
+    EXPECT_FALSE(v.lookup("/two.bin", f, err));  // mirrored: FAT 0 is read, and it is short
+    put16(fx.img.boot() + 0x28, 0x81);           // not mirrored, FAT 1 active
+    EXPECT_TRUE(riftwii::Fat32Volume::mount(fx.img.reader(), v, err));
+    EXPECT_TRUE(v.lookup("/two.bin", f, err));
+    EXPECT_EQ(f.fragments[0].sector_count, 2 * fx.bpc());
+}
+
+// Free space as pieces of a new file: every third cluster used, so the
+// free clusters lie in runs of two.
+static void test_free_pieces() {
+    fatimg::Image img(512, 1, 0, 2000);
+    for (std::uint32_t c = 3; c <= 2001; ++c) {
+        if (c % 3 == 0) img.set_fat(c, 0x0FFFFFFF);
+    }
+    riftwii::Fat32Volume v;
+    std::string err;
+    EXPECT_TRUE(riftwii::Fat32Volume::mount(img.reader(), v, err));
+    const std::uint64_t cluster = 512;
+    riftwii::FreeSpaceReport r;
+    const std::vector<riftwii::Fragment> none;
+
+    // 10 clusters take five runs of two.
+    EXPECT_TRUE(v.free_pieces(10 * cluster, 100, 1000, none, r, err));
+    EXPECT_TRUE(r.verdict == riftwii::FreeSpaceVerdict::Fits);
+    EXPECT_EQ(r.pieces, std::uint64_t(5));
+    // One byte past a whole number of clusters takes the next one.
+    EXPECT_TRUE(v.free_pieces(9 * cluster + 1, 100, 1000, none, r, err));
+    EXPECT_EQ(r.pieces, std::uint64_t(5));
+    EXPECT_TRUE(v.free_pieces(8 * cluster, 100, 1000, none, r, err));
+    EXPECT_EQ(r.pieces, std::uint64_t(4));
+    // More pieces than allowed: said, with the count it stopped at.
+    EXPECT_TRUE(v.free_pieces(10 * cluster, 4, 1000, none, r, err));
+    EXPECT_TRUE(r.verdict == riftwii::FreeSpaceVerdict::TooFragmented);
+    EXPECT_EQ(r.pieces, std::uint64_t(5));
+    EXPECT_TRUE(v.free_pieces(1000 * cluster, 100, 1000, none, r, err));
+    EXPECT_TRUE(r.verdict == riftwii::FreeSpaceVerdict::TooFragmented);
+    // Room for them but over a large allowance.
+    EXPECT_TRUE(v.free_pieces(1000 * cluster, 1000, 1000, none, r, err));
+    EXPECT_TRUE(r.verdict == riftwii::FreeSpaceVerdict::Fits);
+    EXPECT_EQ(r.pieces, std::uint64_t(500));
+    // More than the card has free.
+    EXPECT_TRUE(v.free_pieces(1990 * cluster, 100000, 1000, none, r, err));
+    EXPECT_TRUE(r.verdict == riftwii::FreeSpaceVerdict::NotEnoughSpace);
+    // A read cut off at its bound cannot tell.
+    EXPECT_TRUE(v.free_pieces(1000 * cluster, 100000, 0, none, r, err));
+    EXPECT_TRUE(r.verdict == riftwii::FreeSpaceVerdict::Unchecked);
+    EXPECT_EQ(r.fat_blocks_read, std::uint64_t(0));
+    // A file the size of nothing fits in nothing.
+    EXPECT_TRUE(v.free_pieces(0, 0, 0, none, r, err));
+    EXPECT_TRUE(r.verdict == riftwii::FreeSpaceVerdict::Fits);
+    // An old copy let go first: clusters 3..52 as a single run, whatever is
+    // used there now, so 40 clusters take one piece.
+    const std::vector<riftwii::Fragment> old_copy{{img.cluster_lba(3), 50}};
+    EXPECT_TRUE(v.free_pieces(40 * cluster, 100, 1000, old_copy, r, err));
+    EXPECT_TRUE(r.verdict == riftwii::FreeSpaceVerdict::Fits);
+    EXPECT_EQ(r.pieces, std::uint64_t(1));
+}
+
 int main() {
+    test_free_pieces();
     test_chain_capped_by_size();
+    test_file_of_four_gib();
+    test_reserved_bits_and_end_marks();
+    test_active_fat_when_not_mirrored();
     test_geometry_and_lookup(512, 1, 0);
     test_geometry_and_lookup(512, 8, 0);
     test_geometry_and_lookup(1024, 4, 2048);

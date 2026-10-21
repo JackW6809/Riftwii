@@ -113,6 +113,7 @@ struct vsd_deliver {
 /* The one transfer (the game's driver sends one command at a time). */
 #define VSD_PHASE_DATA 0u    /* a piece of the image is in flight */
 #define VSD_PHASE_SETTLE 1u  /* a CMD13 after a write is in flight */
+#define VSD_PHASE_WAIT 2u    /* a CMD13 before a piece, while the runtime's write programs */
 
 struct vsd_transfer {
     uint32_t kind;                   /* VSD_TAG_TRANSFER */
@@ -133,6 +134,7 @@ struct vsd_transfer {
     uint32_t piece_data;             /* and its buffer (kept for a retry) */
     uint32_t reply_out;              /* the game's reply buffer (16 bytes), 0 = none */
     uint32_t reply[4];               /* what goes there */
+    uint32_t waited;                 /* the piece in flight has waited out the runtime's write */
 };
 
 struct vsd_state {
@@ -144,6 +146,10 @@ struct vsd_state {
     int32_t fd;                      /* the device's handle */
     uint32_t sdhc;                   /* SLOT0: the real card takes block addresses */
     uint32_t rca;                    /* SLOT0: the real card's address (CMD13 after writes), 0 = none */
+    uint32_t peer_busy;              /* the resident runtime's card_busy word beside the blob, 0 = none */
+    /* A write went to the card and it has not been seen idle since: the
+     * resident runtime's card reads wait while it is set (BUG-05). */
+    uint32_t writing;
     /* Counters. */
     uint32_t opens;
     uint32_t reads;                  /* transfers */
@@ -169,9 +175,16 @@ struct vsd_state {
     uint32_t response[8] __attribute__((aligned(32)));
     struct vsd_ioctlv vec[4] __attribute__((aligned(32)));
     uint32_t words[8] __attribute__((aligned(32)));      /* d2x: the sector and the count */
-    struct rtvsd_card card __attribute__((aligned(32)));
     uint8_t bounce[VSD_BOUNCE_BYTES] __attribute__((aligned(32)));
+    /* Last: the card's extent table follows it in memory (rtvsd_extents),
+     * so the state is vsd_state_bytes(extent count) long, not sizeof. */
+    struct rtvsd_card card __attribute__((aligned(32)));
 };
+
+/* The bytes of a state holding `extents` pieces of the image. Counts the
+ * struct whole (with its tail padding) plus the table, which starts inside
+ * that padding: a few bytes more than needed, never fewer. */
+#define vsd_state_bytes(extents) ((uint32_t)sizeof(struct vsd_state) + rtvsd_extent_bytes(extents))
 
 /* The blob's C entry points (vsd_entry.S calls them). */
 int vsd_on_ipc(struct vsd_context* ctx, uint32_t entry, uint32_t* args, int32_t* result);

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "riftwii/fat32.hpp"
 #include "riftwii/redirect.hpp"
 #include "riftwii/rvz.hpp"
 #include "riftwii/titles.hpp"
@@ -63,6 +64,9 @@ struct ImageCatalog {
     // a user-visible warning that image games cannot boot yet. Presence only:
     // identity is proven by the launch-time d2x probe, not here.
     std::string cios_note;
+    // .ciso files the scan passed over (RiftWii does not play them): Home
+    // says so once per start (riftwii/usbgame.hpp).
+    CisoFinds ciso;
 };
 
 struct LaunchSource {
@@ -136,6 +140,18 @@ bool read_usb_range(const std::string& usb_path, std::uint64_t offset, std::uint
                     std::uint64_t& size);
 // Whether the menu's view of the USB drive is up (no drive is started for it).
 bool usb_volume_ready();
+// The entries of a folder on the USB drive ("usb:/games"), sorted, without
+// "." and "..": false when no drive is up or there is no such folder
+// (`error`, when given, says why: the file system's own words).
+bool list_usb_folder(const std::string& usb_path, std::vector<VolumeEntry>& out, std::string* error = nullptr);
+// A file on the USB drive as the menu's view finds it, whole (its entry,
+// its pieces, and the bytes an NTFS drive keeps in its file table for a
+// file of a few hundred bytes).
+bool usb_file_lookup(const std::string& usb_path, VolumeFile& out, std::string& error);
+// A file on the USB drive as the menu's view finds it: its size and its
+// pieces in the drive's 512-byte sectors, in the order of its bytes.
+bool usb_file_pieces(const std::string& usb_path, std::uint64_t& size, std::vector<Fragment>& out,
+                     std::string& error);
 // Development aid for Dolphin, which has no d2x: partition reads of the
 // disc Dolphin boots (the RVZ's stub, made by tools/rvz) are answered from
 // the RVZ at `sd_path` instead.
@@ -149,6 +165,14 @@ bool rvz_resident_options(RvzResidentOptions& out, std::string& error);
 // wrote is there once it has flushed): its size and its pieces as
 // absolute sectors of the card. Needs the card mounted.
 bool sd_file_pieces(const std::string& sd_path, std::uint64_t& size, std::vector<Fragment>& out, std::string& error);
+// How many pieces a new file of `file_bytes` would lie in on the SD card
+// now (riftwii/fat32.hpp's Fat32Volume::free_pieces, read-only), with the
+// files in `replaced` (SD paths that will be deleted first) counted as free.
+// `max_pieces` is the most the caller can use. The read of the card's FAT is
+// bounded (about 32 MiB, a few seconds): past that the verdict is
+// Unchecked. Needs the card mounted.
+bool sd_free_pieces(std::uint64_t file_bytes, std::uint64_t max_pieces, const std::vector<std::string>& replaced,
+                    FreeSpaceReport& out, std::string& error);
 // A game's name from the title list (GameTDB, in the menu's language),
 // else `internal`, the disc header's.
 std::string GameDisplayName(const std::string& id, const std::string& internal);
@@ -226,5 +250,14 @@ bool activate_image_game(const ImageGame& game, int cios_slot, void*& storage, s
 // `purpose` names what the reload is for in the log.
 bool activate_disc_cios(int cios_slot, const char* log_path, std::string& error,
                         const char* purpose = "the packs on the USB drive");
+// A GameCube game on the USB drive (wii/launch/gclaunch.hpp): the reload
+// into d2x cIOS `cios_slot`, with the same teardown as activate_image_game,
+// the SD card and the log back, and d2x's /dev/usb2 opened (ums::Fd), which
+// the game's loader reads the image through. The sector at `first_sector`
+// must start with `first_bytes` (32 bytes the menu read there), so d2x is
+// reading the drive the game was listed from. `log_path` null: the log
+// open before the reload is opened again. False with the reason.
+bool activate_gamecube_usb(const std::uint8_t* first_bytes, std::uint64_t first_sector, int cios_slot,
+                           const char* log_path, std::string& error);
 
 }  // namespace riftwii::wii

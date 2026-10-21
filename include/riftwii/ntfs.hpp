@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -69,6 +70,7 @@ private:
         std::vector<std::uint8_t> value;  // resident value
         std::vector<NtfsRun> runs;        // non-resident extents, in vcn order
         std::uint64_t data_size = 0;
+        std::uint64_t initialized_size = 0;  // non-resident: bytes written so far; reads past it give zeros
         std::uint16_t flags = 0;
     };
 
@@ -79,12 +81,30 @@ private:
     bool find_attribute(std::uint64_t record_number, const std::vector<std::uint8_t>& record, std::uint32_t type,
                         const std::u16string& name, AttrData& out, bool& found, std::string& error) const;
     bool walk_directory(std::uint64_t record_number, std::vector<DirEntry>& out, std::string& error) const;
+    // The listing of a directory, walked once and then kept (BUG-06).
+    // A listing too big to keep is handed out in the caller's `scratch`,
+    // freed when the caller is done with it.
+    bool directory_entries(std::uint64_t record_number, const std::vector<DirEntry>*& out,
+                           std::vector<DirEntry>& scratch, std::string& error) const;
     bool resolve(const std::string& path, DirEntry& out, std::string& error) const;
     bool file_of(const DirEntry& entry, VolumeFile& out, std::string& error) const;
 
     BlockReader reader_;
     NtfsGeometry geo_;
     std::vector<NtfsRun> mft_runs_;
+    // Listings by MFT record number, dropped whole past kDirCacheBytes:
+    // every lookup walked each folder of its path from the root, every
+    // index block of it, so a pack's thousands of files re-read the same
+    // folders thousands of times. The volume is only read, so a listing
+    // never goes stale. Counted in bytes, names included, so long crafted
+    // names cannot pin more (CAV-05); a listing larger than the whole
+    // budget is not kept but handed to the caller to free.
+    // Mutable because lookups are logically const, and with no lock: one
+    // thread reads a volume at a time (Home's scan is waited for before
+    // anything else reads the drives, wii/menu/homescan.hpp).
+    static constexpr std::size_t kDirCacheBytes = std::size_t(4) << 20;
+    mutable std::map<std::uint64_t, std::vector<DirEntry>> dir_cache_;
+    mutable std::size_t dir_cache_bytes_ = 0;
 };
 
 }  // namespace riftwii

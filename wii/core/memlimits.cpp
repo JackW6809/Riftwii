@@ -16,6 +16,7 @@
 #include "ios_reload.hpp"
 #include "log.hpp"
 #include "skin.hpp"
+#include "stash.hpp"
 
 namespace riftwii::wii::mem {
 namespace {
@@ -38,8 +39,9 @@ void Init() {
     g_mem2_libogc_lo = Address(SYS_GetArena2Lo());
     g_mem2_top = Address(SYS_GetArena2Hi());
     if (Address(SYS_GetArena1Hi()) > kMem1Ceiling) SYS_SetArena1Hi(reinterpret_cast<void*>(kMem1Ceiling));
-    if (Address(SYS_GetArena2Lo()) < kMem2Floor + kRestartBytes)
-        SYS_SetArena2Lo(reinterpret_cast<void*>(kMem2Floor + kRestartBytes));
+    // Arena 2 starts above the restart area and the start-up stash's copy.
+    const u32 mem2_lo = stash::ReservedEnd();
+    if (Address(SYS_GetArena2Lo()) < mem2_lo) SYS_SetArena2Lo(reinterpret_cast<void*>(mem2_lo));
     // Asked now, while IOS is up: PoisonReloadArea runs mid-reload.
     g_dolphin = running_in_dolphin();
 }
@@ -110,7 +112,22 @@ void LogLimits() {
          mem1_size == 24u << 20 && mem2_size == 64u << 20 ? "" : " (not a Wii's 24 and 64: an emulator override)");
     logf("Memory: limits MEM1 0x%08x-0x%08x, MEM2 0x%08x-0x%08x (below 0x%08x: IOS reloads%s)\n", g_mem1_floor,
          kMem1Ceiling, kMem2Floor, g_mem2_top, kMem2Floor, g_dolphin ? ", poisoned in Dolphin" : "");
+    stash::Log();
     if (g_ballast_kib) logf("Memory: TEST BUILD: %u KiB of the heap held back (test_limits.txt)\n", g_ballast_kib);
+}
+
+// libogc's kernel heap (lwp_wkspace.c), 64 KiB: thread stacks without a
+// stack of their own, and the Bluetooth stack's Wii Remote state.
+extern "C" u32 __lwp_wkspace_heapfree(void);
+
+// The heap's walk is not locked, and the Bluetooth stack allocates from it
+// in interrupts and its own thread, so it is read with interrupts off.
+u32 KernelHeapFree() {
+    u32 level;
+    _CPU_ISR_Disable(level);
+    const u32 free_bytes = __lwp_wkspace_heapfree();
+    _CPU_ISR_Restore(level);
+    return free_bytes;
 }
 
 void LogUsage(const char* when) {
@@ -124,6 +141,7 @@ void LogUsage(const char* when) {
     logf("Memory (%s): MEM1 %u KiB taken, %u KiB free; MEM2 %u KiB taken, %u KiB free\n", when,
          Kib(mem1_lo - g_mem1_floor), Kib(mem1_hi > mem1_lo ? mem1_hi - mem1_lo : 0),
          Kib(mem2_lo > kMem2Floor ? mem2_lo - kMem2Floor : 0), Kib(mem2_hi > mem2_lo ? mem2_hi - mem2_lo : 0));
+    logf("Memory (%s): kernel heap %u KiB free of 64\n", when, Kib(KernelHeapFree()));
     if (mem1_hi > kMem1Ceiling || mem2_lo < kMem2Floor) {
         logf("Memory: LIMITS BROKEN: arena 1 ends at 0x%08x, arena 2 starts at 0x%08x\n", mem1_hi, mem2_lo);
     }

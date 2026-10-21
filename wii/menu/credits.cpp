@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-#include "licence_zst.h"
+#include "stash.hpp"
 #include "zstd.h"
 
 namespace riftwii::wii {
@@ -58,7 +58,11 @@ const char* const kCredits[] = {
     "Nintendont by FIX94 and contributors: the USB HID driver and the GameCube sound program patches, used "
     "with its developers' permission.",
     "",
+    "Mario Party 4 community decompilation: GameCube font encoding behavior, read as documentation only.",
+    "",
     "WiiDRC by FIX94 (MIT): the Wii U GamePad.",
+    "",
+    "dolxz by FIX94 (MIT): the idea of the packed boot.dol (RiftWii's own stub and format).",
     "",
     "libwiigui by Tantric (GPL), FreeTypeGX by Armin Tamzarian (GPL-3.0-or-later), oggplayer by "
     "Francisco Munoz \"Hermes\" (BSD-3-Clause): the menu's toolkit, text and music player.",
@@ -128,12 +132,16 @@ void Wrap(const std::string& text, std::size_t width, std::vector<std::string>& 
 // line or at an indented line (the license indents each paragraph's
 // first line, and every line of its title block and sample notice).
 void AddLicence(std::size_t width, std::vector<std::string>& out) {
-    // LICENSE, zstd-compressed (Makefile.wii).
-    const unsigned long long size = ZSTD_getFrameContentSize(licence_zst, licence_zst_size);
+    // LICENSE, zstd-compressed in the start-up stash (Makefile.wii).
+    const u8* packed = nullptr;
+    u32 packed_size = 0;
     std::string text;
-    if (size != ZSTD_CONTENTSIZE_UNKNOWN && size != ZSTD_CONTENTSIZE_ERROR && size > 0 && size < (1u << 20)) {
-        text.resize(static_cast<std::size_t>(size));
-        if (ZSTD_decompress(&text[0], text.size(), licence_zst, licence_zst_size) != text.size()) text.clear();
+    if (stash::Find("licence.zst", packed, packed_size)) {
+        const unsigned long long size = ZSTD_getFrameContentSize(packed, packed_size);
+        if (size != ZSTD_CONTENTSIZE_UNKNOWN && size != ZSTD_CONTENTSIZE_ERROR && size > 0 && size < (1u << 20)) {
+            text.resize(static_cast<std::size_t>(size));
+            if (ZSTD_decompress(&text[0], text.size(), packed, packed_size) != text.size()) text.clear();
+        }
     }
     if (text.empty()) {
         out.push_back("The license could not be unpacked. It is at https://www.gnu.org/licenses/gpl-3.0.txt");

@@ -22,11 +22,34 @@ make -f Makefile.wii
 The Wii build needs devkitPPC, libogc, libfat and the portlibs `Makefile.wii`
 lists (FreeType, zlib, libogg/tremor), and the `zstd` command-line
 tool (devkitPro's MSYS2 has it), which packs the runtime blobs, the menu
-font, the translations and the GPL text. It first builds the
+font, the translations and the GPL text. Python 3 then adds the font,
+the translations and the GPL to `riftwii.dol` as the start-up stash
+(`tools/dol_stash.py`, [MEMORY.md](MEMORY.md)); `riftwii.elf` has no
+stash and stops at the menu font if started directly. Last, the DOL is
+packed (`tools/pack_dol.py`): its sections Zstandard-compressed behind a
+small stub (`runtime/dolpack/`) that unpacks them when it starts, about
+half the file the in-app update downloads and the Homebrew Channel reads.
+The unpacked DOL stays as `build_wii/riftwii-unpacked.dol`, which the
+plugin check and `tools/size_report.py` read. `make -f Makefile.wii
+PACK=0` leaves `riftwii.dol` unpacked (for bisecting a start-up problem).
+A packed DOL that does not unpack whole turns the screen red and stops. It first builds the
 two in-game blobs with `Makefile.runtime` (`build-runtime/riftwii_rt.bin`,
 the resident runtime, and `riftwii_pad.bin`, the pad hook), checking that
 each is position-independent, then embeds them with the font, the
 translations and the Gecko code handler.
+
+The plugins ([PLUGINS.md](PLUGINS.md)) are built in the same `make`,
+before the DOL, by `Makefile.plugin` (`make -f Makefile.wii plugins`
+builds only them). Each is linked at two bases and
+`tools/make_plugin.py` writes the `.rwp` with the DOL's version and build
+stamp (the version and the commit, `2610-469-ga5ef290f`):
+`build-plugins/plugins/<name>.<version>.rwp` goes to
+`sd:/apps/riftwii/plugins/` next to `boot.dol`, and
+`build-plugins/<name>/<name>.elf` (linked at 0) is the ELF a crash
+report's `plugin <name> +0x...` offset is looked up in. The DOL's rule
+ends with `make_plugin.py check`, so a DOL is never built next to
+plugins it would refuse. Copy the DOL and its plugins together: a DOL
+refuses plugins from any other build.
 
 Things that bite:
 
@@ -89,11 +112,63 @@ Two scripts on the card drive a run without hands on a controller:
   `guiscript-restart.txt` instead. Pull the screenshots (and
   `crashscreen.bmp`) out of the SD image afterwards.
 
+- GameCube games have test switches too: empty files in
+  `sd:/riftwii/gc/test/`, read only from there so a stray file among a
+  player's cards, saves and controls cannot set one. `press` (presses on
+  port 1), `leave` (holds the way back), `crash` and `crashblack` (a
+  crash on purpose, also on a blanked screen), `streamonly` (disc music
+  alone), `nowiden` (16:9's hook without the widening), `keeparam` (ARAM
+  addresses as the SDK gives them), `fakeremote` (a made-up Wii Remote
+  through the controls map instead of the Bluetooth, for Dolphin, whose
+  emulated remote a script cannot press), `fakepro` (the same with a
+  made-up Wii U Pro Controller, which Dolphin cannot emulate, in its own
+  report layout), `rumbletest` (the game's PADControlMotor called for the
+  test remote's port), `novihook` (VIConfigure left as the game made it:
+  480p only through the game's own mode), `nomotor` (PADControlMotor not
+  hooked), `handover480p` (an NTSC game handed over with the VI and the
+  Wii's video encoder already in NTSC 480p instead of 480i), `avekeep`
+  (the encoder left as the menu's own mode set it, not set to the game's
+  region; both for red and blue swapped in 480p) `exec` (a switch to another program at the 1500th pad read, to the
+  disc's own with the argument `rwtest`: `sd:/riftwii/gc/exec.txt` is
+  written, the game leaves, and RiftWii's next start launches it again)
+  and `reset` (the blob presses Reset twice, the
+  restart, `GC_FLAG_RESET_TEST`). The first GameCube
+  line of `sd:/riftwii/boot.log` lists the ones that are on. The test
+  remote's results take the `projection_callers` words of the trace
+  (`tools/gc_trace.py`), which that run does not need.
+
 Dolphin cannot run a d2x cIOS, so SD and USB image boot can only be
 checked on a Wii (`docs/USB_HARDWARE_TEST.md`). What Dolphin does check
 well: the menu, disc launches with packs, the resident runtime (its
 Gecko lines and Dolphin's DI and SD logs), savegames, and heap placement
 (RiftWii poisons the IOS reload area there, see `ARCHITECTURE.md`).
+
+### The plugin test switch
+
+`sd:/riftwii/plugin_test.txt` loads plugins at the menu's start, which
+nothing else does, and logs every step to `session.log`:
+
+```
+load selftest
+```
+
+`selftest` (`plugins/selftest/`) logs its version, the address its code
+runs from, a value computed through relocated function pointers (it must
+come out `0x8af4bb0e`), a block from the plugin arena, and a read of the
+test file through the host table; then its probe and, when the menu
+closes, its shutdown. A line `crash` in the same file makes it crash on
+purpose after that, to check that the crash screen and `crash.txt` name
+`plugin selftest +0x...`. The plugins are read from the running DOL's
+folder (`argv[0]`, else `sd:/apps/riftwii/plugins/`; Dolphin passes no
+path), or from `plugins = <folder>` in `settings.txt`.
+
+The refusals: a `load <name>` line for a plugin that isn't there, or a
+file changed with `tools/make_plugin.py variant` (`--damage` for a broken
+hash, `--api 2` or `--stamp 2610-1-g00000000` for another RiftWii's
+plugin, `--name` to load it under another name), each give one log line
+saying which check failed and Home's notice with the sentence a player
+would see. Nothing of a refused plugin runs. Leave no `plugin_test.txt`
+on a tester's card.
 
 ## Logs to ask testers for
 
@@ -164,7 +239,9 @@ fades out before the reload either way). `identify` lets a
 WiiWare or Virtual Console game start with RiftWii's loader even when ES
 won't run it as its own title (only for testing in Dolphin, whose ES
 refuses that to anything but the Wii Menu; the game's saves may not open).
-`boot.log` names each one left out. Start with all of them,
+`reset` the hook that has a Wii game's own Reset (HOME Menu > Reset)
+start the game again through the RiftWii channel
+([HEADLESS.md](HEADLESS.md)). `boot.log` names each one left out. Start with all of them,
 then halve the list. The PMEX Remix crash on a Wii (2.7.0 RC9.2) was found
 this way: it was the crash recorder.
 
@@ -192,6 +269,29 @@ hex address. In Dolphin, turn on MMU emulation (`FELK_MMU=1` for
 game crashes a few steps later instead. The next RiftWii start writes
 `sd:/riftwii/gamecrash.txt`. Never leave it in a tester's settings.
 
+`debug_reset = N` in the same file has the game restart itself N seconds
+(1 to 60) after its main thread first sleeps, through its own
+OSRestart(0) as the HOME Menu's Reset does, so the Reset can be tried in
+Dolphin without driving a controller (a stub at 0x80001200 on the game's
+OSSleepThread; `apply_debug_reset` in `wii/launch/boot.cpp`). `debug_gecko = on` has the
+runtime report every disc read it sees over the USB Gecko in slot B
+(Dolphin's: `SlotB = 7`, TCP port 55020, or the next ports up to 55023
+when the first is still taken, `tools/dolphin/gecko_log.py`):
+`R<word offset>:<length>@<buffer>`, `M...` for a read it changed, and
+`X...` for the steps of a Reset (`XR` OSRestart called, `XW` the request's
+write and its IOS result, `XL` the channel's launch result: it only
+reports when IOS refused). Never leave either in a tester's settings.
+
+In Dolphin the RiftWii channel is not installed, so a Reset there shows
+the fallback (`Reset: ... the RiftWii channel is not installed` in
+`boot.log`, the game restarting without its packs). To see the request
+round trip anyway, install the channel's WAD with Dolphin (File > Install
+WAD to the Wii NAND) or, without it, `debug_reset_keep = on` next to
+`debug_reset`: the title launch then is made to a title Dolphin does not
+have, IOS refuses it, and the request is left armed instead of put back to
+`--idle--`, which is what the channel's start would find; boot RiftWii again
+(Dolphin's `-e riftwii.dol`) and its start takes the request up.
+
 ## A menu that freezes only on a console
 
 `debug_gx` in `settings.txt` watches the menu's drawing
@@ -210,11 +310,77 @@ it. Off by default; a GX buffer that filled up is logged either way
 
 ## Releasing
 
+### The release workflow
+
+`.github/workflows/release.yml` does steps 3 to 5 below on GitHub, from
+main's latest commit, with CI's pinned devkitPPC ([RELEASING.md](RELEASING.md)
+has every step, check and error in full). Before running it:
+
+1. Bump the version as in step 1 if the release line changes, run the
+   checks of step 2, and commit the screenshots (step 4).
+2. Write `release/notes.md` (the GitHub release notes) and
+   `release/discord.md` (the testers' message), delete the `NOTES NOT
+   WRITTEN YET` line in each, and push them to main. Each file's comment
+   lists the names the workflow fills in (`{{VERSION}}`, `{{TAG}}`,
+   `{{DOL_SHA256}}`, `{{SCREENSHOTS}}`, `{{RELEASE_URL}}`,
+   `{{TESTER_ROLE}}`...). A line in `discord.md` that is only
+   `![...](docs/screenshots/<file>.png)` goes out as an attached picture.
+   The player README in the zip is `release/zip/README.txt`: add the
+   release's line to it as before.
+3. Wait for CI to pass on that commit, then Actions > Release > Run
+   workflow with **dry-run**. It builds everything and publishes nothing:
+   the run's summary shows the filled-in notes and Discord message, and
+   its artifact holds the zip, `riftwii.dol`, `riftwii-update.pack` and
+   both texts, for a last look (and a run in Dolphin) before they go out.
+4. Run it again with **publish**. It makes the release `vYYMM-N`, titled
+   "RiftWii YYMM-N", as the latest release, with the three files; then,
+   unless the Discord box is unticked, it posts the message and its
+   pictures to the testers' channel, pinging the tester role and nobody
+   else. A commit with no new number (already released) is refused.
+
+The workflow refuses, before anything is built or published: a publish
+from a branch other than main, a commit whose CI hasn't passed, notes
+that are unchanged since the last release's tag or still say `NOTES NOT
+WRITTEN YET`, a Discord message over 2000 characters or with more than 10
+pictures (10 MB), and a screenshot that is not committed. If only the
+Discord post fails, "Re-run failed jobs" sees the release already made
+from that commit and posts the message again.
+
+It needs, once, in the repository's Settings:
+
+- **Secrets and variables > Actions > Secrets**: `DISCORD_RELEASE_WEBHOOK`,
+  the channel's webhook URL (Discord: the channel's Edit Channel >
+  Integrations > Webhooks). It never goes in the repository: `ci_rules.py`
+  refuses a commit with one. Putting it in a `release` environment instead
+  (Settings > Environments) keeps it from every other workflow, and the
+  environment can ask for an approval before each publish.
+- **Secrets and variables > Actions > Variables**: `DISCORD_TESTER_ROLE_ID`,
+  the tester role's ID (Discord: Developer Mode on, then right-click the
+  role > Copy Role ID). A publish that posts to Discord refuses to run
+  without it.
+
+`tools/make_release_zip.py` and `tools/release_notes.py` are the
+workflow's two steps and run the same by hand, for a release made the
+old way:
+
+```bash
+make -f Makefile.wii version          # the YYMM-N this commit builds as
+py -3.13 tools/make_release_zip.py --version YYMM-N --dol riftwii.dol \
+    --channel build-channel/installer.dol --plugins build-plugins/plugins \
+    --out riftwii-vYYMM-N.zip
+py -3.13 tools/release_notes.py render --version YYMM-N --dol riftwii.dol --out texts
+```
+
+### By hand
+
 1. Bump the version in `CMakeLists.txt` and `hbc/meta.xml` (`version`,
    `release_date`), then `make -f Makefile.wii clean` and build.
 2. Run the host tests and the Dolphin checks above.
 3. Pack the zip: `sd-card/apps/riftwii/` with `boot.dol` (the new
-   `riftwii.dol`), `meta.xml`, `icon.png` and `music.ogg` (all from `hbc/`);
+   `riftwii.dol`), `meta.xml`, `icon.png` and `music.ogg` (all from `hbc/`),
+   and `plugins/` with every file of `build-plugins/plugins/` from the
+   same build (`make_update_pack.py` refuses plugins that don't match the
+   zip's `boot.dol`);
    `sd-card/apps/riftwii_channel/`
    with `boot.dol` (`build-channel/installer.dol`, from
    `make -f Makefile.channel`) and `channel/installer/hbc/meta.xml` and
@@ -230,7 +396,20 @@ it. Off by default; a GX buffer that filled up is logged either way
    build packs it).
    The in-app update's pack: `py -3.13 tools/make_update_pack.py
    riftwii-vYYMM-N.zip riftwii-update.pack` (the themes, then the
-   zip's channel installer and icon).
+   zip's plugins, channel installer and icon). It fails a zip without
+   `plugins/gamecube.<version>.rwp`: the DOL has no GameCube loader of its
+   own any more. Attach the pack to every release: the in-app update
+   downloads it with the DOL and writes its plugins first.
+   Before going on, check the zip has the plugin folder: `unzip -l
+   riftwii-vYYMM-N.zip | grep apps/riftwii/plugins/` lists one
+   `<name>.<version>.rwp` per plugin, with this release's version. A zip
+   without it starts, but every feature that lives in a plugin says the
+   add-on is missing. `tools/make_release_zip.py` copies
+   `build-plugins/plugins/` itself and refuses a folder without the
+   `gamecube` plugin or with another version's; a zip packed by hand
+   needs the folder copied, so check either way.
+   Keep `build-plugins/*/*.elf` with `riftwii.elf`: a crash in a plugin
+   is named as `plugin <name> +0x...`, an offset into that ELF.
    The theme kit when a picture or a setting changes (a new one in
    `src/art/theme.cpp`'s list, or a new look): `cmake --build build-host
    --target theme_kit`, then `py -3.13 tools/make_theme_kit.py
@@ -276,6 +455,33 @@ it. Off by default; a GX buffer that filled up is logged either way
    It never moves by itself: the maintainer bumps it (with
    `RIFTWII_BASE_TAG`) at the start of each month, before that month's
    first nightly, or the nightly keeps publishing last month's "2610-...".
+
+### How an update is trusted
+
+The in-app update trusts what GitHub serves for the latest release:
+
+- The release is read from `api.github.com` over TLS. The certificate
+  chain and host name are checked against the roots in
+  `wii/online/tlsroots.c`.
+- Only an asset URL of the form
+  `https://github.com/<KakarottoCake|RiftWii>/riftwii/releases/download/<tag>/<file>`
+  is accepted (`riftwii_release_asset_url`, `src/net/update.cpp`). Its
+  download follows redirects only to GitHub's release-asset hosts, over
+  HTTPS.
+- Each asset must match the SHA-256 digest the API lists for it.
+
+Updates are not signed yet, so a build signed by a stolen GitHub account
+would still pass. Signing is planned, not built:
+
+- An ECDSA P-256 signature (BearSSL, already vendored, verifies it) over
+  `riftwii.dol` and `riftwii-update.pack`.
+- The private key stays with the maintainer, outside the repository, and
+  the public key is built into the app.
+- The updater refuses an unsigned or badly signed update only once the
+  key is in use.
+
+Losing that key would strand every build that checks for it, so it is
+backed up before the first signed release.
 
 ## Ground rules
 

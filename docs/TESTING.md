@@ -37,6 +37,12 @@ For things that worked, a short "works" with the game, where it ran from
 
 ## 1. Start-up and Home
 
+- [ ] **Packed start-up.** `boot.dol` is now packed and unpacks itself
+  when it starts. Start RiftWii once from the Homebrew Channel and once
+  from the RiftWii channel, on a Wii and on a Wii U. Each should reach
+  Home, with no red screen. Also check a warm restart (a launch that
+  fails and comes back) and a game's return to RiftWii. A red screen
+  means the DOL did not unpack: say where you started it from.
 - [ ] **Clean install.** Copy the zip's `sd-card` folder over your old
   files. Settings, play history, covers, mods and games stay.
 - [ ] **First start on a fresh card.** Delete `sd:/riftwii/settings.txt`
@@ -257,13 +263,13 @@ and `sd:/riftwii/gc/trace.bin`.
   alone; L, R, Z and Start on a GameCube controller), just after saving:
   Settings > Return to: RiftWii goes back to the RiftWii channel (the Wii
   Menu without it), Wii Menu to the Wii Menu; the save is there next time.
-- [ ] **A crash** (`sd:/riftwii/gc/crash` makes one 600 pad reads in;
-  `sd:/riftwii/gc/crashblack` makes it on a blanked screen, as in a game's
+- [ ] **A crash** (`sd:/riftwii/gc/test/crash` makes one 600 pad reads in;
+  `sd:/riftwii/gc/test/crashblack` makes it on a blanked screen, as in a game's
   first moments): the blue screen shows "The game stopped.", the register
   dump (the exception, SRR0 to DAR, R0-R31, the callers, the game's ID and
   the version) and the hint, on the TV and straight at 4:3 and 16:9; HOME
   or A goes back (to the Homebrew Channel when it started RiftWii), the
-  next start offers the report. In Dolphin, `sd:/riftwii/gc/leave` as well
+  next start offers the report. In Dolphin, `sd:/riftwii/gc/test/leave` as well
   takes A as pressed after twenty seconds.
 - [ ] **Options**: Disc reads Fast loads sooner; 480p on a component
   cable (the game asks first); 16:9, picked by hand (Default keeps the

@@ -230,6 +230,64 @@ static void test_search() {
                                                 "0x80000010, 0x80000018 and 2 more"));
     }
 
+    // A pattern that matches everywhere (BUG-07): the search stops after
+    // its cap and says so, instead of running for good.
+    {
+        FakeMemory zeros;
+        riftwii::MemoryPatch everywhere;
+        everywhere.search = true;
+        everywhere.original = {0x00};
+        everywhere.value = {0x01};
+        everywhere.align = 1;
+        // MEM1's 64 KiB and MEM2's 4 KiB of zeros: 69,632 matches.
+        EXPECT_TRUE(riftwii::apply_memory_patches({everywhere}, {{0x80000000u, 0x10000}, {0x90000000u, 0x1000}},
+                                                  kWritable, zeros, notes, err));
+        EXPECT_TRUE(notes.back().find("stopped after 65536 matches") != std::string::npos);
+        EXPECT_EQ(zeros.str(0x8000FFFFu, 1), std::string("\x01"));
+        EXPECT_EQ(zeros.str(0x90000000u, 1), std::string(1, '\0'));
+        // The matches come from the chunk in hand: a few reads of 32 KiB,
+        // where each match read one again (CAV-02).
+        EXPECT_TRUE(zeros.reads < 16u);
+    }
+    // Searches without end through macros (CAV-02): one launch's searches
+    // read at most 1 GiB of game memory in all, then the launch stops with
+    // a sentence, never half way through for good.
+    {
+        FakeMemory plain;
+        riftwii::MemoryPatch absent;
+        absent.search = true;
+        absent.original = Bytes("none");
+        absent.value = Bytes("NONE");
+        absent.align = 4;
+        // 68 KiB a search: 16,000 of them are past 1 GiB.
+        const std::vector<riftwii::MemoryPatch> many(16000, absent);
+        std::vector<std::string> many_notes;
+        EXPECT_FALSE(riftwii::apply_memory_patches(many, {{0x80000000u, 0x10000}, {0x90000000u, 0x1000}}, kWritable,
+                                                   plain, many_notes, err));
+        EXPECT_TRUE(err.find("1024 MiB") != std::string::npos);
+        // A hundred are fine.
+        const std::vector<riftwii::MemoryPatch> some(100, absent);
+        EXPECT_TRUE(riftwii::apply_memory_patches(some, {{0x80000000u, 0x10000}, {0x90000000u, 0x1000}}, kWritable,
+                                                  plain, many_notes, err));
+    }
+    // A match where nothing may be written is passed over and the others
+    // still written (MIN-07), where it used to fail the launch.
+    {
+        FakeMemory two;
+        two.put(0x80000000u, "hook");
+        two.put(0x80001000u, "hook");
+        riftwii::MemoryPatch q;
+        q.search = true;
+        q.original = Bytes("hook");
+        q.value = Bytes("HOOK");
+        q.align = 4;
+        const std::vector<riftwii::MemoryRegion> only_second = {{0x80001000u, 0x100}};
+        EXPECT_TRUE(riftwii::apply_memory_patches({q}, {{0x80000000u, 0x2000}}, only_second, two, notes, err));
+        EXPECT_EQ(two.str(0x80000000u, 4), std::string("hook"));
+        EXPECT_EQ(two.str(0x80001000u, 4), std::string("HOOK"));
+        EXPECT_TRUE(notes.back().find("1 match(es) where RiftWii keeps its own code") != std::string::npos);
+    }
+
     // A pattern across the chunk boundary is still found (chunks overlap).
     FakeMemory big;
     big.put(0x80000000u + 0x7FFA, "boundary");
@@ -328,6 +386,17 @@ static void test_ocarina() {
     EXPECT_TRUE(riftwii::apply_memory_patches({p}, {{0x80004000u, 0x14}}, kWritable, mem, notes, err));
     EXPECT_EQ(notes.size(), before + 1);
     if (notes.size() == before + 1) EXPECT_EQ(notes.back(), std::string("ocarina: match at 0x80004000 but no blr after it"));
+    // The whole of MEM1's 64 KiB with no blr after the match: read a chunk
+    // at a time, not a word at a time (CodeRabbit on #168).
+    {
+        FakeMemory nothing;
+        nothing.put_word(0x80000000, 0x7C0802A6);
+        riftwii::MemoryPatch far = p;
+        far.offset = 0x80005000;
+        EXPECT_TRUE(riftwii::apply_memory_patches({far}, {{0x80000000u, 0x10000}}, kWritable, nothing, notes, err));
+        EXPECT_EQ(notes.back(), std::string("ocarina: match at 0x80000000 but no blr after it"));
+        EXPECT_TRUE(nothing.reads < 8u);
+    }
     p.value = {0x11, 0x22, 0x33, 0x44};
     EXPECT_TRUE(riftwii::apply_memory_patches({p}, loaded, kWritable, mem, notes, err));
     EXPECT_EQ(notes.back(), std::string("ocarina: no match for 4 bytes"));

@@ -10,6 +10,26 @@ namespace {
 
 constexpr std::uint32_t kBlr = 0x4E800020u;
 constexpr std::size_t kSearchChunk = 0x8000;
+// The most matches one <memory search> takes. Each match reads a chunk
+// again: a one-byte pattern of zeros matched tens of millions of times and
+// the launch never ended (BUG-07). Real searches find a handful.
+constexpr std::size_t kMaxSearchMatches = 65536;
+// The game memory all of a launch's searches may read together. One search
+// reads the loaded game once, a few MiB; but nothing limited how many
+// searches a pack makes (macros repeat them), and each read it all again
+// (CAV-02, BUG-07). Real packs read well under this.
+constexpr std::uint64_t kMaxSearchBytes = std::uint64_t(1) << 30;
+
+// What the searches of one launch share: the read budget, and the chunk
+// last read, so the matches of one search come from the chunk in hand
+// rather than each reading 32 KiB again. A search only writes below where
+// it goes on looking, so the chunk past that stays true; it is dropped
+// before each patch, as the patch before may have written anywhere.
+struct SearchState {
+    std::uint64_t budget = kMaxSearchBytes;
+    std::uint64_t chunk_start = 0;
+    std::vector<std::uint8_t> chunk;
+};
 
 std::string hex32(std::uint32_t v) {
     static const char digits[] = "0123456789abcdef";
@@ -43,13 +63,12 @@ bool write_checked(const std::vector<MemoryRegion>& writable, MemoryAccess& memo
 // the pattern's length, so no whole-region copy is needed.
 bool find_pattern(const std::vector<MemoryRegion>& loaded, MemoryAccess& memory, const std::vector<std::uint8_t>& pattern,
                   std::uint64_t align, std::uint32_t& found, std::size_t& region_index, std::string& error,
-                  std::uint64_t from = 0) {
+                  SearchState& state, std::uint64_t from = 0) {
     if (align == 0) align = 1;
     // Beyond any region's size the stride leaves one candidate per region;
     // clamping keeps the arithmetic below inside 32 bits on the console.
     if (align > 0x10000000) align = 0x10000000;
     const std::size_t n = pattern.size();
-    std::vector<std::uint8_t> chunk;
     for (std::size_t ri = 0; ri < loaded.size(); ++ri) {
         const MemoryRegion& r = loaded[ri];
         if (r.length < n) continue;
@@ -59,15 +78,32 @@ bool find_pattern(const std::vector<MemoryRegion>& loaded, MemoryAccess& memory,
         while (pos <= last) {
             // A chunk starting at `pos` covering as many candidate starts as fit.
             const std::uint64_t region_end = static_cast<std::uint64_t>(r.address) + r.length;
-            const std::size_t want = static_cast<std::size_t>(std::min<std::uint64_t>(kSearchChunk + n, region_end - pos));
-            chunk.resize(want);
-            if (!memory.read(static_cast<std::uint32_t>(pos), chunk.data(), want)) {
-                error = "memory read failed at " + hex32(static_cast<std::uint32_t>(pos));
-                return false;
+            std::size_t want = static_cast<std::size_t>(std::min<std::uint64_t>(kSearchChunk + n, region_end - pos));
+            const std::uint8_t* bytes = nullptr;
+            const std::uint64_t chunk_end = state.chunk_start + state.chunk.size();
+            if (!state.chunk.empty() && pos >= state.chunk_start && pos < chunk_end && chunk_end - pos >= n) {
+                // The rest of the chunk in hand, as far as this region goes.
+                want = static_cast<std::size_t>(std::min<std::uint64_t>(chunk_end - pos, region_end - pos));
+                bytes = state.chunk.data() + (pos - state.chunk_start);
+            } else {
+                if (want > state.budget) {
+                    error = "the pack's memory searches read more than " + std::to_string(kMaxSearchBytes >> 20) +
+                            " MiB of the game's memory in all";
+                    return false;
+                }
+                state.budget -= want;
+                state.chunk.resize(want);
+                state.chunk_start = pos;
+                if (!memory.read(static_cast<std::uint32_t>(pos), state.chunk.data(), want)) {
+                    state.chunk.clear();
+                    error = "memory read failed at " + hex32(static_cast<std::uint32_t>(pos));
+                    return false;
+                }
+                bytes = state.chunk.data();
             }
             const std::size_t starts = want >= n ? want - n + 1 : 0;
             for (std::size_t i = 0; i < starts; i += static_cast<std::size_t>(align)) {
-                if (std::memcmp(chunk.data() + i, pattern.data(), n) == 0) {
+                if (std::memcmp(bytes + i, pattern.data(), n) == 0) {
                     found = static_cast<std::uint32_t>(pos + i);
                     region_index = ri;
                     return true;
@@ -117,7 +153,7 @@ bool apply_plain(const MemoryPatch& p, const std::vector<MemoryRegion>& writable
 }
 
 bool apply_search(const MemoryPatch& p, const std::vector<MemoryRegion>& loaded, const std::vector<MemoryRegion>& writable,
-                  MemoryAccess& memory, std::vector<std::string>& notes, std::string& error) {
+                  MemoryAccess& memory, std::vector<std::string>& notes, std::string& error, SearchState& state) {
     if (p.original.empty()) {
         error = "memory search patch without original";
         return false;
@@ -132,28 +168,45 @@ bool apply_search(const MemoryPatch& p, const std::vector<MemoryRegion>& loaded,
     const std::uint64_t step = std::max(p.original.size(), p.value.size());
     std::uint64_t from = 0;
     std::size_t matches = 0;
+    std::size_t kept_out = 0;
+    bool capped = false;
     std::string where;
     for (;;) {
         std::uint32_t at = 0;
         std::size_t region = 0;
-        if (!find_pattern(loaded, memory, p.original, p.align, at, region, error, from)) return false;
+        if (!find_pattern(loaded, memory, p.original, p.align, at, region, error, state, from)) return false;
         if (region == loaded.size()) break;
+        from = static_cast<std::uint64_t>(at) + step;
+        if (matches + kept_out >= kMaxSearchMatches) {
+            capped = true;
+            break;
+        }
+        // A match where nothing may be written (a hook RiftWii placed, or
+        // memory it keeps for itself) is passed over: the rest of the
+        // search still applies, where it used to fail the launch (MIN-07).
+        if (!inside(writable, at, p.value.size())) {
+            ++kept_out;
+            continue;
+        }
         if (!write_checked(writable, memory, at, p.value, error)) return false;
         if (matches < 4) where += (matches ? ", " : "") + hex32(at);
         ++matches;
-        from = static_cast<std::uint64_t>(at) + step;
     }
+    std::string note;
     if (matches == 0) {
-        notes.push_back("memory search: no match for " + std::to_string(p.original.size()) + " bytes");
+        note = "memory search: no match for " + std::to_string(p.original.size()) + " bytes";
     } else {
-        notes.push_back("memory search: " + std::to_string(p.value.size()) + " bytes written at " + where +
-                        (matches > 4 ? " and " + std::to_string(matches - 4) + " more" : ""));
+        note = "memory search: " + std::to_string(p.value.size()) + " bytes written at " + where +
+               (matches > 4 ? " and " + std::to_string(matches - 4) + " more" : "");
     }
+    if (kept_out != 0) note += "; " + std::to_string(kept_out) + " match(es) where RiftWii keeps its own code, passed over";
+    if (capped) note += "; stopped after " + std::to_string(kMaxSearchMatches) + " matches";
+    notes.push_back(note);
     return true;
 }
 
 bool apply_ocarina(const MemoryPatch& p, const std::vector<MemoryRegion>& loaded, const std::vector<MemoryRegion>& writable,
-                   MemoryAccess& memory, std::vector<std::string>& notes, std::string& error) {
+                   MemoryAccess& memory, std::vector<std::string>& notes, std::string& error, SearchState& state) {
     if (!p.has_offset) {
         error = "ocarina patch without offset";
         return false;
@@ -168,20 +221,38 @@ bool apply_ocarina(const MemoryPatch& p, const std::vector<MemoryRegion>& loaded
     // implementation does both the same way.
     std::uint32_t at = 0;
     std::size_t region = 0;
-    if (!find_pattern(loaded, memory, p.value, 4, at, region, error)) return false;
+    if (!find_pattern(loaded, memory, p.value, 4, at, region, error, state)) return false;
     if (region == loaded.size()) {
         notes.push_back("ocarina: no match for " + std::to_string(p.value.size()) + " bytes");
         return true;
     }
     const MemoryRegion& r = loaded[region];
     const std::uint64_t region_end = static_cast<std::uint64_t>(r.address) + r.length;
+    // The blr after it, read a chunk at a time from the launch's search
+    // budget, where each word was read on its own and charged to nothing:
+    // a match near a region's start could read the whole region for every
+    // ocarina patch (CodeRabbit on #168, CAV-02).
     std::uint64_t scan = at;
+    std::vector<std::uint8_t> chunk;
+    std::uint64_t chunk_start = 0;
     for (; scan + 4 <= region_end; scan += 4) {
-        std::uint8_t word[4];
-        if (!memory.read(static_cast<std::uint32_t>(scan), word, 4)) {
-            error = "memory read failed at " + hex32(static_cast<std::uint32_t>(scan));
-            return false;
+        if (chunk.empty() || scan + 4 > chunk_start + chunk.size()) {
+            const std::size_t want =
+                static_cast<std::size_t>(std::min<std::uint64_t>(kSearchChunk, (region_end - scan) & ~std::uint64_t(3)));
+            if (want > state.budget) {
+                error = "the pack's memory searches read more than " + std::to_string(kMaxSearchBytes >> 20) +
+                        " MiB of the game's memory in all";
+                return false;
+            }
+            state.budget -= want;
+            chunk.resize(want);
+            chunk_start = scan;
+            if (!memory.read(static_cast<std::uint32_t>(scan), chunk.data(), want)) {
+                error = "memory read failed at " + hex32(static_cast<std::uint32_t>(scan));
+                return false;
+            }
         }
+        const std::uint8_t* word = chunk.data() + (scan - chunk_start);
         const std::uint32_t v = (std::uint32_t(word[0]) << 24) | (std::uint32_t(word[1]) << 16) |
                                 (std::uint32_t(word[2]) << 8) | std::uint32_t(word[3]);
         if (v != kBlr) continue;
@@ -266,7 +337,9 @@ std::vector<MemoryRegion> subtract_memory_regions(const std::vector<MemoryRegion
 bool apply_memory_patches(const std::vector<MemoryPatch>& patches, const std::vector<MemoryRegion>& loaded,
                           const std::vector<MemoryRegion>& writable, MemoryAccess& memory,
                           std::vector<std::string>& notes, std::string& error) {
+    SearchState searches;
     for (const MemoryPatch& p : patches) {
+        searches.chunk.clear();  // the patch before may have written into it
         if (!p.valuefile.empty() && p.value.empty()) {
             error = "memory patch valuefile '" + p.valuefile + "' was not read";
             return false;
@@ -277,9 +350,9 @@ bool apply_memory_patches(const std::vector<MemoryPatch>& patches, const std::ve
         }
         bool ok;
         if (p.ocarina) {
-            ok = apply_ocarina(p, loaded, writable, memory, notes, error);
+            ok = apply_ocarina(p, loaded, writable, memory, notes, error, searches);
         } else if (p.search) {
-            ok = apply_search(p, loaded, writable, memory, notes, error);
+            ok = apply_search(p, loaded, writable, memory, notes, error, searches);
         } else {
             ok = apply_plain(p, writable, memory, notes, error);
         }

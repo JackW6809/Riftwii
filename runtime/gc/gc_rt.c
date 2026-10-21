@@ -6,6 +6,9 @@
 #include "gc_rt.h"
 #include "gc_bt.h"
 #include "gc_card.h"
+#include "gc_gcad.h"
+#include "gc_video.h"
+#include "gc_load.h"
 #ifdef RT_RVZ
 #include "gc_rvz.h"
 #endif
@@ -98,24 +101,27 @@ uint32_t gc_ipc_take(void) {
  * (Luigi's Mansion in Dolphin: every disc read timed out, the control
  * register at X1 | Y1). Every reply but a pending request's own is
  * theirs: disc reads and trace writes run one at a time. */
-int32_t gc_ipc_send(uint32_t phys, struct gc_bt* bt) {
+int32_t gc_ipc_send(uint32_t phys, struct gc_rt_context* ctx) {
     uint32_t polls;
     gc_write32(GC_IPC_PPCMSG, phys);
     gc_write32(GC_IPC_PPCCTRL, GC_IPC_X1);
     for (polls = 0; (gc_read32(GC_IPC_PPCCTRL) & GC_IPC_Y2) == 0; ++polls) {
         const uint32_t reply = gc_ipc_take();
-        if (reply != 0 && bt) gc_bt_on_reply(bt, reply);
+        if (reply != 0) gc_ipc_route(ctx, reply);
         if (polls == GC_IPC_TIMEOUT) return -1000;
     }
     gc_write32(GC_IPC_PPCCTRL, GC_IPC_Y2);
     return 0;
 }
 
-/* A reply that is not the one being waited for: the Wii Remotes' reads
- * (gc_bt.c), or something left from the menu (dropped). */
-static void gc_ipc_other(struct gc_rt_context* ctx, uint32_t reply) {
-    if (ctx->bt) gc_bt_on_reply((struct gc_bt*)(uintptr_t)ctx->bt, reply);
+void gc_ipc_route(struct gc_rt_context* ctx, uint32_t reply) {
+    if (ctx == 0) return;
+    if (ctx->bt && gc_bt_on_reply((struct gc_bt*)(uintptr_t)ctx->bt, reply)) return;
+    if (ctx->gcad) gc_gcad_on_reply((struct gc_gcad*)(uintptr_t)ctx->gcad, reply);
 }
+
+/* A reply that is not the one being waited for. */
+static void gc_ipc_other(struct gc_rt_context* ctx, uint32_t reply) { gc_ipc_route(ctx, reply); }
 
 /* One ioctlv to IOS and its reply, by polling (the Wii Remotes' reads may
  * be in flight meanwhile; their replies go to gc_bt.c). Returns IOS's
@@ -134,7 +140,7 @@ static int32_t gc_ioctlv(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl,
     rq[5] = out_count;
     rq[6] = gc_physical((uint32_t)(uintptr_t)ctx->vec);
     gc_flush((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
-    if (gc_ipc_send(phys, (struct gc_bt*)(uintptr_t)ctx->bt) != 0) return -1000;
+    if (gc_ipc_send(phys, ctx) != 0) return -1000;
     for (;;) {
         /* The launch's reply never comes when IOS takes it (it reloads and
          * the PPC is reset): with ipc_no_timeout the wait has no end, as a
@@ -188,16 +194,60 @@ int gc_sd_read(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint3
     return 1;
 }
 
-/* `length` bytes of a card run from byte `at` of it into `dst`. Whole
- * sectors go straight into the game's buffer when it is aligned for the
- * DMA; the rest through the bounce buffer. */
+/* d2x's USB mass-storage read ('U' 'M' 'S' 3): the sector and the count
+ * in, the data out. */
+#define GC_UMS_READ_SECTORS 0x554D5303u
+/* Sectors a request asks for: 32 KB, as the menu reads the drive through
+ * d2x (wii/storage/umsdev.cpp). */
+#define GC_USB_REQUEST_SECTORS 64u
+
+/* `count` sectors of the USB drive from `sector` into `target`, which is
+ * in MEM2 (d2x's USB driver writes nowhere else) and 32-byte aligned. */
+int gc_usb_read(struct gc_rt_context* ctx, uint32_t sector, uint32_t count, uint32_t target) {
+    uint32_t* q = ctx->request;
+    while (count != 0) {
+        const uint32_t n = count < GC_USB_REQUEST_SECTORS ? count : GC_USB_REQUEST_SECTORS;
+        int32_t result;
+        q[0] = sector;
+        q[1] = n;
+        ctx->vec[0] = gc_physical((uint32_t)(uintptr_t)&q[0]);
+        ctx->vec[1] = 4;
+        ctx->vec[2] = gc_physical((uint32_t)(uintptr_t)&q[1]);
+        ctx->vec[3] = 4;
+        ctx->vec[4] = gc_physical(target);
+        ctx->vec[5] = n * GC_SECTOR;
+        gc_flush((uint32_t)(uintptr_t)q, 32);
+        gc_flush((uint32_t)(uintptr_t)ctx->vec, sizeof(ctx->vec));
+        gc_flush(target, n * GC_SECTOR);  /* no dirty lines left to land on the DMA's bytes */
+        ctx->usb_requests++;
+        result = gc_ioctlv(ctx, ctx->usb_fd, GC_UMS_READ_SECTORS, 2, 1);
+        gc_invalidate(target, n * GC_SECTOR);
+        __asm__ volatile("mftb %0" : "=r"(ctx->usb_last_read));
+        if (result < 0) {
+            ctx->usb_failures++;
+            ctx->failures++;
+            ctx->last_error = result;
+            return 0;
+        }
+        sector += n;
+        count -= n;
+        target += n * GC_SECTOR;
+    }
+    return 1;
+}
+
+/* `length` bytes of a card or USB run from byte `at` of it into `dst`.
+ * From the card, whole sectors go straight into the game's buffer when it
+ * is aligned for the DMA; the rest, and everything from USB (the game's
+ * memory is MEM1), through the bounce buffer. */
 static int gc_read_sd_run(struct gc_rt_context* ctx, const struct gc_rt_run* run, uint32_t at, uint8_t* dst,
                           uint32_t length) {
+    const int usb = run->kind == GC_RUN_USB;
     while (length != 0) {
         const uint32_t byte = run->skip + at;  /* from the start of sector `source` */
         const uint32_t sector = run->source + byte / GC_SECTOR;
         const uint32_t into = byte % GC_SECTOR;
-        if (into == 0 && length >= GC_SECTOR && ((uint32_t)(uintptr_t)dst & 31u) == 0) {
+        if (!usb && into == 0 && length >= GC_SECTOR && ((uint32_t)(uintptr_t)dst & 31u) == 0) {
             uint32_t count = length / GC_SECTOR;
             if (count > 128) count = 128;
             if (!gc_sd_read(ctx, sector, count, (uint32_t)(uintptr_t)dst)) return 0;
@@ -210,7 +260,8 @@ static int gc_read_sd_run(struct gc_rt_context* ctx, const struct gc_rt_run* run
             uint32_t got;
             if (want > ctx->bounce_bytes) want = ctx->bounce_bytes;
             count = (want + GC_SECTOR - 1) / GC_SECTOR;
-            if (!gc_sd_read(ctx, sector, count, ctx->bounce)) return 0;
+            if (usb ? !gc_usb_read(ctx, sector, count, ctx->bounce) : !gc_sd_read(ctx, sector, count, ctx->bounce))
+                return 0;
             got = count * GC_SECTOR - into;
             if (got > length) got = length;
             gc_copy(dst, (const uint8_t*)(uintptr_t)(ctx->bounce + into), got);
@@ -223,9 +274,12 @@ static int gc_read_sd_run(struct gc_rt_context* ctx, const struct gc_rt_run* run
 }
 
 #ifdef RT_RVZ
-/* gc_rvz.c's card reads (gc_rvz.h): `io` is the context. */
-int gc_rvz_device_read(void* io, uint32_t sector, uint32_t count, uintptr_t target) {
-    return gc_sd_read((struct gc_rt_context*)io, sector, count, (uint32_t)target);
+/* gc_rvz.c's reads (gc_rvz.h): `io` is the context. Its buffers are all
+ * in MEM2, so the USB drive's reads go there directly. */
+int gc_rvz_device_read(void* io, uint32_t usb, uint32_t sector, uint32_t count, uintptr_t target) {
+    struct gc_rt_context* ctx = (struct gc_rt_context*)io;
+    if (usb) return gc_usb_read(ctx, sector, count, (uint32_t)target);
+    return gc_sd_read(ctx, sector, count, (uint32_t)target);
 }
 
 /* `length` bytes of the image from its disc offset `offset`, out of the
@@ -264,7 +318,7 @@ static int gc_read_disc_unlocked(struct gc_rt_context* ctx, uint8_t* dst, uint32
         at = offset - runs[i].disc;
         n = runs[i].length - at;
         if (n > length) n = length;
-        if (runs[i].kind == GC_RUN_SD) {
+        if (runs[i].kind == GC_RUN_SD || runs[i].kind == GC_RUN_USB) {
             if (!gc_read_sd_run(ctx, &runs[i], at, dst, n)) return 0;
         } else if (runs[i].kind == GC_RUN_RVZ) {
 #ifdef RT_RVZ
@@ -325,7 +379,7 @@ static int32_t gc_ioctl(struct gc_rt_context* ctx, uint32_t fd, uint32_t ioctl, 
     gc_flush(in, in_len);
     gc_flush(out, out_len);
     gc_flush((uint32_t)(uintptr_t)rq, sizeof(ctx->ipc));
-    if (gc_ipc_send(phys, (struct gc_bt*)(uintptr_t)ctx->bt) != 0) return -1000;
+    if (gc_ipc_send(phys, ctx) != 0) return -1000;
     for (;;) {
         /* The launch's reply never comes when IOS takes it (it reloads and
          * the PPC is reset): with ipc_no_timeout the wait has no end, as a
@@ -416,6 +470,54 @@ static uint32_t gc_trace_slot(const struct gc_rt_context* ctx, uint32_t seq) {
     return ctx->trace_sector + kept + (seq - kept - 1) % ring;
 }
 
+/* The test remote's results take the projection callers' 16 words. */
+typedef char gc_fake_log_fits[(GC_TR_RVZ_GROUPS - GC_TR_PROJECTION_CALLERS == GC_BT_FAKE_STEPS * 2) ? 1 : -1];
+
+/* The audio hardware. The audio interface sits where a Wii in Wii mode
+ * has it (0xCC006C00 on a GameCube; the loader moves the game's own
+ * accesses too); the DSP's registers stay at 0xCC005000. */
+#define GC_AI_CR 0xCD006C00u
+#define GC_AI_VR 0xCD006C04u
+#define GC_AI_IT 0xCD006C0Cu  /* the sample count that raises the AI interrupt */
+#define GC_AI_PSTAT 0x01u     /* the stream plays */
+#define GC_AI_AFR 0x02u       /* the stream's rate, as the game set it */
+#define GC_AI_INTMSK 0x04u    /* the stream's sample count raises an interrupt */
+#define GC_AI_INT 0x08u       /* ... which is pending (written 1: cleared) */
+#define GC_AI_INTVLD 0x10u
+#define GC_AI_SCRESET 0x20u   /* written 1: the sample counter goes back to 0 */
+#define GC_AI_32K 0x40u       /* the DMA (the game's own audio) runs at 32 kHz, as the game sets it */
+#define GC_DSP_MAIL_TO_DSP 0xCC005000u    /* upper half; bit 15: the DSP has not taken it yet */
+#define GC_DSP_MAIL_FROM_DSP 0xCC005004u  /* upper half; bit 15: mail for the CPU */
+#define GC_DSP_MAIL_FROM_DSP_LOW 0xCC005006u  /* reading it takes the mail */
+#define GC_DSP_CSR 0xCC00500Au
+#define GC_DSP_CSR_RESET 0x0001u      /* written 1: the DSP resets; reads 1 until it has */
+#define GC_DSP_CSR_HALT 0x0004u
+#define GC_DSP_CSR_AIINT 0x0008u      /* the audio DMA's interrupt (written 1: cleared) */
+#define GC_DSP_CSR_ARINT 0x0020u      /* an ARAM transfer finished (cleared by the game's handler) */
+#define GC_DSP_CSR_ARINTMSK 0x0040u   /* ... and raises the DSP interrupt */
+#define GC_DSP_CSR_DSPINT 0x0080u     /* the DSP's own interrupt (written 1: cleared) */
+#define GC_DSP_CSR_DMA_BUSY 0x0200u   /* an ARAM transfer is going (ARGetDMAStatus) */
+#define GC_DSP_CSR_INIT 0x0400u       /* the DSP is still taking its boot code */
+#define GC_DSP_CSR_BOOT_ROM 0x0800u   /* the DSP starts from its ROM at the next reset */
+#define GC_AR_SIZE 0xCC005012u
+#define GC_AR_REFRESH 0xCC00501Au
+#define GC_AI_DMA_CONTROL 0xCC005036u  /* bit 15: the audio DMA runs */
+#define GC_AI_DMA_ON 0x8000u
+
+/* The VI's registers (16 bits each). */
+#define GC_VI_BASE 0xCC002000u
+#define GC_VI_VTR 0xCC002000u   /* bits 4-13: active lines per field */
+#define GC_VI_DCR 0xCC002002u   /* bit 0: the display is on */
+#define GC_VI_TFBL 0xCC00201Cu  /* the top field's frame buffer */
+#define GC_VI_BFBL 0xCC002024u  /* the bottom field's */
+#define GC_VI_HSW 0xCC002048u   /* bits 0-7: a field line's stride, bits 8-14: its width, both in 32 bytes */
+#define GC_VI_ACTIVE_LINES(vtr) (((vtr) >> 4) & 0x3FFu)
+#define GC_VI_CLOCK 0xCC00206Cu  /* bit 0: 54 MHz (progressive) */
+#define GC_VI_SEL 0xCC00206Eu    /* bit 0: a component cable is in */
+
+static uint32_t gc_read16(uint32_t address) { return *(volatile uint16_t*)(uintptr_t)address; }
+static void gc_write16(uint32_t address, uint32_t value) { *(volatile uint16_t*)(uintptr_t)address = (uint16_t)value; }
+
 /* One record of the trace (gc_rt.h), with interrupts held off so it
  * cannot meet a read on the card; skipped while a read is going on. */
 static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
@@ -474,6 +576,24 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
             w[GC_TR_PAD_ERRS] = w[GC_TR_PAD_ERRS] << 8 | bt->port_err[i];
         }
         gc_copy((uint8_t*)&w[GC_TR_BT_EVENT_LOG], &bt->event_log[0][0], 32);
+        w[GC_TR_BT_SHAKES] = bt->shakes;
+        w[GC_TR_BT_PROGRESS] = bt->progress;
+        w[GC_TR_BT_LINK] = (uint32_t)bt->conn_status << 24 | (uint32_t)bt->auth_status << 16 |
+                           (uint32_t)bt->disconnect_reason << 8 | bt->ext_error;
+        w[GC_TR_BT_EXT] = (uint32_t)bt->ext_id[0] << 24 | (uint32_t)bt->ext_id[1] << 16 | (uint32_t)bt->last_mode << 8 |
+                          bt->ext_given_up;
+        w[GC_TR_BT_REPORTS] = bt->data_reports;
+        for (i = 0; i < 4; ++i)
+            if (bt->pro_axes_seen & (1u << i)) w[GC_TR_BT_PRO_RANGE + i] = (uint32_t)bt->pro_min[i] << 16 | bt->pro_max[i];
+        {
+            uint32_t slots = 0, ports = 0;
+            for (i = 0; i < GC_BT_REMOTES; ++i) {
+                slots |= (uint32_t)(bt->remotes[i].rumble & 1u) << i;
+                ports |= (uint32_t)(bt->rumble_want[i] & 1u) << i;
+            }
+            w[GC_TR_BT_RUMBLE] = (bt->motor_calls & 0xFFFFu) << 16 | (bt->rumble_changes & 0xFFu) << 8 |
+                                 slots << 4 | ports;
+        }
     }
     if (ctx->card) {
         const struct gc_card* card = (const struct gc_card*)(uintptr_t)ctx->card;
@@ -489,6 +609,10 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
     w[GC_TR_PROJECTIONS] = ctx->projections;
     w[GC_TR_ORTHOGRAPHICS] = ctx->orthographics;
     for (i = 0; i < GC_PROJECTION_CALLERS * 4; ++i) w[GC_TR_PROJECTION_CALLERS + i] = ctx->projection_callers[i];
+    if ((ctx->flags & GC_FLAG_FAKE_REMOTE) && ctx->bt) {
+        const struct gc_bt* bt = (const struct gc_bt*)(uintptr_t)ctx->bt;
+        gc_copy((uint8_t*)&w[GC_TR_PROJECTION_CALLERS], (const uint8_t*)bt->fake_log, sizeof(bt->fake_log));
+    }
 #ifdef RT_RVZ
     if (ctx->rvz) {
         const struct gc_rvz* rvz = (const struct gc_rvz*)(uintptr_t)ctx->rvz;
@@ -497,6 +621,26 @@ static int32_t gc_trace(struct gc_rt_context* ctx, uint32_t where) {
         w[GC_TR_RVZ_ERROR] = rvz->last_error << 24 | (rvz->failures & 0xFFFFFFu);
     }
 #endif
+    w[GC_TR_RESTARTS] = ctx->restarts;
+    w[GC_TR_RESETS] = ctx->resets_asked << 16 | (ctx->reset_presses & 0xFFFFu);
+    w[GC_TR_RESET_LAST] = ctx->reset_last;
+    if (ctx->gcad) {
+        const struct gc_gcad* ad = (const struct gc_gcad*)(uintptr_t)ctx->gcad;
+        w[GC_TR_GCAD] = (uint32_t)ad->g.link << 24 | (ad->version & 0xFFu) << 16 | (ad->filled & 0xFFu) << 8 |
+                        ((uint32_t)ad->g.dev_id & 0xFFu);
+        w[GC_TR_GCAD_REPORTS] = ad->g.reports << 16 | (ad->send_failures & 0xFFFFu);
+        w[GC_TR_GCAD_ERROR] = (uint32_t)ad->g.last_error;
+    }
+    w[GC_TR_USB] = (ctx->usb_requests & 0xFFFFu) << 16 | (ctx->usb_failures & 0xFFu) << 8 |
+                   (ctx->usb_keepalives & 0xFFu);
+    w[GC_TR_DSP_CSR] = gc_read16(GC_DSP_CSR) << 16 | gc_read16(GC_AI_DMA_CONTROL);
+    w[GC_TR_DSP_MAIL] = gc_read16(GC_DSP_MAIL_TO_DSP) << 16 | gc_read16(GC_DSP_MAIL_FROM_DSP);
+    w[GC_TR_AI_CR] = gc_read32(GC_AI_CR);
+    w[GC_TR_AR_CONFIG] = gc_read16(GC_AR_SIZE) << 16 | gc_read16(GC_AR_REFRESH);
+    w[GC_TR_AUDIO_RESET] = ctx->audio_reset;
+    w[GC_TR_VI_DCR_CLOCK] = gc_read16(GC_VI_DCR) << 16 | gc_read16(GC_VI_CLOCK);
+    w[GC_TR_VI_SEL_HSW] = gc_read16(GC_VI_SEL) << 16 | gc_read16(GC_VI_HSW);
+    w[GC_TR_VI_TFBL] = gc_read32(GC_VI_TFBL);
     w[GC_TR_AR_WAITS] = ctx->ar_waits;
     w[GC_TR_AR_WAIT_LONGEST] = ctx->ar_wait_longest;
     w[GC_TR_AR_WAIT_TIMEOUTS] = ctx->ar_wait_timeouts;
@@ -543,12 +687,40 @@ static void gc_set_imm(struct gc_rt_context* ctx, uint32_t value) {
  * The same alarm also carries a read's copy (gc_read_step), so whether it
  * is in the queue is kept in alarm_queued, cleared as it goes off. */
 typedef void (*gc_set_alarm_fn)(void* alarm, uint64_t ticks, uint32_t handler);
+typedef int32_t (*gc_ogc_create_alarm_fn)(uint32_t* handle);
+typedef int32_t (*gc_ogc_set_alarm_fn)(uint32_t handle, const uint32_t* timespec, uint32_t cb, void* arg);
+
+/* OSSetAlarm(alarm, ticks, handler), or with libogc (gc_rt.h, "libogc")
+ * SYS_SetAlarm on the handle kept in the alarm's buffer, made by
+ * SYS_CreateAlarm the first time. libogc takes a struct timespec (a 64-bit
+ * tv_sec, then tv_nsec, as the game's SYS_SetAlarm reads it) and turns it
+ * back into ticks with the clock the loader moved to the Wii's, so the
+ * ticks go out as microseconds of that clock (60.75 a microsecond). */
+void gc_set_alarm(struct gc_rt_context* ctx, void* alarm, uint32_t ticks) {
+    uint32_t* handle = (uint32_t*)alarm;
+    uint32_t timespec[3];
+    uint32_t us;
+    if (ctx->ogc_create_alarm == 0) {
+        ((gc_set_alarm_fn)(uintptr_t)ctx->set_alarm)(alarm, ticks, ctx->alarm_entry);
+        return;
+    }
+    if (handle[1] != GC_OGC_ALARM_MADE) {
+        if (((gc_ogc_create_alarm_fn)(uintptr_t)ctx->ogc_create_alarm)(handle) != 0) return;
+        handle[1] = GC_OGC_ALARM_MADE;
+    }
+    us = ticks / 243u * 4u + (ticks % 243u) * 4u / 243u;
+    if (us == 0) us = 1;
+    timespec[0] = 0;
+    timespec[1] = us / 1000000u;
+    timespec[2] = (us % 1000000u) * 1000u;
+    ((gc_ogc_set_alarm_fn)(uintptr_t)ctx->set_alarm)(handle[0], timespec, ctx->ogc_alarm_entry, alarm);
+}
+
 static void gc_arm(struct gc_rt_context* ctx, uint32_t ticks) {
-    gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
     const uint32_t msr = gc_irq_off();
     if (!ctx->alarm_queued) {
         ctx->alarm_queued = 1;
-        set_alarm(ctx->alarm, ticks < ctx->delay_ticks ? ctx->delay_ticks : ticks, ctx->alarm_entry);
+        gc_set_alarm(ctx, ctx->alarm, ticks < ctx->delay_ticks ? ctx->delay_ticks : ticks);
     }
     gc_irq_restore(msr);
 }
@@ -590,10 +762,7 @@ static uint32_t gc_drive_ticks(struct gc_rt_context* ctx, uint32_t offset, uint3
 #define GC_READ_PIECE 0x10000u  /* 64 KB a turn of the alarm: one SD request, a few ms */
 
 /* The heartbeat (gc_rt.h): once more, half a second from now. */
-static void gc_beat_arm(struct gc_rt_context* ctx) {
-    gc_set_alarm_fn set_alarm = (gc_set_alarm_fn)(uintptr_t)ctx->set_alarm;
-    set_alarm(ctx->beat_alarm, ctx->beat_ticks, ctx->alarm_entry);
-}
+static void gc_beat_arm(struct gc_rt_context* ctx) { gc_set_alarm(ctx, ctx->beat_alarm, ctx->beat_ticks); }
 
 /* Every DVDLow command: the first starts the heartbeat (the game's OS is
  * up by then, its alarms work), and the first few that are not reads get
@@ -704,17 +873,27 @@ static void gc_read_step(struct gc_rt_context* ctx) {
  * 0x801ca9c4); on a Wii a buffer freed with that heap stayed in use (an
  * ISI through a vtable of "JKRT" text). So each load remembers the heap
  * current where it was queued, and the loading thread allocates its
- * buffer and runs its callbacks with that heap current, as when it was
- * idle and took the request at once, then puts back the one it found. */
+ * buffer with that heap current, then puts back the one it found.
+ * Callbacks escape temporary heaps in the same way, but keep the game's
+ * choice on its two main heaps and JKRHeap's root/system heaps. A load's
+ * callback can have a longer lifetime than its buffer: game_usa.szp is
+ * queued on the scene heap, but its global archive belongs on the
+ * persistent heap the game selects after queueing it. Forcing that
+ * callback onto the scene heap leaves a destroyed archive in use after
+ * the scene's group cleanup (the progressive prompt exposed this). */
 typedef uint32_t (*gc_game_fn0)(void);
 typedef uint32_t (*gc_game_fn1)(uint32_t);
 typedef uint32_t (*gc_game_fn2)(uint32_t, uint32_t);
 
-/* JKRHeap's current heap, a global in the game's small data (r13). */
-static volatile uint32_t* gc_current_heap(const struct gc_rt_context* ctx) {
+/* A heap global in the game's small data (r13), found by the loader. */
+static volatile uint32_t* gc_heap_global(uint32_t offset) {
     uint32_t r13;
     __asm__ volatile("mr %0,13" : "=r"(r13));
-    return (volatile uint32_t*)(uintptr_t)(r13 + ctx->load_heap_offset);
+    return (volatile uint32_t*)(uintptr_t)(r13 + offset);
+}
+
+static volatile uint32_t* gc_current_heap(const struct gc_rt_context* ctx) {
+    return gc_heap_global(ctx->load_heap_offset);
 }
 
 /* The remembered heap of `request`, 0: none. */
@@ -754,12 +933,19 @@ uint32_t gc_on_load_alloc(struct gc_rt_context* ctx, uint32_t length, uint32_t a
 
 /* In place of its group(id) before the load's callbacks. */
 uint32_t gc_on_load_callbacks(struct gc_rt_context* ctx, uint32_t group, uint32_t unused, uint32_t request) {
-    const uint32_t heap = gc_load_heap(ctx, request);
+    volatile uint32_t* current = gc_current_heap(ctx);
+    const uint32_t found = *current;
+    uint32_t roots[GC_LOAD_ROOT_HEAPS];
+    uint32_t heap;
+    uint32_t i;
     (void)unused;  /* the game's r4 */
     ctx->load_saved_heap = 0;
+    for (i = 0; i < GC_LOAD_ROOT_HEAPS; ++i) {
+        roots[i] = *gc_heap_global(ctx->load_root_heap_offsets[i]);
+    }
+    heap = gc_load_callback_heap(found, gc_load_heap(ctx, request), roots);
     if (heap != 0) {
-        volatile uint32_t* current = gc_current_heap(ctx);
-        ctx->load_saved_heap = *current;
+        ctx->load_saved_heap = found;
         *current = heap;
     }
     return ((gc_game_fn1)(uintptr_t)ctx->load_group)(group);
@@ -800,14 +986,6 @@ uint32_t gc_on_done(struct gc_rt_context* ctx, uint32_t cb) {
     return 1;
 }
 
-/* The VI's registers (16 bits each). */
-#define GC_VI_BASE 0xCC002000u
-#define GC_VI_VTR 0xCC002000u   /* bits 4-13: active lines per field */
-#define GC_VI_DCR 0xCC002002u   /* bit 0: the display is on */
-#define GC_VI_TFBL 0xCC00201Cu  /* the top field's frame buffer */
-#define GC_VI_BFBL 0xCC002024u  /* the bottom field's */
-#define GC_VI_HSW 0xCC002048u   /* bits 0-7: a field line's stride, bits 8-14: its width, both in 32 bytes */
-#define GC_VI_ACTIVE_LINES(vtr) (((vtr) >> 4) & 0x3FFu)
 /* A frame buffer register's address: bits 0-23, shifted by 5 when bit 28
  * (the page offset) is set, as the SDK writes it. */
 static uint32_t gc_vi_fb(uint32_t reg) {
@@ -852,11 +1030,130 @@ static void gc_vi_put_back(const struct gc_rt_context* ctx) {
     }
 }
 
+/* The hand-over to the next title (gc_leave). That title's libogc finds
+ * the VI still on and keeps going from the mode it sees there, but the
+ * display control register only says interlaced or not: a progressive
+ * picture at 54 MHz (VI_CLK, 0x6C), which the game set up for 480p, reads
+ * as a 240-line one, the likely reason the Homebrew Channel ran with the
+ * TV black on a Wii set to 480p (seen on 18 Oct). So the VI goes back to the registers RiftWii's own
+ * libogc left at the jump (vi_at_jump: the game's TV format, interlaced,
+ * 27 MHz), blanked, as a libogc program leaves it when it starts another. */
+#define GC_VI_REGISTERS (GC_VI_HANDOVER_WORDS * 2u)  /* 16-bit registers from 0x00 */
+#define GC_VI_DCR_RESET 0x0002u                       /* DCR bit 1: the VI resets */
+#define GC_VI_DI_STATUS 0x8000u                       /* a display interrupt's status bit (0x30-0x3C, upper halves) */
+static uint32_t gc_vi_register(const uint32_t* words, uint32_t r) {
+    const uint32_t word = words[r / 2u];
+    return (r & 1u) ? (word & 0xFFFFu) : (word >> 16);
+}
+static void gc_vi_set_register(uint32_t* words, uint32_t r, uint32_t value) {
+    uint32_t* word = &words[r / 2u];
+    *word = (r & 1u) ? ((*word & 0xFFFF0000u) | (value & 0xFFFFu)) : ((*word & 0xFFFFu) | value << 16);
+}
+static void gc_vi_read_all(uint32_t* words) {
+    uint32_t r;
+    for (r = 0; r < GC_VI_REGISTERS; r += 2u) {
+        const uint32_t high = *(volatile uint16_t*)(uintptr_t)(GC_VI_BASE + 2u * r);
+        const uint32_t low = *(volatile uint16_t*)(uintptr_t)(GC_VI_BASE + 2u * r + 2u);
+        words[r / 2u] = high << 16 | low;
+    }
+}
+/* Registers that are not settings: the beam's position (0x2C, 0x2E), the
+ * light gun latches (0x40-0x46) and 0x6E, whose bit 0 is the cable. */
+static int gc_vi_is_setting(uint32_t r) {
+    const uint32_t offset = 2u * r;
+    if (offset == 0x2Cu || offset == 0x2Eu || offset == 0x6Eu) return 0;
+    return offset < 0x40u || offset > 0x46u;
+}
+/* `words` into the VI as a libogc start-up does it: a reset, every
+ * setting with the display off, the display control last. A display
+ * interrupt's status bit is written as 0, which clears it. */
+static void gc_vi_write_all(const uint32_t* words) {
+    volatile uint16_t* const dcr = (volatile uint16_t*)(uintptr_t)GC_VI_DCR;
+    uint32_t r, spin;
+    *dcr = GC_VI_DCR_RESET;
+    for (spin = 0; spin < 1000u; ++spin) __asm__ volatile("" ::: "memory");
+    *dcr = 0;
+    for (r = 0; r < GC_VI_REGISTERS; ++r) {
+        uint32_t value = gc_vi_register(words, r);
+        const uint32_t offset = 2u * r;
+        if (offset == 0x02u || !gc_vi_is_setting(r)) continue;
+        if (offset >= 0x30u && offset <= 0x3Cu && (offset & 2u) == 0) value &= ~GC_VI_DI_STATUS;
+        *(volatile uint16_t*)(uintptr_t)(GC_VI_BASE + offset) = (uint16_t)value;
+    }
+    *dcr = (uint16_t)gc_vi_register(words, 1u);
+}
+/* The mode in `words` with no active lines: the lines go to the blanking
+ * before and after them, so the timing stays the same (VTR 0x00: lines
+ * per field in bits 4-13; 0x0C and 0x10 the blanking after each field,
+ * 0x0E and 0x12 before it). The VI then reads no frame buffer at all. */
+static void gc_vi_blank(uint32_t* words) {
+    const uint32_t vtr = gc_vi_register(words, 0u);
+    const uint32_t lines = GC_VI_ACTIVE_LINES(vtr);
+    uint32_t r;
+    if (lines == 0) return;
+    gc_vi_set_register(words, 0u, vtr & ~(0x3FFu << 4));
+    for (r = 0x0Cu / 2u; r <= 0x12u / 2u; ++r) {
+        const int before_field = (r & 1u) != 0;  /* 0x0E and 0x12 */
+        const uint32_t now = gc_vi_register(words, r);
+        gc_vi_set_register(words, r, before_field ? now + 2u * lines - 2u : now + 2u);
+    }
+}
+/* Before ES_LaunchTitle: RiftWii's own mode back, blank. `saved` gets the
+ * game's registers, for gc_vi_take_back when IOS says no. */
+static void gc_vi_hand_over(const struct gc_rt_context* ctx, uint32_t* saved) {
+    uint32_t mode[GC_VI_HANDOVER_WORDS];
+    uint32_t i;
+    gc_vi_read_all(saved);
+    if (gc_vi_register(ctx->vi_at_jump, 1u) == 0) return;  /* nothing noted at the jump */
+    for (i = 0; i < GC_VI_HANDOVER_WORDS; ++i) mode[i] = ctx->vi_at_jump[i];
+    gc_vi_blank(mode);
+    gc_vi_write_all(mode);
+}
+static void gc_vi_take_back(const struct gc_rt_context* ctx, const uint32_t* saved) {
+    if (gc_vi_register(ctx->vi_at_jump, 1u) == 0) return;
+    gc_vi_write_all(saved);
+}
+/* The restart (gc_on_hot_reset): the VI as the first start found it, on,
+ * in the game's TV format, blanked. The SDK's hot reset switches the VI
+ * off (display control 0) before it resets, and on a GameCube the IPL then
+ * sets it up again; here nothing does, so VIInit found it off and set it
+ * up as NTSC, writing NTSC into 0x800000CC as well. Doshin the Giant PAL,
+ * restarted through its own OSResetSystem(0) (made a hot reset by
+ * gc_on_reset_system), then never got a retrace interrupt and waited in
+ * VIWaitForRetrace for good, the screen black (Dolphin). With the VI on,
+ * VIInit keeps it as at the first start. */
+static void gc_vi_restart(const struct gc_rt_context* ctx) {
+    uint32_t mode[GC_VI_HANDOVER_WORDS];
+    uint32_t i;
+    if (gc_vi_register(ctx->vi_at_jump, 1u) == 0) return;  /* nothing noted at the jump */
+    for (i = 0; i < GC_VI_HANDOVER_WORDS; ++i) mode[i] = ctx->vi_at_jump[i];
+    gc_vi_blank(mode);
+    gc_vi_write_all(mode);
+}
+
 typedef void (*gc_callback_fn)(uint32_t type);
+static void gc_di_raise(struct gc_rt_context* ctx, uint32_t type);
 /* An OSContext's saved LR, SRR0 and SRR1 (the SDK's layout). */
 #define GC_OSCONTEXT_LR 0x84u
 #define GC_OSCONTEXT_SRR0 0x198u
 #define GC_OSCONTEXT_SRR1 0x19Cu
+
+/* From the heartbeat: a game on the USB drive reads one sector of its
+ * image when the drive has been quiet for usb_keep_ticks. Many hard
+ * drives spin down after a few idle minutes, and the next read then
+ * takes seconds, which a game sitting on a menu or with a level loaded
+ * can turn into a disc error. Only while nothing else reads. */
+static void gc_usb_keep_alive(struct gc_rt_context* ctx) {
+    uint32_t now;
+    if (ctx->usb_fd == 0xFFFFFFFFu || ctx->usb_keep_ticks == 0) return;
+    if (ctx->busy || ctx->read_state != GC_READ_NONE) return;
+    __asm__ volatile("mftb %0" : "=r"(now));
+    if (now - ctx->usb_last_read < ctx->usb_keep_ticks) return;
+    ctx->busy = 1;
+    ctx->usb_keepalives++;
+    gc_usb_read(ctx, ctx->usb_keep_sector, 1, ctx->bounce);
+    ctx->busy = 0;
+}
 
 void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context) {
     const uint32_t cb = ctx->pending_cb;
@@ -870,6 +1167,7 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
         gc_guard(ctx);
         gc_vi_note(ctx);
         if (ctx->card) gc_card_flush(ctx, (struct gc_card*)(uintptr_t)ctx->card, 0);
+        gc_usb_keep_alive(ctx);
         gc_trace(ctx, GC_TRACE_BEAT);
         gc_beat_arm(ctx);
         return;
@@ -897,18 +1195,81 @@ void gc_on_alarm(struct gc_rt_context* ctx, uint32_t alarm, uint32_t os_context)
          * would look as if nothing came: the SDK reads the same block
          * forever. */
         if (type == GC_DI_TC && ctx->di_regs != 0) *(volatile uint32_t*)(uintptr_t)(ctx->di_regs + 0x18) = 0;
-        if (cb != 0) ((gc_callback_fn)(uintptr_t)cb)(type);
+        if (cb == GC_CB_DI_RAISE) gc_di_raise(ctx, type);
+        else if (cb != 0) ((gc_callback_fn)(uintptr_t)cb)(type);
     }
+}
+
+/* ---- The DI at its registers (libogc) ------------------------------ */
+
+/* The DI's registers, as words of the stand-in (yagcd, wiibrew). */
+#define GC_DI_SR 0      /* DISR: BRK 0, DEINTMASK 1, DEINT 2, TCINTMASK 3, TCINT 4, BRKINTMASK 5, BRKINT 6 */
+#define GC_DI_CMD0 2
+#define GC_DI_CMD1 3
+#define GC_DI_CMD2 4
+#define GC_DI_MAR 5
+#define GC_DI_LENGTH 6
+#define GC_DI_CR 7      /* DICR: start 0, DMA 1, write 2 */
+#define GC_DI_IMM 8
+#define GC_DISR_DEINT 0x04u
+#define GC_DISR_TCINT 0x10u
+#define GC_DI_IRQ 21u   /* libogc's IRQ_PI_DI, the handler's first argument */
+
+typedef void (*gc_irq_handler_fn)(uint32_t irq, void* context);
+
+/* The command has finished: DICR's start bit drops, DISR gets the
+ * interrupt the drive would raise (its masks stay as the game set them),
+ * and the game's DI interrupt handler runs, as from the interrupt. */
+static void gc_di_raise(struct gc_rt_context* ctx, uint32_t type) {
+    volatile uint32_t* di = (volatile uint32_t*)(uintptr_t)ctx->di_regs;
+    di[GC_DI_CR] &= ~1u;
+    di[GC_DI_SR] |= type == GC_DI_TC ? GC_DISR_TCINT : GC_DISR_DEINT;
+    if (ctx->di_handler != 0) ((gc_irq_handler_fn)(uintptr_t)ctx->di_handler)(GC_DI_IRQ, 0);
+}
+
+/* A DICR store with the start bit (the slot has made it): the command in
+ * the stand-in's registers, carried out from the card like the DVDLow
+ * hooks' (gc_on_read) and finished from the alarm. Commands that only a
+ * drive's firmware knows (libogc's unlock, firmware writes and calls,
+ * motor control, offsets, extensions, status) finish as done; the drive
+ * information names a Wii's drive, which libogc does not patch. Reads of
+ * an immediate (the error, the audio status) get 0: no error, no stream. */
+void gc_on_di_start(struct gc_rt_context* ctx) {
+    volatile uint32_t* di = (volatile uint32_t*)(uintptr_t)ctx->di_regs;
+    const uint32_t control = di[GC_DI_CR];
+    const uint32_t command = di[GC_DI_CMD0];
+    const uint32_t addr = (di[GC_DI_MAR] & 0x01FFFFFFu) | 0x80000000u;
+    const uint32_t length = di[GC_DI_LENGTH];
+    if (!(control & 1u)) return;
+    switch (command >> 24) {
+    case 0xA8:
+        if ((command & 0xFFu) == 0x40) gc_on_read(ctx, addr, length, 0, GC_CB_DI_RAISE);  /* the disc ID */
+        else gc_on_read(ctx, addr, length, di[GC_DI_CMD1] << 2, GC_CB_DI_RAISE);
+        return;
+    case 0x12: {
+        /* Inquiry: revision 2, device 0, a release date whose month byte
+         * is 05 (a Wii's drive), the rest zero. */
+        uint32_t* info = (uint32_t*)(uintptr_t)addr;
+        uint32_t i;
+        if (length >= 0x20) {
+            info[0] = 0x00020000u;
+            info[1] = 0x20060526u;
+            for (i = 2; i < 8; ++i) info[i] = 0;
+        }
+        di[GC_DI_LENGTH] = 0;
+        break;
+    }
+    default:
+        if (control & 2u) di[GC_DI_LENGTH] = 0;
+        di[GC_DI_IMM] = 0;
+        break;
+    }
+    gc_command_seen(ctx, 1);
+    gc_complete(ctx, GC_CB_DI_RAISE, GC_DI_TC);
 }
 
 /* ---- Disc audio streaming ------------------------------------------ */
 
-/* The audio interface where a Wii in Wii mode has it (0xCC006C00 on a
- * GameCube; the loader moves the game's own accesses too). */
-#define GC_AI_CR 0xCD006C00u
-#define GC_AI_VR 0xCD006C04u
-#define GC_AI_PSTAT 0x01u   /* the stream plays */
-#define GC_AI_32K 0x40u     /* the DMA (the game's own audio) runs at 32 kHz, as the game sets it */
 #define GC_ADP_BLOCK 32u    /* 28 stereo samples */
 
 static void gc_stream_reset(struct gc_rt_stream* st) {
@@ -1113,16 +1474,18 @@ void gc_on_ai_dma(struct gc_rt_context* ctx, uint32_t start, uint32_t length) {
 /* Back to RiftWii: the title the loader picked (the Homebrew Channel, the
  * RiftWii channel or the Wii Menu, gcnative.cpp's way_back_title),
  * launched through /dev/es, which IOS still runs in Wii mode. The picture
- * goes black first, but the VI stays on in the mode the game set, as the
- * Wii Menu leaves it when it starts a title: with the display turned off
- * (DCR bit 0), the RiftWii channel came up, but the Homebrew Channel
- * (00010001-JODI on a tester's Wii) ran with the TV black. Returns only
- * when IOS refused. */
+ * goes black first, then the VI is handed over on, in RiftWii's own
+ * interlaced mode from the jump, blanked (gc_vi_hand_over). Neither the
+ * display turned off (DCR bit 0: the Homebrew Channel, 00010001-JODI, ran
+ * with the TV black on a tester's Wii) nor the game's own mode left on
+ * (black again with 480p on, 18 Oct) gave the next title a picture.
+ * Returns only when IOS refused, with the game's VI registers back. */
 #define GC_ES_LAUNCHTITLE 8u
 #define GC_YUYV_BLACK 0x10801080u
 static int gc_crash_frame(const struct gc_rt_context* ctx, const uint8_t* card, int black);
 static void gc_leave(struct gc_rt_context* ctx) {
     const uint32_t buf = ctx->leave_buf;
+    uint32_t game_vi[GC_VI_HANDOVER_WORDS];
     int32_t result;
     uint32_t msr;
     /* The memory card first: what the game saved is in MEM2 until a
@@ -1134,8 +1497,11 @@ static void gc_leave(struct gc_rt_context* ctx) {
         if (card->dirty_count != 0) return;
     }
     gc_trace(ctx, GC_TRACE_LEAVE);
+    /* A Wii Remote's motor would otherwise run on until its link drops. */
+    if (ctx->bt) gc_bt_stop_rumble(ctx, (struct gc_bt*)(uintptr_t)ctx->bt);
     msr = gc_irq_off();  /* the game stops here: IOS takes the console over */
     gc_crash_frame(ctx, 0, 1);
+    gc_vi_hand_over(ctx, game_vi);
     ctx->vec[0] = gc_physical(buf);
     ctx->vec[1] = 8;
     ctx->vec[2] = gc_physical(buf + 0x20);
@@ -1151,6 +1517,7 @@ static void gc_leave(struct gc_rt_context* ctx) {
      * redraws itself), and the trace says why. */
     ctx->busy = 0;
     ctx->last_error = result;
+    gc_vi_take_back(ctx, game_vi);
     gc_irq_restore(msr);
     gc_trace(ctx, GC_TRACE_LEAVE);
 }
@@ -1164,6 +1531,19 @@ static void gc_leave(struct gc_rt_context* ctx) {
  * again. */
 #define GC_CARD_QUIET_TICKS 30375000u  /* half a second of the timebase */
 #define GC_LEAVE_PAD 0x1070u  /* Start, L, R, Z */
+/* Since when the memory card has had no access (leave_card_quiet), noted
+ * while something waits for it to be quiet. */
+static void gc_card_note(struct gc_rt_context* ctx, uint32_t now) {
+    const struct gc_card* card = (const struct gc_card*)(uintptr_t)ctx->card;
+    if (card == 0) return;
+    if (card->activity != ctx->leave_card_activity || ctx->leave_card_quiet == 0) {
+        ctx->leave_card_activity = card->activity;
+        ctx->leave_card_quiet = now | 1u;
+    }
+}
+static int gc_card_quiet(const struct gc_rt_context* ctx, uint32_t now) {
+    return ctx->card == 0 || now - ctx->leave_card_quiet >= GC_CARD_QUIET_TICKS;
+}
 static void gc_leave_check(struct gc_rt_context* ctx, const uint8_t* status) {
     uint32_t port, now;
     int held = 0;
@@ -1179,61 +1559,446 @@ static void gc_leave_check(struct gc_rt_context* ctx, const uint8_t* status) {
         return;
     }
     __asm__ volatile("mftb %0" : "=r"(now));
-    if (ctx->card) {
-        const struct gc_card* card = (const struct gc_card*)(uintptr_t)ctx->card;
-        if (card->activity != ctx->leave_card_activity || ctx->leave_card_quiet == 0) {
-            ctx->leave_card_activity = card->activity;
-            ctx->leave_card_quiet = now | 1u;
-        }
-    }
+    gc_card_note(ctx, now);
     if (ctx->leave_since == 0) {
         ctx->leave_since = now | 1u;
         return;
     }
     if (now - ctx->leave_since < ctx->leave_hold || ctx->busy) return;
-    if (ctx->card && now - ctx->leave_card_quiet < GC_CARD_QUIET_TICKS) return;
+    if (!gc_card_quiet(ctx, now)) return;
     gc_leave(ctx);
     ctx->leave_since = 0;
+}
+
+/* ---- Reset: the game restarted -------------------------------------- */
+
+/* On a GameCube the game watches Reset itself (the SDK's
+ * OSGetResetButtonState reads PI's bit below) and, once it has faded out
+ * and finished any save, calls OSResetSystem. The OS runs its reset
+ * functions (the drive, the memory cards, the controllers), stops the DSP
+ * and the audio, turns the picture off and has the hardware reset the
+ * console through PI's reset register; the start-up code then boots the
+ * disc again. In Wii mode nothing would boot it: the hardware reset, or
+ * the OS's own reboot through the apploader (reset 0, which loads the
+ * game without RiftWii's changes), would leave the console stopped. So
+ * OSResetSystem always takes the hot reset here, and the reset routine
+ * puts MEM1 back as the loader left it at the jump and starts the game
+ * at its entry again (gc_on_hot_reset).
+ *
+ * The Wii's Reset button reaches the same bit in Wii mode (libogc's
+ * SYS_ResetButtonDown reads it there too). Whether a game sees it on a
+ * Wii is not known, so the blob watches it as well, at each pad read:
+ * a press that the game has not answered with its own OSResetSystem two
+ * seconds after it ended (a fade-out takes less) is answered by calling
+ * OSResetSystem for it, from the game's own thread, once the memory card
+ * is quiet.
+ *
+ * Only for games whose restart is known to work (the loader's list,
+ * riftwii/gxpatches.hpp): for the others Reset, and the game's own
+ * OSResetSystem, go back to RiftWii as holding HOME does. */
+#define GC_PI_INTSR 0xCC003000u
+#define GC_PI_RESET_UP 0x00010000u          /* bit 16: the Reset button is up (0 while it is pressed) */
+#define GC_RESET_DEBOUNCE_TICKS 303750u     /* 5 ms of the timebase */
+#define GC_RESET_GRACE_TICKS 121500000u     /* 2 s */
+#define GC_RESET_TEST_FIRST 1500u           /* GC_FLAG_RESET_TEST's presses: pad reads */
+#define GC_RESET_TEST_SECOND 3600u
+#define GC_MSR_EE 0x8000u
+typedef void (*gc_reset_system_fn)(uint32_t reset, uint32_t code, uint32_t menu);
+
+/* The button, at every pad read (`n` is the read's number). */
+static void gc_reset_check(struct gc_rt_context* ctx, uint32_t n) {
+    uint32_t now, msr, kind;
+    int pressed;
+    const int restart = ctx->restart_count != 0 && ctx->reset_system != 0;
+    const int way_back = ctx->leave_buf != 0 && ctx->leave_fd != 0xFFFFFFFFu;
+    if (!restart && !way_back) return;
+    __asm__ volatile("mftb %0" : "=r"(now));
+    pressed = (gc_read32(GC_PI_INTSR) & GC_PI_RESET_UP) == 0;
+    if ((ctx->flags & GC_FLAG_RESET_TEST) && (n == GC_RESET_TEST_FIRST || n == GC_RESET_TEST_SECOND)) {
+        /* A press that has just ended, as the button gives one. */
+        pressed = 0;
+        ctx->reset_down_since = (now - 2u * GC_RESET_DEBOUNCE_TICKS) | 1u;
+    }
+    if (pressed) {
+        if (ctx->reset_down_since == 0) ctx->reset_down_since = now | 1u;
+    } else if (ctx->reset_down_since != 0) {
+        const uint32_t held = now - ctx->reset_down_since;
+        ctx->reset_down_since = 0;
+        if (held >= GC_RESET_DEBOUNCE_TICKS) {
+            ctx->reset_presses++;
+            ctx->reset_request_at = now | 1u;
+            ctx->reset_asked_before = ctx->resets_asked;
+            /* Waited for from the next read on: `now | 1` can be a tick
+             * past `now`, and the difference would wrap. */
+            return;
+        }
+    }
+    if (ctx->reset_request_at == 0) return;
+    if (ctx->resets_asked != ctx->reset_asked_before) {
+        ctx->reset_request_at = 0;  /* the game answered it itself */
+        return;
+    }
+    gc_card_note(ctx, now);
+    if (now - ctx->reset_request_at < GC_RESET_GRACE_TICKS) return;
+    /* From the game's thread only: a pad read in an interrupt handler (some
+     * games read the pads at the retrace) waits for the next one. */
+    __asm__ volatile("mfmsr %0" : "=r"(msr));
+    if ((msr & GC_MSR_EE) == 0 || ctx->busy || !gc_card_quiet(ctx, now)) return;
+    ctx->reset_request_at = 0;
+    if (!restart) {
+        gc_leave(ctx);  /* a game whose restart is not known to work: back to RiftWii, as holding HOME */
+        return;
+    }
+    /* The test's first press takes the OS's own restart (reset 0), turned
+     * into the hot reset as a game's would be; the button the hot reset. */
+    kind = (ctx->flags & GC_FLAG_RESET_TEST) && ctx->restarts == 0 ? GC_OS_RESET_RESTART : GC_OS_RESET_HOTRESET;
+    ((gc_reset_system_fn)(uintptr_t)ctx->reset_system)(kind, 0, 0);
+}
+
+/* OSResetSystem(reset, code, menu), at its start: args[0..2]. */
+void gc_on_reset_system(struct gc_rt_context* ctx, uint32_t* args) {
+    ctx->resets_asked++;
+    ctx->reset_last = args[0] << 8 | (args[2] & 0xFFu);
+    if (args[0] == GC_OS_RESET_SHUTDOWN) return;  /* the OS shuts down and the game goes on: as made */
+    /* A restart in a game that switches programs (Sonic Gems Collection):
+     * the SDK boots the program the game named (OSSetBootDol) through
+     * __OSBootDolSimple, which gc_on_boot_dol takes, or else resets the
+     * hardware, which gc_on_hot_reset takes back to RiftWii. */
+    if (args[0] == GC_OS_RESET_RESTART && args[2] == 0 && ctx->exec_sector != 0 && ctx->restart_count == 0) return;
+    if (ctx->restart_count == 0) {
+        /* No restart for this game: back to RiftWii, rather than the
+         * hardware reset that would stop the console. Returns only when
+         * IOS says no; the game's reset then goes on as made. */
+        if (ctx->leave_buf != 0 && ctx->leave_fd != 0xFFFFFFFFu) gc_leave(ctx);
+        return;
+    }
+    /* To the start-up menu: RiftWii's own way back. It returns when IOS
+     * says no; the game restarts then. */
+    if (args[2] != 0) {
+        gc_leave(ctx);
+        args[2] = 0;
+    }
+    args[0] = GC_OS_RESET_HOTRESET;
+}
+
+/* A switch to another program on the disc: the SDK's OSExec (Sonic Gems
+ * Collection starts Sonic CD, Sonic R and Sonic the Fighters, each a
+ * program of its own, this way) and its restart into a named program both
+ * end in __OSBootDolSimple. That loads the disc's apploader and runs a
+ * small program after it, which reads the disc with code of its own: none
+ * of it is RiftWii's, and the next program would run unpatched. So the
+ * switch goes back through RiftWii, which starts the same image again
+ * with that program: sd:/riftwii/gc/exec.txt (one sector, loader-made)
+ * holds "--idle--" and the image's path and ID, one per line; its first
+ * line becomes "--launch" and the program, the restart code and the
+ * arguments are added, a headless launch (docs/HEADLESS.md) that
+ * RiftWii's next start carries out. Then the game leaves as holding HOME
+ * does. args: doloffset, restartCode, regionStart, regionEnd,
+ * argsUseDefault, argc, argv. A doloffset of 0xFFFFFFFF (from OSExec and
+ * the restart, through __OSBootDol) is "the program after the
+ * apploader", which takes the real one from argv[0] in decimal. */
+/* The text, from words: the blob has no constant data (Makefile.wii
+ * checks), so each key is its characters in immediates, big-endian. */
+#define GC_EXEC_IDLE_0 0x2D2D6964u   /* "--id" */
+#define GC_EXEC_IDLE_1 0x6C652D2Du   /* "le--" */
+#define GC_EXEC_LAUNCH_0 0x2D2D6C61u /* "--la" */
+#define GC_EXEC_LAUNCH_1 0x756E6368u /* "unch" */
+#define GC_EXEC_ARG_BYTES 160u  /* of each argument kept */
+#define GC_EXEC_ARGS 32u  /* Sonic Gems Collection passes 12; the sector holds the rest */
+static uint32_t gc_exec_bytes(uint8_t* buf, uint32_t at, uint32_t word, uint32_t n) {
+    uint32_t i;
+    for (i = 0; i < n && at < GC_SECTOR - 2u; ++i) buf[at++] = (uint8_t)(word >> (24u - 8u * i));
+    return at;
+}
+static uint32_t gc_exec_word(const uint8_t* buf, uint32_t at) {
+    return (uint32_t)buf[at] << 24 | (uint32_t)buf[at + 1] << 16 | (uint32_t)buf[at + 2] << 8 | buf[at + 3];
+}
+static uint32_t gc_exec_text(uint8_t* buf, uint32_t at, const char* text) {
+    uint32_t i;
+    for (i = 0; text[i] != 0 && i < GC_EXEC_ARG_BYTES && at < GC_SECTOR - 2u; ++i) {
+        const char c = text[i];
+        buf[at++] = (uint8_t)(c >= ' ' && c <= '~' ? c : '?');  /* one line each, printable */
+    }
+    return at;
+}
+static uint32_t gc_exec_number(uint8_t* buf, uint32_t at, uint32_t value) {
+    uint8_t digits[11];
+    uint32_t n = 0;
+    do {
+        digits[n++] = (uint8_t)('0' + value % 10u);
+        value /= 10u;
+    } while (value != 0);
+    while (n > 0 && at < GC_SECTOR - 2u) buf[at++] = digits[--n];
+    return at;
+}
+static uint32_t gc_exec_end_line(uint8_t* buf, uint32_t at) {
+    if (at < GC_SECTOR - 1u) buf[at++] = '\n';
+    return at;
+}
+void gc_on_boot_dol(struct gc_rt_context* ctx, uint32_t* args) {
+    uint8_t* const buf = (uint8_t*)(uintptr_t)ctx->trace_buf;
+    const char* const* argv = (const char* const*)(uintptr_t)args[6];
+    const uint32_t argc = args[4] == 0 && argv != 0 ? args[5] : 0;
+    uint32_t target = args[0], first = 0, at, i;
+    uint32_t msr;
+    int read;
+    if (ctx->exec_sector == 0 || ctx->leave_buf == 0 || ctx->leave_fd == 0xFFFFFFFFu || ctx->busy) return;
+    if (target == 0xFFFFFFFFu) {
+        const char* p = argc != 0 ? argv[0] : 0;
+        if (p == 0 || *p < '0' || *p > '9') return;  /* not a program RiftWii can name */
+        for (target = 0; *p >= '0' && *p <= '9'; ++p) target = target * 10u + (uint32_t)(*p - '0');
+        first = 1;
+    }
+    msr = gc_irq_off();  /* the trace's buffer is this one: no heartbeat in between */
+    ctx->busy = 1;
+    read = gc_sd_read(ctx, ctx->exec_sector, 1, (uint32_t)(uintptr_t)buf);
+    if (!read || gc_exec_word(buf, 0) != GC_EXEC_IDLE_0 || gc_exec_word(buf, 4) != GC_EXEC_IDLE_1) {
+        ctx->busy = 0;
+        gc_irq_restore(msr);
+        return;
+    }
+    (void)gc_exec_bytes(buf, 0, GC_EXEC_LAUNCH_0, 4);
+    (void)gc_exec_bytes(buf, 4, GC_EXEC_LAUNCH_1, 4);
+    for (at = 0; at < GC_SECTOR && buf[at] != 0; ++at) {
+    }
+    at = gc_exec_bytes(buf, at, 0x67635F64u, 4);  /* "gc_dol=" */
+    at = gc_exec_bytes(buf, at, 0x6F6C3D00u, 3);
+    at = gc_exec_end_line(buf, gc_exec_number(buf, at, target));
+    at = gc_exec_bytes(buf, at, 0x67635F72u, 4);  /* "gc_restart=" */
+    at = gc_exec_bytes(buf, at, 0x65737461u, 4);
+    at = gc_exec_bytes(buf, at, 0x72743D00u, 3);
+    at = gc_exec_end_line(buf, gc_exec_number(buf, at, args[1]));
+    for (i = first; i < argc && i - first < GC_EXEC_ARGS; ++i) {
+        if (argv[i] == 0) continue;
+        at = gc_exec_bytes(buf, at, 0x67635F61u, 4);  /* "gc_arg=" */
+        at = gc_exec_bytes(buf, at, 0x72673D00u, 3);
+        at = gc_exec_end_line(buf, gc_exec_text(buf, at, argv[i]));
+    }
+    (void)gc_sd_write_locked(ctx, ctx->exec_sector, 1, (uint32_t)(uintptr_t)buf);
+    ctx->busy = 0;
+    gc_trace(ctx, GC_TRACE_EXEC);
+    gc_irq_restore(msr);
+    gc_leave(ctx);
+    /* Still here: IOS said no. The file back to idle, so no later start
+     * of RiftWii takes the switch up, and the game's own goes on. */
+    msr = gc_irq_off();
+    ctx->busy = 1;
+    if (gc_sd_read(ctx, ctx->exec_sector, 1, (uint32_t)(uintptr_t)buf)) {
+        (void)gc_exec_bytes(buf, 0, GC_EXEC_IDLE_0, 4);
+        (void)gc_exec_bytes(buf, 4, GC_EXEC_IDLE_1, 4);
+        (void)gc_sd_write_locked(ctx, ctx->exec_sector, 1, (uint32_t)(uintptr_t)buf);
+    }
+    ctx->busy = 0;
+    gc_irq_restore(msr);
+}
+
+#define GC_CP_SR 0xCC000000u
+#define GC_CP_SR_IDLE 0x000Cu       /* the GP idle for reading and for commands */
+#define GC_GP_IDLE_TICKS 6075000u   /* 100 ms */
+
+static void gc_icache_invalidate(uint32_t address, uint32_t length) {
+    uint32_t a = address & ~31u;
+    const uint32_t end = address + length;
+    for (; a < end; a += 32) __asm__ volatile("icbi 0,%0" : : "r"(a) : "memory");
+    __asm__ volatile("sync\n\tisync" : : : "memory");
+}
+
+static void gc_copy_region(uint32_t to, uint32_t from, uint32_t length) {
+    if (((to | from | length) & 3u) == 0) {
+        uint32_t* dst = (uint32_t*)(uintptr_t)to;
+        const uint32_t* src = (const uint32_t*)(uintptr_t)from;
+        uint32_t words = length / 4;
+        while (words--) *dst++ = *src++;
+        return;
+    }
+    gc_copy((uint8_t*)(uintptr_t)to, (const uint8_t*)(uintptr_t)from, length);
+}
+
+/* What the blob keeps about the game that the restart ends: the drive's
+ * command under way, the alarms in the old OS's queue, the music stream,
+ * the card's transfer, Luigi's Mansion's loads. What the player has (the
+ * Wii Remotes, the card's contents) stays. */
+static void gc_forget_game(struct gc_rt_context* ctx) {
+    uint32_t i;
+    ctx->commands = 0;  /* the first command after the restart starts the heartbeat again */
+    ctx->pending_cb = 0;
+    ctx->pending_type = 0;
+    ctx->read_state = GC_READ_NONE;
+    ctx->alarm_queued = 0;
+    ctx->last_read_end = 0;
+    ctx->load_saved_heap = 0;
+    ctx->load_next = 0;
+    for (i = 0; i < GC_LOAD_SLOTS; ++i) {
+        ctx->load_request[i] = 0;
+        ctx->load_heap[i] = 0;
+    }
+    ctx->leave_since = 0;
+    ctx->reset_down_since = 0;
+    ctx->reset_request_at = 0;
+    if (ctx->stream) {
+        struct gc_rt_stream* st = (struct gc_rt_stream*)(uintptr_t)ctx->stream;
+        st->playing = 0;
+        st->next_length = 0;
+        gc_stream_reset(st);
+    }
+    if (ctx->card) {
+        struct gc_card* card = (struct gc_card*)(uintptr_t)ctx->card;
+        card->selected = 0;
+        card->locked = 0;
+        card->irq_on = 0;
+        card->count = 0;
+        card->tc_callback = 0;
+        card->exi_pending = 0;
+        card->alarm_set = 0;
+    }
+    /* The restarted game has not asked for rumble yet: the first pad read
+     * after the restart switches a rumbling Wii Remote's motor off, instead
+     * of it running on until the game's own PADControlMotor. The remotes
+     * themselves stay connected. */
+    if (ctx->bt) {
+        struct gc_bt* bt = (struct gc_bt*)(uintptr_t)ctx->bt;
+        for (i = 0; i < sizeof(bt->rumble_want); ++i) bt->rumble_want[i] = 0;
+    }
+}
+
+/* MEM1 back as it was at the jump, then the game's entry: on the stack
+ * gc_on_hot_reset moved to, as the game's own stack is in what is put
+ * back (its BSS, or its sections). Reached by a branch from there. */
+static void gc_restore_and_start(struct gc_rt_context* ctx) __attribute__((noinline, used, noreturn));
+static void gc_restore_and_start(struct gc_rt_context* ctx) {
+    const struct gc_restart_region* regions = (const struct gc_restart_region*)(uintptr_t)ctx->restart_regions;
+    uint32_t i;
+    for (i = 0; i < ctx->restart_count; ++i) {
+        const struct gc_restart_region* r = &regions[i];
+        if (r->source == 0)
+            gc_zero((uint8_t*)(uintptr_t)r->address, r->length);
+        else
+            gc_copy_region(r->address, r->source, r->length);
+        gc_flush(r->address, r->length);
+        gc_icache_invalidate(r->address, r->length);
+    }
+    gc_guard(ctx);  /* IOS's counter, as at every IOS request */
+    __asm__ volatile("mtctr %0\n\tbctr" : : "r"(ctx->entry) : "memory");
+    for (;;) {
+    }
+}
+
+/* The audio hardware as a restart must leave it (gc_on_hot_reset). A
+ * GameCube's Reset button resets the whole console and the game starts
+ * from a DSP, audio interface and ARAM interface fresh from that reset;
+ * the restart here keeps the console running, and on a Wii the restarted
+ * game stopped where its audio starts (Super Mario Sunshine, GMSE01 and
+ * GMSE04: no AI or ARAM transfer, no pad read after the restart), while
+ * every disc command finished. The game's own OSResetSystem has already
+ * stopped the DSP and the audio DMA. On top of that: the audio DMA and
+ * the stream off with their interrupts cleared and the sample counter
+ * back to 0, any ARAM transfer finished, the DSP held in reset to start
+ * from its ROM with every interrupt cleared, the mailboxes emptied, and
+ * the ARAM interface's size and refresh as they were at the first start.
+ * The waits are bounded; one that runs out is noted (audio_reset, the
+ * trace's GC_TR_AUDIO_RESET) and the restart goes on. */
+#define GC_AUDIO_WAIT_TICKS 607500u   /* 10 ms of the timebase */
+#define GC_AUDIO_DMA_SLOW 1u          /* an ARAM transfer was still going */
+#define GC_AUDIO_INIT_SLOW 2u         /* the DSP was still taking boot code */
+#define GC_AUDIO_RESET_SLOW 4u        /* the DSP's reset did not finish */
+/* Waits until `mask` of the DSP's control register reads 0; 1 when it
+ * did in time. */
+static int gc_dsp_wait_clear(uint32_t mask) {
+    uint32_t start, now;
+    __asm__ volatile("mftb %0" : "=r"(start));
+    do {
+        if ((gc_read16(GC_DSP_CSR) & mask) == 0) return 1;
+        __asm__ volatile("mftb %0" : "=r"(now));
+    } while (now - start < GC_AUDIO_WAIT_TICKS);
+    return 0;
+}
+static void gc_audio_reset(struct gc_rt_context* ctx) {
+    const uint32_t before = gc_read16(GC_DSP_CSR);
+    const uint32_t ai_kept = ctx->ai_cr_at_jump & (GC_AI_AFR | GC_AI_32K);
+    const uint32_t acks = GC_DSP_CSR_DSPINT | GC_DSP_CSR_ARINT | GC_DSP_CSR_AIINT;
+    uint32_t slow = 0, start, now;
+    /* The audio DMA and the stream. */
+    gc_write16(GC_AI_DMA_CONTROL, gc_read16(GC_AI_DMA_CONTROL) & ~GC_AI_DMA_ON);
+    gc_write32(GC_AI_CR, ai_kept | GC_AI_INT | GC_AI_SCRESET);
+    gc_write32(GC_AI_IT, 0);
+    /* The DSP: no ARAM transfer under way, then halted, to start from its
+     * ROM, its interrupts cleared and masked. */
+    if (!gc_dsp_wait_clear(GC_DSP_CSR_DMA_BUSY)) slow |= GC_AUDIO_DMA_SLOW;
+    gc_write16(GC_DSP_CSR, GC_DSP_CSR_BOOT_ROM | GC_DSP_CSR_HALT | acks);
+    if (!gc_dsp_wait_clear(GC_DSP_CSR_INIT)) slow |= GC_AUDIO_INIT_SLOW;
+    /* The mailboxes: the CPU's to the DSP written empty, the DSP's to the
+     * CPU taken. */
+    gc_write16(GC_DSP_MAIL_TO_DSP, 0);
+    if (gc_read16(GC_DSP_MAIL_FROM_DSP) & 0x8000u) (void)gc_read16(GC_DSP_MAIL_FROM_DSP_LOW);
+    /* A moment for the DSP to see the halt, then its reset. */
+    __asm__ volatile("mftb %0" : "=r"(start));
+    do {
+        __asm__ volatile("mftb %0" : "=r"(now));
+    } while (now - start < 600u);  /* 10 us */
+    gc_write16(GC_DSP_CSR, GC_DSP_CSR_BOOT_ROM | GC_DSP_CSR_HALT | GC_DSP_CSR_RESET | acks);
+    if (!gc_dsp_wait_clear(GC_DSP_CSR_RESET)) slow |= GC_AUDIO_RESET_SLOW;
+    /* The ARAM interface as at the first start. */
+    if (ctx->ar_config_at_jump != 0) {
+        gc_write16(GC_AR_SIZE, ctx->ar_config_at_jump >> 16);
+        gc_write16(GC_AR_REFRESH, ctx->ar_config_at_jump & 0xFFFFu);
+    }
+    ctx->audio_reset = before << 16 | slow << 12 | (gc_read16(GC_DSP_CSR) & 0xFFFu);
+}
+
+/* The SDK's reset routine(code << 3), in place of PI's reset register:
+ * the game's OSResetSystem has run its reset functions, stopped the DSP
+ * and the audio and turned the picture off, with interrupts off. MEM1
+ * goes back as it was at the jump and the game starts again. */
+void gc_on_hot_reset(struct gc_rt_context* ctx, uint32_t code) {
+    uint32_t i, start, now;
+    (void)code;  /* the game reads PI's reset register for it, which stays as it was at the first start */
+    (void)gc_irq_off();
+    if (ctx->restart_count == 0) {
+        /* No restart for this game: back to RiftWii, as holding HOME, where
+         * the routine would stop the console. A game that switches
+         * programs lets OSResetSystem's restart through to here
+         * (gc_on_reset_system) when it names no program to boot. */
+        if (ctx->leave_buf != 0 && ctx->leave_fd != 0xFFFFFFFFu) gc_leave(ctx);
+        for (;;) {
+        }  /* IOS said no: stopped, as the routine itself would be */
+    }
+    ctx->restarts++;
+    gc_trace(ctx, GC_TRACE_RESTART);
+    /* What the game saved, into the card file first; tried again a few
+     * times, as the game cannot be given back now. */
+    if (ctx->card) {
+        struct gc_card* card = (struct gc_card*)(uintptr_t)ctx->card;
+        for (i = 0; i < 3 && card->dirty_count != 0; ++i) gc_card_flush(ctx, card, 1);
+    }
+    /* The GP's last commands done before the game sets up a new FIFO. */
+    __asm__ volatile("mftb %0" : "=r"(start));
+    do {
+        __asm__ volatile("mftb %0" : "=r"(now));
+    } while ((*(volatile uint16_t*)(uintptr_t)GC_CP_SR & GC_CP_SR_IDLE) != GC_CP_SR_IDLE &&
+             now - start < GC_GP_IDLE_TICKS);
+    gc_audio_reset(ctx);
+    gc_vi_restart(ctx);
+    gc_trace(ctx, GC_TRACE_RESTART);  /* the audio and the VI as the restarted game finds them */
+    gc_forget_game(ctx);
+    __asm__ volatile("mr 1,%0\n\tmr 3,%1\n\tb gc_restore_and_start" : : "r"(ctx->restart_stack), "r"(ctx) : "memory");
+    for (;;) {
+    }
 }
 
 /* Test presses: every 240 reads, 10 reads of A, then B, then Start, on
  * port 1 (PADStatus: buttons at 0, err at 10; A 0x100, B 0x200, Start
  * 0x1000). */
-/* GXRenderModeObj as VIConfigure reads it: viTVMode is the first word,
- * the TV format << 2 | 0 interlaced, 1 double-strike (240 lines), 2
- * progressive; xfbMode is the word at 0x14, 0 single field, 1 double
- * field (the XFB holds whole frames); field_rendering is the byte at 0x18. */
-#define GC_RM_WORDS 15u
-#define GC_RM_TV_MODE 0u
-#define GC_RM_XFB_MODE 5u
-#define GC_RM_FIELD_RENDERING 0x18u
-#define GC_VI_NTSC_INTERLACED 0u
-#define GC_VI_NTSC_PROGRESSIVE 2u
-#define GC_VI_XFB_SINGLE 0u
-#define GC_VI_XFB_DOUBLE 1u
-
-/* VIConfigure(rm) with 480p on: an NTSC interlaced mode whose frames are
- * whole in the XFB goes on as its progressive twin, which shows the same
- * XFB a whole frame each retrace. A copy changes, never the game's own
- * mode, which it keeps using for its copies to the XFB. Modes drawn a
- * field at a time and double-strike (240-line) modes stay as they are:
- * their XFB holds half a picture. */
+/* VIConfigure(rm) with 480p or a picture width on: the mode goes on as
+ * gc_video_pick (gc_video.h) changes its copy, else as the game made it. */
 uint32_t gc_on_vi_configure(struct gc_rt_context* ctx, uint32_t mode) {
-    const uint32_t* words = (const uint32_t*)(uintptr_t)mode;
     const uint8_t* bytes = (const uint8_t*)(uintptr_t)mode;
+    uint8_t* copy = (uint8_t*)ctx->vi_copy;
+    const uint32_t progressive = (ctx->flags & GC_FLAG_PROGRESSIVE) != 0;
     uint32_t used = mode;
-    uint32_t used_tv_mode;
-    uint32_t i;
     ++ctx->vi_configures;
-    if ((ctx->flags & GC_FLAG_PROGRESSIVE) && words[GC_RM_TV_MODE] == GC_VI_NTSC_INTERLACED &&
-        words[GC_RM_XFB_MODE] == GC_VI_XFB_DOUBLE && bytes[GC_RM_FIELD_RENDERING] == 0) {
-        for (i = 0; i < GC_RM_WORDS; ++i) ctx->vi_copy[i] = words[i];
-        ctx->vi_copy[GC_RM_TV_MODE] = GC_VI_NTSC_PROGRESSIVE;
-        ctx->vi_copy[GC_RM_XFB_MODE] = GC_VI_XFB_SINGLE;
-        used = (uint32_t)(uintptr_t)ctx->vi_copy;
-    }
-    used_tv_mode = ((const uint32_t*)(uintptr_t)used)[GC_RM_TV_MODE];
-    ctx->vi_mode = (words[GC_RM_TV_MODE] & 0xFFu) << 8 | (used_tv_mode & 0xFFu);
+    if (gc_video_pick(bytes, progressive, ctx->vi_width, copy)) used = (uint32_t)(uintptr_t)copy;
+    ctx->vi_mode = (uint32_t)bytes[GC_RM_TV_MODE + 3] << 8 | ((const uint8_t*)(uintptr_t)used)[GC_RM_TV_MODE + 3];
+    if (gc_video_width_kept(bytes, ctx->vi_width)) ctx->vi_mode |= GC_VI_WIDTH_KEPT;
     return used;
 }
 
@@ -1307,6 +2072,14 @@ uint32_t gc_on_projection(struct gc_rt_context* ctx, uint32_t mtx, uint32_t type
     return (uint32_t)(uintptr_t)ctx->projection;
 }
 
+/* PADControlMotor(chan, command) has run (gc_hook_pad_motor): a GameCube
+ * controller on that port took it from the original; a Wii Remote that
+ * plays on the port gets it from the next PADRead (gc_bt_poll). */
+void gc_on_pad_motor(struct gc_rt_context* ctx, uint32_t chan, uint32_t command) {
+    if (ctx->bt) gc_bt_motor((struct gc_bt*)(uintptr_t)ctx->bt, chan, command, (ctx->flags & GC_FLAG_REMOTE_RUMBLE) != 0);
+    if (ctx->gcad) gc_gcad_motor((struct gc_gcad*)(uintptr_t)ctx->gcad, chan, command);
+}
+
 uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t result) {
     const uint32_t n = ctx->pad_reads++;
     /* The four PADStatus (12 bytes each) the game asked for, read and
@@ -1315,12 +2088,31 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
     if (status < 0x80000000u || status > 0x81800000u - 4u * 12u || (status & 1u) != 0) status = 0;
     gc_guard(ctx);  /* once a frame: IOS rewrites its counter there all the time */
     gc_stream_fetch(ctx);  /* the music ring's top-up, once a frame */
+    /* The adapter's controllers first: they take their ports before the
+     * Wii Remotes fill what is left (gc_gcad.h). */
+    if (ctx->gcad && status != 0) {
+        struct gc_gcad* ad = (struct gc_gcad*)(uintptr_t)ctx->gcad;
+        gc_gcad_poll(ctx, ad);
+        gc_gcad_fill(ad, (uint8_t*)(uintptr_t)status);
+    }
     if (ctx->bt && status != 0) {
         struct gc_bt* bt = (struct gc_bt*)(uintptr_t)ctx->bt;
-        gc_bt_poll(ctx, bt);
-        gc_bt_fill(bt, (uint8_t*)(uintptr_t)status);
+        if (ctx->flags & GC_FLAG_FAKE_REMOTE) {
+            gc_bt_fake(bt, (uint8_t*)(uintptr_t)status, n, (ctx->flags & GC_FLAG_FAKE_PRO) != 0);
+        } else {
+            gc_bt_poll(ctx, bt);
+            gc_bt_fill(bt, (uint8_t*)(uintptr_t)status);
+        }
     }
     if (n % 300 == 0) gc_trace(ctx, GC_TRACE_PAD);
+    /* The test of the motor: the game's own PADControlMotor, rumble at
+     * the 30th read of every 240 and stop at the 150th. */
+    if ((ctx->flags & GC_FLAG_RUMBLE_TEST) && ctx->test_motor != 0 && ctx->bt && (n % 120) == 30) {
+        /* The port the test remote plays on: Dolphin's own GameCube
+         * controller may hold port 1, which moves the remote to port 2. */
+        const uint32_t port = ((const struct gc_bt*)(uintptr_t)ctx->bt)->port_of[0];
+        if (port < 4u) ((void (*)(uint32_t, uint32_t))(uintptr_t)ctx->test_motor)(port, (n % 240) == 30 ? 1u : 0u);
+    }
     if ((ctx->flags & GC_FLAG_PRESS) && status != 0 && (n % 240) < 10) {
         uint8_t* p = (uint8_t*)(uintptr_t)status;
         const uint32_t which = (n / 240) % 3;
@@ -1337,6 +2129,33 @@ uint32_t gc_on_pad_read(struct gc_rt_context* ctx, uint32_t status, uint32_t res
         p[10] = 0;
     }
     if (status != 0) gc_leave_check(ctx, (const uint8_t*)(uintptr_t)status);
+    gc_reset_check(ctx, n);
+    if ((ctx->flags & GC_FLAG_EXEC_TEST) && n == 1500) {
+        /* As OSExec("", {"rwtest"}) would: __OSBootDol's "0" (the disc's
+         * own program) first, the restart code OSExec passes. Built a
+         * character at a time: the blob has no constant data. */
+        char program[2], argument[7];
+        uint32_t argv[3], args[7];
+        program[0] = '0';
+        program[1] = 0;
+        argument[0] = 'r';
+        argument[1] = 'w';
+        argument[2] = 't';
+        argument[3] = 'e';
+        argument[4] = 's';
+        argument[5] = 't';
+        argument[6] = 0;
+        argv[0] = (uint32_t)(uintptr_t)program;
+        argv[1] = (uint32_t)(uintptr_t)argument;
+        argv[2] = 0;
+        args[0] = 0xFFFFFFFFu;
+        args[1] = 0xC0000000u;
+        args[2] = args[3] = 0;
+        args[4] = 0;
+        args[5] = 2;
+        args[6] = (uint32_t)(uintptr_t)argv;
+        gc_on_boot_dol(ctx, args);
+    }
     if ((ctx->flags & GC_FLAG_CRASH) && n == 600) {
         /* The crash screen's test on a blanked screen: no active lines, as
          * the SDK has from VIInit to the game's first frame. */
@@ -1425,10 +2244,6 @@ uint32_t gc_on_ar_dma(struct gc_rt_context* ctx, uint32_t type, uint32_t main, u
  * Only registers are read here (the DSP's control register and the PI's
  * cause): nothing is masked, delayed or written. When the caller has
  * interrupts on, the interrupt is taken as it comes and nothing waits. */
-#define GC_DSP_CSR 0xCC00500Au
-#define GC_DSP_CSR_ARINT 0x0020u      /* an ARAM transfer finished (cleared by the game's handler) */
-#define GC_DSP_CSR_ARINTMSK 0x0040u   /* ... and raises the DSP interrupt */
-#define GC_DSP_CSR_DMA_BUSY 0x0200u   /* an ARAM transfer is going (ARGetDMAStatus) */
 #define GC_PI_CAUSE 0xCC003000u
 #define GC_PI_CAUSE_DSP 0x00000040u
 #define GC_MSR_EE 0x8000u
@@ -1461,7 +2276,13 @@ void gc_after_ar_dma(struct gc_rt_context* ctx) {
 void gc_on_trace_now(struct gc_rt_context* ctx, uint32_t where) {
     /* The jump's: the VI shows RiftWii's last frame, in the game's TV
      * format, until the game's VIInit. */
-    if (where == GC_TRACE_JUMP) gc_vi_note(ctx);
+    if (where == GC_TRACE_JUMP) {
+        gc_vi_note(ctx);
+        gc_vi_read_all(ctx->vi_at_jump);  /* for the hand-over (gc_vi_hand_over) */
+        /* and the audio hardware as the first start has it (gc_audio_reset) */
+        ctx->ar_config_at_jump = gc_read16(GC_AR_SIZE) << 16 | gc_read16(GC_AR_REFRESH);
+        ctx->ai_cr_at_jump = gc_read32(GC_AI_CR);
+    }
     gc_trace(ctx, where);
 }
 
@@ -1673,6 +2494,8 @@ void gc_on_fatal(struct gc_rt_context* ctx, uint32_t exception, uint32_t os_cont
     ctx->busy = 0;  /* a crash inside a read leaves it set; nothing else runs now */
     gc_trace(ctx, GC_TRACE_FATAL);
     gc_crash_screen(ctx, os_context);
+    /* Nothing reads the pads now to switch a Wii Remote's motor off. */
+    if (ctx->bt) gc_bt_stop_rumble(ctx, (struct gc_bt*)(uintptr_t)ctx->bt);
     gc_crash_wait(ctx);
 }
 

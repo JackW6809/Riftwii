@@ -8,6 +8,7 @@
 #include <ogc/lwp_watchdog.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -37,6 +38,19 @@ class CardStore final : public riifs::LocalStore {
 public:
     ~CardStore() override {
         if (file_) std::fclose(file_);
+    }
+    // Asked of libfat once and then counted down as files are written: its
+    // statvfs can walk the whole FAT, and a sync asks before every file.
+    // Asked again when the count runs low or files were removed, so a card
+    // with room is never refused on an old count.
+    std::uint64_t free_bytes() override {
+        if (!free_known_ || free_ < kRecheckBelow) {
+            struct statvfs vfs;
+            if (statvfs("sd:/", &vfs) != 0) return UINT64_MAX;
+            free_ = static_cast<std::uint64_t>(vfs.f_bavail) * vfs.f_frsize;
+            free_known_ = true;
+        }
+        return free_;
     }
     bool file_size(const std::string& path, std::uint64_t& size, bool& exists) override {
         struct stat st;
@@ -78,6 +92,9 @@ public:
         }
     }
     bool begin_file(const std::string& path) override {
+        // A file replaced gives its space back: counted again when asked.
+        struct stat st;
+        if (stat(path.c_str(), &st) == 0) free_known_ = false;
         if (file_) std::fclose(file_);
         path_ = path;
         file_ = std::fopen(path.c_str(), "wb");
@@ -85,16 +102,21 @@ public:
         return file_ != nullptr;
     }
     bool write(const std::uint8_t* data, std::size_t length) override {
+        free_ -= std::min<std::uint64_t>(free_, length);
         return file_ && std::fwrite(data, 1, length, file_) == length;
     }
     bool end_file(bool keep) override {
         if (!file_) return false;
         const bool closed = std::fclose(file_) == 0;
         file_ = nullptr;
-        if (!keep || !closed) unlink(path_.c_str());
+        if (!keep || !closed) {
+            unlink(path_.c_str());
+            free_known_ = false;  // its space is back
+        }
         return closed;
     }
     bool remove(const std::string& path) override {
+        free_known_ = false;
         struct stat st;
         if (stat(path.c_str(), &st) != 0) return true;
         if (!S_ISDIR(st.st_mode)) return unlink(path.c_str()) == 0;
@@ -110,6 +132,9 @@ public:
 private:
     FILE* file_ = nullptr;
     std::string path_;
+    static constexpr std::uint64_t kRecheckBelow = std::uint64_t(64) << 20;
+    std::uint64_t free_ = 0;
+    bool free_known_ = false;
 };
 
 std::string read_text(const std::string& path) {

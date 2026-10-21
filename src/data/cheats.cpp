@@ -391,24 +391,90 @@ bool fill_cheat_values(std::string& text, const std::string& name, const std::ve
     return true;
 }
 
-std::string merge_cheat_text(const std::string& fresh, const std::string& old, std::size_t& kept) {
+namespace {
+
+// The name the cheat list gives the `occurrence`-th block titled `title`
+// (1 for the first): repeats get " (2)", " (3)" as find_cheat names them.
+std::string listed_name(const std::string& title, int occurrence) {
+    return occurrence > 1 ? title + " (" + std::to_string(occurrence) + ")" : title;
+}
+
+// Whether a turned-on cheat's name would run other code in `after` than
+// in `before`. Names are numbered across the whole file ("Name (2)"), so a
+// download that adds a block of the same name earlier moves the player's
+// block to the next number, and the name turned on would then run the
+// download's code, whatever the merge kept (FU-02). Checked for every
+// revision either file has a heading for, for the game's own revision
+// when neither has one (a number no heading uses), and for no revision.
+// A name turned on that the old file has under no revision at all (kept
+// from a file for another release) would run whatever the download names
+// so: that counts too. One the old file has for some revision only may
+// come for another, as a download adding a release's heading does.
+bool enabled_code_moved(const CheatBlocks& before, const CheatBlocks& after, const std::set<std::string>& enabled) {
+    constexpr int kUnheadedRevision = 256;  // headings name 0..255
+    std::set<int> revisions = {kAnyRevision, kUnheadedRevision};
+    for (int section : before.section) revisions.insert(section);
+    for (int section : after.section) revisions.insert(section);
+    CheatBlocks after_copy = after;  // find_cheat takes a mutable file
+    CheatBlocks before_copy = before;
+    for (const std::string& name : enabled) {
+        bool in_before = false;
+        bool in_after = false;
+        for (int revision : revisions) {
+            const std::vector<std::string>* was = find_cheat(before_copy, name, revision);
+            const std::vector<std::string>* now = find_cheat(after_copy, name, revision);
+            if (now) in_after = true;
+            if (!was) continue;
+            in_before = true;
+            if (now && codes_of(*now) != codes_of(*was)) return true;
+        }
+        if (!in_before && in_after) return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+std::string merge_cheat_text(const std::string& fresh, const std::string& old, std::size_t& kept,
+                             const std::set<std::string>& enabled, std::size_t* held, bool* kept_old) {
     kept = 0;
+    if (held) *held = 0;
+    if (kept_old) *kept_old = false;
     CheatBlocks merged = split_blocks(fresh);
     const CheatBlocks before = split_blocks(old);
     std::vector<std::size_t> added;  // indexes into before.blocks
     for (std::size_t m = 0; m < before.blocks.size(); ++m) {
         const std::vector<std::string>& mine = before.blocks[m];
         if (!is_cheat(mine)) continue;
+        // Which of its name this is: among the blocks the list shows with
+        // it (its own heading's and those for every revision, as find_cheat
+        // numbers them "(2)"), and within its heading (paired with the
+        // download's block in the same place).
+        int listed = 1;
+        int in_section = 0;
+        for (std::size_t e = 0; e < m; ++e) {
+            if (!is_cheat(before.blocks[e]) || before.blocks[e][0] != mine[0]) continue;
+            if (before.section[e] == before.section[m]) ++in_section;
+            if (before.section[e] == before.section[m] || before.section[e] == kAnyRevision) ++listed;
+        }
         bool found = false;
+        int match = 0;
         for (std::size_t t = 0; t < merged.blocks.size(); ++t) {
             std::vector<std::string>& theirs = merged.blocks[t];
             // Two releases' cheats of the same name are different codes.
             if (!is_cheat(theirs) || theirs[0] != mine[0] || merged.section[t] != before.section[m]) continue;
+            if (match++ != in_section) continue;
             found = true;
             // Values filled in by hand stay filled in.
             if (has_placeholders(theirs) && !has_placeholders(mine)) {
                 theirs = mine;
                 ++kept;
+            } else if (codes_of(theirs) != codes_of(mine) && enabled.count(listed_name(mine[0], listed))) {
+                // Turned on, and the code changed: the player's code stays
+                // (notes alone changing take the download's).
+                theirs = mine;
+                ++kept;
+                if (held) ++*held;
             }
             break;
         }
@@ -418,6 +484,12 @@ std::string merge_cheat_text(const std::string& fresh, const std::string& old, s
         }
     }
     for (std::size_t m : added) insert_in_section(merged, before, m);
+    if (enabled_code_moved(before, merged, enabled)) {
+        kept = 0;
+        if (held) *held = 0;
+        if (kept_old) *kept_old = true;
+        return old;
+    }
     return join_blocks(merged);
 }
 

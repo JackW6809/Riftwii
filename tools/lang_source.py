@@ -64,6 +64,22 @@ T = {
         "USBドライブを読み込んでいます...(大きなドライブは少し時間がかかります)",
         "Lendo a unidade USB... (uma unidade grande demora um pouco)",
         "Lettura dell'unità USB... (un'unità grande richiede un momento)"),
+    # {1} a game's name: picked on Home while the drives were still being read.
+    "{1} opens once RiftWii has finished reading the drives.": (
+        "{1} se abrirá cuando RiftWii termine de leer las unidades.",
+        "{1}は、RiftWiiがドライブを読み終わると開きます。",
+        "{1} abre quando o RiftWii terminar de ler as unidades.",
+        "{1} si aprirà quando RiftWii avrà finito di leggere le unità."),
+    "RiftWii is still reading the drives.": (
+        "RiftWii todavía está leyendo las unidades.",
+        "RiftWiiはまだドライブを読み込んでいます。",
+        "O RiftWii ainda está lendo as unidades.",
+        "RiftWii sta ancora leggendo le unità."),
+    "Waiting for RiftWii to finish reading the drives...": (
+        "Esperando a que RiftWii termine de leer las unidades...",
+        "RiftWiiがドライブを読み終わるのを待っています...",
+        "Esperando o RiftWii terminar de ler as unidades...",
+        "In attesa che RiftWii finisca di leggere le unità..."),
     "Reading the disc...": ("Leyendo el disco...", "ディスクを読み込んでいます...", "Lendo o disco...", "Lettura del disco..."),
     "scan failed": ("error al buscar", "検索に失敗しました", "falha na busca", "ricerca non riuscita"),
     "(the menu runs under IOS {1}; USB drives need a base-58 cIOS for that, or set the menu IOS back to 58)": (
@@ -346,6 +362,13 @@ T = {
                                   "Scarica nomi e trucchi"),
     "Get the latest game names": ("Actualizar nombres de juegos", "最新のゲーム名を取得", "Atualizar nomes dos jogos",
                                   "Aggiorna i nomi dei giochi"),
+    "Download missing covers": ("Descargar portadas que faltan", "足りないカバーをダウンロード", "Baixar capas que faltam",
+                                "Scarica le copertine mancanti"),
+    "Missing covers will be downloaded when you go back to Home.": (
+        "Las portadas que faltan se descargarán cuando vuelvas a Inicio.",
+        "ホームに戻ると、足りないカバーをダウンロードします。",
+        "As capas que faltam serão baixadas quando você voltar ao Início.",
+        "Le copertine mancanti verranno scaricate quando torni alla Home."),
     "Update": ("Actualizar", "更新", "Atualizar", "Aggiorna"),
     "Menu IOS": ("IOS del menú", "メニューのIOS", "IOS do menu", "IOS del menu"),
     "Menu IOS: IOS 58 (no d2x cIOS found)": ("IOS del menú: IOS 58 (no hay cIOS d2x)", "メニューのIOS: IOS 58 (d2x cIOSなし)",
@@ -555,16 +578,21 @@ T = {
         "GameTDBから最新のゲーム名をダウンロードします。",
         "Baixa os nomes de jogos mais recentes do GameTDB.",
         "Scarica i nomi dei giochi più recenti da GameTDB."),
+    "Downloads the covers, boxes and 3D covers Home does not have yet from GameTDB. A game GameTDB has no picture for stays without one.": (
+        "Descarga de GameTDB las portadas, cajas y portadas 3D que faltan en Inicio. Si GameTDB no tiene imagen de un juego, seguirá sin ella.",
+        "ホームにまだないカバー、ケース、3DカバーをGameTDBからダウンロードします。GameTDBに画像がないゲームは、画像なしのままです。",
+        "Baixa do GameTDB as capas, caixas e capas 3D que ainda faltam no Início. Um jogo sem imagem no GameTDB continua sem ela.",
+        "Scarica da GameTDB le copertine, le custodie e le copertine 3D che mancano nella Home. Un gioco senza immagini su GameTDB resta senza."),
     "Shows live what the controllers in the adapter are pressing.": (
         "Muestra en directo lo que pulsan los mandos del adaptador.",
         "接続タップのコントローラで押しているボタンをその場で表示します。",
         "Mostra ao vivo o que os controles do adaptador estão apertando.",
         "Mostra in tempo reale cosa premono i controller dell'adattatore."),
-    "Reads the SD card and the USB drive again.": (
-        "Vuelve a leer la tarjeta SD y la unidad USB.",
-        "SDカードとUSBドライブをもう一度読み込みます。",
-        "Lê o cartão SD e a unidade USB de novo.",
-        "Rilegge la scheda SD e l'unità USB."),
+    "Reads the SD card and the USB drive again, and retries missing covers, boxes and 3D covers.": (
+        "Vuelve a leer la tarjeta SD y la unidad USB, e intenta descargar de nuevo las portadas, cajas y portadas 3D que faltan.",
+        "SDカードとUSBドライブをもう一度読み込み、足りないカバー、ケース、3Dカバーのダウンロードをもう一度試します。",
+        "Lê o cartão SD e a unidade USB de novo e tenta baixar novamente as capas, caixas e capas 3D que faltam.",
+        "Rilegge la scheda SD e l'unità USB e riprova a scaricare le copertine, le custodie e le copertine 3D mancanti."),
     "No d2x cIOS was found in slots 248 to 252, so the menu runs under IOS 58. Install d2x to play games from SD or USB.": (
         "No se encontró ningún cIOS d2x en los slots 248 a 252, así que el menú usa el IOS 58. Instala d2x para jugar desde SD o USB.",
         "スロット248〜252にd2x cIOSがないため、メニューはIOS 58で動いています。SDやUSBのゲームを遊ぶにはd2xを入れてください。",
@@ -690,11 +718,11 @@ T = {
         "GameTDBからカバーを取得中: 残り{1}",
         "Baixando capas do GameTDB: faltam {1}",
         "Scaricamento copertine da GameTDB: ne mancano {1}"),
-    "Covers could not be downloaded ({1}). To try again, use Settings > Look for games again.": (
-        "No se pudieron descargar las portadas ({1}). Para volver a intentarlo, usa Ajustes > Buscar juegos de nuevo.",
-        "カバーをダウンロードできませんでした ({1})。設定 > ゲームをもう一度探す でもう一度試せます。",
-        "Não foi possível baixar as capas ({1}). Para tentar de novo, use Configurações > Procurar jogos de novo.",
-        "Impossibile scaricare le copertine ({1}). Per riprovare, usa Impostazioni > Cerca di nuovo i giochi."),
+    "Covers could not be downloaded ({1}). To try again, use Settings > Online > Download missing covers.": (
+        "No se pudieron descargar las portadas ({1}). Para volver a intentarlo, usa Ajustes > En línea > Descargar portadas que faltan.",
+        "カバーをダウンロードできませんでした ({1})。設定 > オンライン > 足りないカバーをダウンロード でもう一度試せます。",
+        "Não foi possível baixar as capas ({1}). Para tentar de novo, use Configurações > Online > Baixar capas que faltam.",
+        "Impossibile scaricare le copertine ({1}). Per riprovare, usa Impostazioni > Online > Scarica le copertine mancanti."),
     "Cover": ("Portada", "カバー", "Capa", "Copertina"),
     "Download again": ("Volver a descargar", "もう一度ダウンロード", "Baixar de novo", "Scarica di nuovo"),
     "Downloads this game's box art from GameTDB now.": (
@@ -749,6 +777,14 @@ T = {
         "メニューを開いている間の音楽です: sd:/riftwiiのmusic.ogg、なければRiftWiiのフォルダのものを流します。",
         "Música enquanto o menu está aberto: music.ogg de sd:/riftwii, ou a da pasta do RiftWii.",
         "Musica mentre il menu è aperto: music.ogg da sd:/riftwii, o quella nella cartella di RiftWii."),
+    "Launch music": ("Música al iniciar", "起動中の音楽", "Música ao iniciar", "Musica all'avvio"),
+    "Keep playing": ("Seguir sonando", "流し続ける", "Continuar tocando", "Continua a suonare"),
+    "Fade out": ("Desvanecer", "フェードアウト", "Diminuir aos poucos", "Dissolvenza"),
+    "Keep playing: the menu's music plays on under the launch screen and fades out as the game starts. Fade out: it fades out when you start a game.": (
+        "Seguir sonando: la música del menú continúa bajo la pantalla de inicio y se desvanece al empezar el juego. Desvanecer: se desvanece al iniciar un juego.",
+        "流し続ける: メニューの音楽は起動画面でも流れ続け、ゲームが始まるときにフェードアウトします。フェードアウト: ゲームを起動するときにフェードアウトします。",
+        "Continuar tocando: a música do menu segue tocando na tela de início e some aos poucos quando o jogo começa. Diminuir aos poucos: ela some ao iniciar um jogo.",
+        "Continua a suonare: la musica del menu prosegue sotto la schermata di avvio e sfuma quando parte il gioco. Dissolvenza: sfuma quando avvii un gioco."),
     "Music is on, but there is none to play: put a music.ogg in sd:/riftwii, or pick a theme with music.": (
         "La música está activada, pero no hay nada que sonar: pon un music.ogg en sd:/riftwii o elige un tema con música.",
         "音楽はオンですが、流す曲がありません。sd:/riftwiiにmusic.oggを置くか、音楽のあるテーマを選んでください。",
@@ -841,11 +877,26 @@ T = {
         "Così non funziona: {1} è sull'unità USB, e RiftWii legge l'unità USB durante una partita solo se anche il gioco è lì. Metti il gioco sull'unità USB, oppure metti {1} nella cartella riftwii della SD."),
     # Updates (the pop-ups at start, and the Settings row)
     "Updating RiftWii": ("Actualizando RiftWii", "RiftWiiを更新しています", "Atualizando a RiftWii", "Aggiornamento di RiftWii"),
-    "RiftWii {1} is out. Downloading and installing it now; this takes a minute...": (
-        "Ya salió RiftWii {1}. Se está descargando e instalando; tarda un minuto...",
-        "RiftWii {1}が出ています。ダウンロードしてインストールしています。1分ほどかかります...",
-        "Saiu a RiftWii {1}. Baixando e instalando agora; leva um minuto...",
-        "È uscita RiftWii {1}. La sto scaricando e installando; ci vuole un minuto..."),
+        "RiftWii {1} is out. Installing it now; this takes a few minutes.": (
+        "Ya salió RiftWii {1}. Se está instalando; tarda unos minutos.",
+        "RiftWii {1}が出ています。インストールしています。数分かかります。",
+        "Saiu a RiftWii {1}. Instalando agora; leva alguns minutos.",
+        "È uscita RiftWii {1}. La sto installando; ci vogliono alcuni minuti."),
+    # {1} megabytes so far, {2} megabytes in all.
+    "Downloading RiftWii ({1} of {2} MB)": (
+        "Descargando RiftWii ({1} de {2} MB)", "RiftWiiをダウンロード中 ({1} / {2} MB)",
+        "Baixando a RiftWii ({1} de {2} MB)", "Scaricamento di RiftWii ({1} di {2} MB)"),
+    "Downloading RiftWii...": (
+        "Descargando RiftWii...", "RiftWiiをダウンロード中...", "Baixando a RiftWii...", "Scaricamento di RiftWii..."),
+    "Downloading plugins ({1} of {2} MB)": (
+        "Descargando complementos ({1} de {2} MB)", "プラグインをダウンロード中 ({1} / {2} MB)",
+        "Baixando plugins ({1} de {2} MB)", "Scaricamento dei plugin ({1} di {2} MB)"),
+    "Downloading plugins...": (
+        "Descargando complementos...", "プラグインをダウンロード中...", "Baixando plugins...", "Scaricamento dei plugin..."),
+    "Checking the download...": (
+        "Comprobando la descarga...", "ダウンロードを確認中...", "Verificando o download...", "Controllo del download..."),
+    "Writing to the SD card...": (
+        "Escribiendo en la tarjeta SD...", "SDカードに書き込み中...", "Gravando no cartão SD...", "Scrittura sulla scheda SD..."),
     "Update failed": ("La actualización falló", "更新に失敗しました", "A atualização falhou", "Aggiornamento non riuscito"),
     # {1} the new version, {2} why, {3} where to get it.
     "RiftWii {1} could not be installed: {2}. This version keeps working; the new one is at {3}": (
@@ -1282,6 +1333,11 @@ T = {
         "RiftWii li ignora, ma occupano spazio e possono confondere altri homebrew. Per rimuoverli, inserisci la scheda "
         "nel tuo Mac, apri il Terminale e scrivi: dot_clean -m /Volumes/ seguito dal nome della scheda. Su Windows, "
         "elimina i file il cui nome inizia con \"._\"."),
+    "RiftWii doesn't play CISO files. Convert it to ISO or RVZ with Dolphin (right-click the game, Convert File).": (
+        "RiftWii no juega archivos CISO. Conviértelo a ISO o RVZ con Dolphin (clic derecho en el juego, Convertir archivo).",
+        "RiftWiiはCISOファイルを遊べません。DolphinでISOかRVZに変換してください（ゲームを右クリックして「ファイルを変換」）。",
+        "O RiftWii não roda arquivos CISO. Converta para ISO ou RVZ com o Dolphin (clique com o botão direito no jogo, Converter arquivo).",
+        "RiftWii non avvia i file CISO. Convertilo in ISO o RVZ con Dolphin (clic destro sul gioco, Converti file)."),
     "This code mod can't start": ("Este mod de códigos no puede iniciarse", "このコードModは起動できません",
         "Este mod de códigos não pode iniciar", "Questo mod di codici non può partire"),
     "How should this code mod start?": (
@@ -1364,6 +1420,9 @@ T = {
     "It replaces the {1} there now.": ("Reemplaza el {1} que hay ahora.", "今ある{1}を置き換えます。", "Substitui o {1} que está lá agora.", "Sostituisce il {1} che c'è ora."),
     "Make an SD image?": ("¿Crear una imagen SD?", "SDイメージを作りますか?", "Criar uma imagem SD?", "Creare un'immagine SD?"),
     "Make it": ("Crearla", "作成", "Criar", "Creala"),
+    "The SD card is too fragmented": ("La tarjeta SD está demasiado fragmentada", "SDカードの断片化がひどすぎます", "O cartão SD está fragmentado demais", "La scheda SD è troppo frammentata"),
+    "The free space on the SD card is too scattered. {1} would be written in more than {2} pieces, which is more than RiftWii can follow, so the game would not start from it. Free up space or format the SD card (copy its files off first), then try again. Or build it anyway.": ("El espacio libre de la tarjeta SD está demasiado disperso. {1} se escribiría en más de {2} fragmentos, más de los que RiftWii puede seguir, así que el juego no arrancaría con ella. Libera espacio o formatea la tarjeta SD (copia antes sus archivos) y vuelve a intentarlo. O créala de todos modos.", "SDカードの空き領域が細かく散らばりすぎています。{1}は{2}個を超える断片に書き込まれ、RiftWiiが扱える数を超えるため、ゲームは起動しません。空き容量を作るかSDカードをフォーマットして(先にファイルをコピーしてください)、もう一度お試しください。このまま作成することもできます。", "O espaço livre do cartão SD está disperso demais. {1} seria gravada em mais de {2} pedaços, mais do que o RiftWii consegue seguir, então o jogo não iniciaria com ela. Libere espaço ou formate o cartão SD (copie os arquivos antes) e tente de novo. Ou crie assim mesmo.", "Lo spazio libero della scheda SD è troppo sparso. {1} verrebbe scritta in più di {2} pezzi, più di quelli che RiftWii può seguire, quindi il gioco non partirebbe. Libera spazio o formatta la scheda SD (prima copia i suoi file) e riprova. Oppure creala comunque."),
+    "Build anyway": ("Crear igualmente", "このまま作成", "Criar mesmo assim", "Crea comunque"),
     "Making {1}": ("Creando {1}", "{1}を作成中", "Criando {1}", "Creazione di {1}"),
     "Stop": ("Detener", "中止", "Parar", "Interrompi"),
     "{1} minutes left": ("Faltan {1} minutos", "残り{1}分", "Faltam {1} minutos", "Mancano {1} minuti"),
@@ -1922,12 +1981,12 @@ T = {
     "Which games Home lists: every drive's and the Wii's own, or one place's only. With a game on both drives, one copy is enough.": ("Qué juegos muestra el Inicio: los de cada unidad y los de la propia Wii, o solo los de un sitio. Con un juego en ambas unidades, basta una copia.", "ホームに表示するゲーム：すべてのドライブとWii本体のもの、または1か所のものだけ。両方のドライブにあるゲームは1つで十分です。", "Quais jogos o Início mostra: os de cada unidade e os do próprio Wii, ou só os de um lugar. Com um jogo nas duas unidades, basta uma cópia.", "Quali giochi mostra la Home: quelli di ogni unità e quelli della Wii stessa, o solo quelli di un posto. Con un gioco su entrambe le unità, basta una copia."),
     "This game's data was removed from the Wii, so it can't start.": ("Los datos de este juego se borraron de la Wii, así que no puede iniciarse.", "このゲームのデータはWiiから削除されているため、起動できません。", "Os dados deste jogo foram apagados do Wii, então ele não pode ser iniciado.", "I dati di questo gioco sono stati cancellati dalla Wii, quindi non può partire."),
     # What's new in the release after 2610-432
-    "GameCube games play in Wii mode (trial)": ("Los juegos de GameCube funcionan en modo Wii (prueba)", "ゲームキューブのゲームがWiiモードで遊べます（試験版）", "Jogos de GameCube rodam no modo Wii (teste)", "I giochi GameCube funzionano in modalità Wii (prova)"),
-    "WiiWare and Virtual Console games on Home": ("Juegos de WiiWare y Consola Virtual en el Inicio", "Wiiウェアとバーチャルコンソールのゲームがホームに並びます", "Jogos de WiiWare e Virtual Console no Início", "Giochi WiiWare e Virtual Console nella Home"),
-    "A game can have more Home tiles, each with its own mods": ("Un juego puede tener más casillas en el Inicio, cada una con sus mods", "1つのゲームにホームのタイルを増やし、それぞれ別のMODを使えます", "Um jogo pode ter mais blocos no Início, cada um com seus mods", "Un gioco può avere più riquadri nella Home, ognuno con le sue mod"),
-    "Put the games on Home in your own order": ("Pon los juegos del Inicio en tu propio orden", "ホームのゲームを自分の並び順にできます", "Coloque os jogos do Início na sua ordem", "Metti i giochi della Home nel tuo ordine"),
-    "Indigo: a third built-in theme": ("Indigo: un tercer tema incluido", "Indigo：3つ目の内蔵テーマ", "Indigo: um terceiro tema incluído", "Indigo: un terzo tema incluso"),
-    "Saves can be shared with USB Loader GX's emulated NAND": ("Las partidas pueden compartirse con la NAND emulada de USB Loader GX", "セーブをUSB Loader GXのエミュレートNANDと共有できます", "Os saves podem ser compartilhados com a NAND emulada do USB Loader GX", "I salvataggi si possono condividere con la NAND emulata di USB Loader GX"),
+    "GameCube games from a USB drive": ("Juegos de GameCube desde un USB", "USBドライブのゲームキューブのゲーム", "Jogos de GameCube de um USB", "Giochi GameCube da USB"),
+    "The Wii U's GameCube adapter in GameCube games": ("El adaptador GameCube de Wii U en GameCube", "ゲームキューブでWii Uのアダプターが使えます", "O adaptador GameCube do Wii U no GameCube", "L'adattatore GameCube di Wii U nel GameCube"),
+    "GameCube mods built with libogc, like Sonic Riders TE": ("Mods de GameCube con libogc, como Sonic Riders TE", "Sonic Riders TEなど、libogc製のMOD", "Mods de GameCube com libogc, como Sonic Riders TE", "Mod GameCube con libogc, come Sonic Riders TE"),
+    "WiiWare and VC: launch screen and screenshots": ("WiiWare y CV: pantalla de inicio y capturas", "Wiiウェア/VCに起動画面とスクリーンショット", "WiiWare e VC: tela de início e capturas", "WiiWare e VC: schermata di avvio e screenshot"),
+    "Problem reports can be sent again": ("Los informes de problema se envían de nuevo", "問題のレポートを再び送信できます", "Os relatórios de problema funcionam de novo", "Le segnalazioni di problema funzionano di nuovo"),
+    "A smaller RiftWii: half the download": ("Un RiftWii más pequeño: la mitad de descarga", "RiftWiiのダウンロードが半分になりました", "Um RiftWii menor: metade do download", "Un RiftWii più piccolo: metà del download"),
     # Game page: memory for RiftWii's extras
     "Memory for RiftWii's extras": ("Memoria para los extras de RiftWii", "RiftWiiの追加機能が使うメモリ", "Memória para os extras do RiftWii", "Memoria per gli extra di RiftWii"),
     "about {1} KB": ("unos {1} KB", "約{1} KB", "cerca de {1} KB", "circa {1} KB"),
@@ -1944,6 +2003,7 @@ T = {
     "What GameTDB says about the game: when it came out, how many can play, the controllers it takes and its story.": ("Lo que dice GameTDB del juego: cuándo salió, cuántos pueden jugar, los mandos que usa y su historia.", "GameTDBによるゲームの情報：発売日、遊べる人数、使えるコントローラー、ストーリー。", "O que o GameTDB diz sobre o jogo: quando saiu, quantos podem jogar, os controles que usa e a história.", "Cosa dice GameTDB del gioco: quando è uscito, quanti possono giocare, i controller che usa e la trama."),
     "Wii Remote": ("Mando de Wii", "Wiiリモコン", "Wii Remote", "Telecomando Wii"),
     "Nunchuk": ("Nunchuk", "ヌンチャク", "Nunchuk", "Nunchuk"),
+    "Wii U Pro Controller": ("Mando Pro de Wii U", "Wii U PROコントローラ", "Controle Pro do Wii U", "Wii U Pro Controller"),
     "Classic Controller": ("Mando Clásico", "クラシックコントローラ", "Classic Controller", "Controller tradizionale"),
     "GameCube controller": ("Mando de GameCube", "ゲームキューブコントローラ", "Controle do GameCube", "Controller GameCube"),
     "Balance Board": ("Wii Balance Board", "バランスWiiボード", "Balance Board", "Balance Board"),
@@ -2136,6 +2196,72 @@ T = {
         "「{1}」を消しました。このページはゲーム本来のものに戻りました。",
         "\"{1}\" removido. Esta página voltou a ser a do jogo.",
         "\"{1}\" tolto. Questa pagina è di nuovo quella del gioco."),
+    # Plugins (wii/core/plugins.cpp): a part of RiftWii that could not be loaded.
+    "A part of RiftWii is missing (the {1} add-on). Update RiftWii again.": (
+        "Falta una parte de RiftWii (el complemento {1}). Vuelve a actualizar RiftWii.",
+        "RiftWiiの一部（{1}アドオン）がありません。もう一度RiftWiiを更新してください。",
+        "Falta uma parte do RiftWii (o complemento {1}). Atualize o RiftWii de novo.",
+        "Manca una parte di RiftWii (il componente aggiuntivo {1}). Aggiorna di nuovo RiftWii."),
+    "A part of RiftWii is damaged (the {1} add-on). Update RiftWii again.": (
+        "Una parte de RiftWii está dañada (el complemento {1}). Vuelve a actualizar RiftWii.",
+        "RiftWiiの一部（{1}アドオン）が壊れています。もう一度RiftWiiを更新してください。",
+        "Uma parte do RiftWii está danificada (o complemento {1}). Atualize o RiftWii de novo.",
+        "Una parte di RiftWii è danneggiata (il componente aggiuntivo {1}). Aggiorna di nuovo RiftWii."),
+    "The {1} add-on is from a different RiftWii ({2}, this one is {3}). Update RiftWii again.": (
+        "El complemento {1} es de otro RiftWii ({2}; este es {3}). Vuelve a actualizar RiftWii.",
+        "{1}アドオンは別のRiftWiiのものです（{2}、このRiftWiiは{3}）。もう一度RiftWiiを更新してください。",
+        "O complemento {1} é de outro RiftWii ({2}; este é {3}). Atualize o RiftWii de novo.",
+        "Il componente aggiuntivo {1} è di un altro RiftWii ({2}, questo è {3}). Aggiorna di nuovo RiftWii."),
+    "There was not enough memory for the {1} add-on. Restart RiftWii and try again.": (
+        "No había memoria suficiente para el complemento {1}. Reinicia RiftWii y vuelve a intentarlo.",
+        "{1}アドオンのためのメモリが足りませんでした。RiftWiiを再起動して、もう一度試してください。",
+        "Não havia memória suficiente para o complemento {1}. Reinicie o RiftWii e tente de novo.",
+        "Non c'era abbastanza memoria per il componente aggiuntivo {1}. Riavvia RiftWii e riprova."),
+    "The {1} add-on did not start. Send a problem report so this can be fixed.": (
+        "El complemento {1} no se inició. Envía un informe de problemas para que se pueda arreglar.",
+        "{1}アドオンが起動しませんでした。直せるように、問題レポートを送ってください。",
+        "O complemento {1} não iniciou. Envie um relatório de problema para que isso seja corrigido.",
+        "Il componente aggiuntivo {1} non si è avviato. Invia una segnalazione così si può correggere."),
+    "Sharper picture": (
+        "Imagen más nítida",
+        "くっきりした画面",
+        "Imagem mais nítida",
+        "Immagine più nitida"),
+    "Off (as made)": (
+        "No (como se hizo)",
+        "オフ (元のまま)",
+        "Não (como foi feito)",
+        "No (come fatto)"),
+    "Turns off the soft blur some games add.": (
+        "Quita el ligero desenfoque que añaden algunos juegos.",
+        "一部のゲームが加えるぼかしをなくします。",
+        "Tira o leve desfoque que alguns jogos colocam.",
+        "Toglie la leggera sfocatura che alcuni giochi aggiungono."),
+    "Game speed": (
+        "Velocidad del juego",
+        "ゲームの速さ",
+        "Velocidade do jogo",
+        "Velocità del gioco"),
+    "Smoother (60 Hz)": (
+        "Más fluido (60 Hz)",
+        "なめらか (60 Hz)",
+        "Mais suave (60 Hz)",
+        "Più fluido (60 Hz)"),
+    "As made (50 Hz)": (
+        "Como se hizo (50 Hz)",
+        "元のまま (50 Hz)",
+        "Como foi feito (50 Hz)",
+        "Come fatto (50 Hz)"),
+    "Smoother plays at 60 Hz in games that have a 60 Hz mode, on a TV that takes it; the others stay at 50 Hz.": (
+        "Más fluido juega a 60 Hz en los juegos que tienen un modo de 60 Hz, en un televisor que lo admita; los demás siguen a 50 Hz.",
+        "60 Hzモードがあるゲームは、対応するテレビで60 Hzで遊べます。ほかのゲームは50 Hzのままです。",
+        "Mais suave roda a 60 Hz nos jogos que têm um modo de 60 Hz, em uma TV compatível; os outros continuam em 50 Hz.",
+        "Più fluido gioca a 60 Hz nei giochi che hanno una modalità a 60 Hz, su un televisore che la accetta; gli altri restano a 50 Hz."),
+    "Default turns 480p on when the Wii is set to 480p and a component cable is seen; pick On (480p) if your TV takes it anyway.": (
+        "Predeterminado activa 480p cuando la Wii está en 480p y se detecta un cable por componentes; elige Sí (480p) si tu televisor lo admite de todos modos.",
+        "標準では、Wiiが480pに設定されていてコンポーネントケーブルがつながっているときに480pになります。テレビが対応していれば、オン (480p) を選んでください。",
+        "Padrão liga o 480p quando o Wii está em 480p e um cabo componente é detectado; escolha Sim (480p) se a sua TV aceitar mesmo assim.",
+        "Predefinito attiva i 480p quando la Wii è impostata su 480p e viene rilevato un cavo component; scegli Sì (480p) se il televisore li accetta comunque."),
 }
 
 
@@ -2174,6 +2300,12 @@ KO = {
         "SD 카드 읽는 중...",
     "Reading the USB drive... (a big drive takes a moment)":
         "USB 드라이브를 읽는 중... (용량이 큰 드라이브는 시간이 다소 걸릴 수 있음)",
+    "{1} opens once RiftWii has finished reading the drives.":
+        "RiftWii가 드라이브를 다 읽으면 {1}이(가) 열립니다.",
+    "RiftWii is still reading the drives.":
+        "RiftWii가 아직 드라이브를 읽는 중입니다.",
+    "Waiting for RiftWii to finish reading the drives...":
+        "RiftWii가 드라이브를 다 읽기를 기다리는 중...",
     "Reading the disc...":
         "디스크 읽는 중...",
     "scan failed":
@@ -2400,6 +2532,10 @@ KO = {
         "이름 및 치트 다운로드",
     "Get the latest game names":
         "최신 게임 이름 확인",
+    "Download missing covers":
+        "없는 커버 다운로드",
+    "Missing covers will be downloaded when you go back to Home.":
+        "홈으로 돌아가면 없는 커버를 다운로드합니다.",
     "Update":
         "업데이트",
     "Menu IOS":
@@ -2528,10 +2664,12 @@ KO = {
         "메뉴 언어입니다. Wii는 본체 자체 설정을 따릅니다.",
     "Downloads the newest game names from GameTDB.":
         "GameTDB에서 최신 게임 이름을 다운로드합니다.",
+    "Downloads the covers, boxes and 3D covers Home does not have yet from GameTDB. A game GameTDB has no picture for stays without one.":
+        "홈에 아직 없는 커버, 박스 및 3D 커버를 GameTDB에서 다운로드합니다. GameTDB에 이미지가 없는 게임은 이미지 없이 남습니다.",
     "Shows live what the controllers in the adapter are pressing.":
         "어댑터에 연결된 컨트롤러의 입력 상태를 실시간으로 보여줍니다.",
-    "Reads the SD card and the USB drive again.":
-        "SD 카드와 USB 드라이브를 다시 읽습니다.",
+    "Reads the SD card and the USB drive again, and retries missing covers, boxes and 3D covers.":
+        "SD 카드와 USB 드라이브를 다시 읽고, 없는 커버, 박스 및 3D 커버 다운로드를 다시 시도합니다.",
     "No d2x cIOS was found in slots 248 to 252, so the menu runs under IOS 58. Install d2x to play games from SD or USB.":
         "슬롯 248~252에서 d2x cIOS가 발견되지 않아 메뉴가 IOS 58로 실행됩니다. SD 카드나 USB로 게임을 플레이하려면 d2x를 설치하세요.",
     "Check for a new version":
@@ -2644,8 +2782,8 @@ KO = {
         "서비스가 종료된 닌텐도 서버 대신 이 게임이 사용하는 온라인 서버입니다. 설정 파일(settings.txt)에서 wfc_domain을 사용합니다.",
     "Getting covers from GameTDB: {1} left":
         "GameTDB에서 커버 가져오는 중: {1} 개 남음",
-    "Covers could not be downloaded ({1}). To try again, use Settings > Look for games again.":
-        "커버 이미지를 ({1})에서 다운로드할 수 없습니다. 다시 시도하려면 설정 > 게임 다시 찾기를 이용하세요.",
+    "Covers could not be downloaded ({1}). To try again, use Settings > Online > Download missing covers.":
+        "커버를 다운로드할 수 없습니다 ({1}). 다시 시도하려면 설정 > 온라인 > 없는 커버 다운로드를 이용하세요.",
     "Cover":
         "커버",
     "Download again":
@@ -2684,6 +2822,14 @@ KO = {
         "실험적 기능입니다. 게임 중 1번 버튼을 누른 상태에서 홈 버튼을 누르세요 (또는 게임큐브 컨트롤러의 L과 R 버튼을 누른 상태에서 아래 방향키를 누르세요). 다음에 RiftWii를 실행하면 스크린샷이 sd:/riftwii/screenshots 경로에 저장됩니다. 일부 게임이나 모드에서는 이 기능이 작동하지 않을 수 있습니다.",
     "Music while the menu is open: music.ogg from sd:/riftwii, or the one in RiftWii's own folder.":
         "메뉴가 열려 있을 때 재생되는 음악: sd:/riftwii 경로의 music.ogg 또는 RiftWii 폴더 내의 음악 파일입니다.",
+    "Launch music":
+        "실행 중 음악",
+    "Keep playing":
+        "계속 재생",
+    "Fade out":
+        "페이드 아웃",
+    "Keep playing: the menu's music plays on under the launch screen and fades out as the game starts. Fade out: it fades out when you start a game.":
+        "계속 재생: 메뉴 음악이 시작 화면에서도 계속 흐르다가 게임이 시작될 때 서서히 사라집니다. 페이드 아웃: 게임을 시작할 때 음악이 서서히 사라집니다.",
     "Music is on, but there is none to play: put a music.ogg in sd:/riftwii, or pick a theme with music.":
         "음악이 켜져 있지만 재생할 음악이 없습니다. sd:/riftwii에 music.ogg를 넣거나 음악이 있는 테마를 고르세요.",
     "On a Wii U the GameCube adapter may not work in game from the front USB ports; the rear ones work.":
@@ -2714,8 +2860,20 @@ KO = {
         "이 방법은 작동하지 않습니다: {1} 파일이 USB 드라이브에 있는데, RiftWii는 게임 파일도 해당 USB 드라이브에 있을 때만 게임 실행 중 USB 드라이브를 읽어오기 때문입니다. 게임을 USB 드라이브로 옮기거나, SD 카드의 riftwii 폴더에 {1} 파일을 넣으세요.",
     "Updating RiftWii":
         "RiftWii 업데이트",
-    "RiftWii {1} is out. Downloading and installing it now; this takes a minute...":
-        "RiftWii {1}이(가) 출시되었습니다. 지금 다운로드 및 설치 중이고, 시간이 조금 걸리는 중...",
+        "RiftWii {1} is out. Installing it now; this takes a few minutes.":
+        "RiftWii {1}이(가) 출시되었습니다. 지금 설치 중이며 몇 분 걸립니다.",
+    "Downloading RiftWii ({1} of {2} MB)":
+        "RiftWii 다운로드 중 ({1} / {2} MB)",
+    "Downloading RiftWii...":
+        "RiftWii 다운로드 중...",
+    "Downloading plugins ({1} of {2} MB)":
+        "플러그인 다운로드 중 ({1} / {2} MB)",
+    "Downloading plugins...":
+        "플러그인 다운로드 중...",
+    "Checking the download...":
+        "다운로드 확인 중...",
+    "Writing to the SD card...":
+        "SD 카드에 쓰는 중...",
     "Update failed":
         "업데이트 실패",
     "RiftWii {1} could not be installed: {2}. This version keeps working; the new one is at {3}":
@@ -2982,6 +3140,8 @@ KO = {
         "SD 카드에 있는 Mac의 파일",
     "This SD card has hidden files that macOS makes when it copies (names that start with \"._\"). RiftWii skips them, but they fill the card and can confuse other homebrew. To remove them, put the card in your Mac, open Terminal and type: dot_clean -m /Volumes/ followed by the card's name. On Windows, delete the files whose names start with \"._\".":
         "이 SD 카드에는 macOS가 파일을 복사할 때 생성하는 숨김 파일(이름이 \"._\"로 시작하는 파일)이 포함되어 있습니다. RiftWii는 이 파일들을 무시하고 넘어가지만, 카드 용량을 차지할 뿐만 아니라 다른 홈브류 프로그램에 혼란을 줄 수 있습니다. 이를 제거하려면 카드를 Mac에 연결한 뒤 터미널을 열고 `dot_clean -m /Volumes/`를 입력한 다음 카드 이름을 이어서 입력하십시오. 윈도우의 경우, 이름이 \"._\"로 시작하는 파일을 삭제하면 됩니다.",
+    "RiftWii doesn't play CISO files. Convert it to ISO or RVZ with Dolphin (right-click the game, Convert File).":
+        "RiftWii는 CISO 파일을 실행하지 않습니다. Dolphin으로 ISO 또는 RVZ로 변환하세요(게임을 오른쪽 클릭, 파일 변환).",
     "This code mod can't start":
         "이 코드 모드는 시작되지 않음",
     "How should this code mod start?":
@@ -3066,6 +3226,12 @@ KO = {
         "SD 이미지를 만들까요?",
     "Make it":
         "만들기",
+    "The SD card is too fragmented":
+        "SD 카드가 너무 단편화되어 있습니다",
+    "The free space on the SD card is too scattered. {1} would be written in more than {2} pieces, which is more than RiftWii can follow, so the game would not start from it. Free up space or format the SD card (copy its files off first), then try again. Or build it anyway.":
+        "SD 카드의 빈 공간이 너무 흩어져 있습니다. {1}은(는) {2}개가 넘는 조각으로 기록되어 RiftWii가 따라갈 수 있는 수를 넘으므로 게임이 시작되지 않습니다. 공간을 확보하거나 SD 카드를 포맷한 뒤(먼저 파일을 복사해 두세요) 다시 시도하세요. 또는 그대로 만들 수도 있습니다.",
+    "Build anyway":
+        "그래도 만들기",
     "Making {1}":
         "{1} 만들기",
     "Stop":
@@ -3652,18 +3818,18 @@ KO = {
         "Wii 채널",
     "Which games Home lists: every drive's and the Wii's own, or one place's only. With a game on both drives, one copy is enough.":
         "홈에 표시할 게임: 모든 드라이브와 Wii 본체의 게임, 또는 한 곳의 게임만. 두 드라이브에 같은 게임이 있으면 하나면 충분합니다.",
-    "GameCube games play in Wii mode (trial)":
-        "게임큐브 게임을 Wii 모드에서 플레이할 수 있습니다(시험판)",
-    "WiiWare and Virtual Console games on Home":
-        "WiiWare와 버추얼 콘솔 게임이 홈에 표시됩니다",
-    "A game can have more Home tiles, each with its own mods":
-        "한 게임에 홈 타일을 더 만들고 타일마다 다른 MOD를 쓸 수 있습니다",
-    "Put the games on Home in your own order":
-        "홈의 게임을 원하는 순서로 놓을 수 있습니다",
-    "Indigo: a third built-in theme":
-        "Indigo: 세 번째 기본 테마",
-    "Saves can be shared with USB Loader GX's emulated NAND":
-        "세이브를 USB Loader GX의 에뮬레이트 NAND와 공유할 수 있습니다",
+    "GameCube games from a USB drive":
+        "USB 드라이브의 게임큐브 게임",
+    "The Wii U's GameCube adapter in GameCube games":
+        "게임큐브 게임에서 Wii U 게임큐브 어댑터",
+    "GameCube mods built with libogc, like Sonic Riders TE":
+        "Sonic Riders TE 같은 libogc 게임큐브 MOD",
+    "WiiWare and VC: launch screen and screenshots":
+        "WiiWare와 VC: 실행 화면과 스크린샷",
+    "Problem reports can be sent again":
+        "문제 보고서를 다시 보낼 수 있습니다",
+    "A smaller RiftWii: half the download":
+        "더 작아진 RiftWii: 다운로드 절반",
     "Memory for RiftWii's extras":
         "RiftWii 추가 기능이 쓰는 메모리",
     "about {1} KB":
@@ -3694,6 +3860,8 @@ KO = {
         "Wii 리모컨",
     "Nunchuk":
         "눈차크",
+    "Wii U Pro Controller":
+        "Wii U 프로 컨트롤러",
     "Classic Controller":
         "클래식 컨트롤러",
     "GameCube controller":
@@ -3892,6 +4060,32 @@ KO = {
         "\"{1}\" 타일이 자체 MOD와 설정, 그리고 sd:/riftwii/profiles의 그림(있다면)과 함께 홈에서 사라집니다. 게임과 MOD는 그대로 남습니다.",
     "Removed \"{1}\". This page is the game's own again.":
         "\"{1}\" 타일을 제거했습니다. 이 페이지는 다시 게임 자체의 페이지입니다.",
+    "A part of RiftWii is missing (the {1} add-on). Update RiftWii again.":
+        "RiftWii의 일부({1} 애드온)가 없습니다. RiftWii를 다시 업데이트해 주세요.",
+    "A part of RiftWii is damaged (the {1} add-on). Update RiftWii again.":
+        "RiftWii의 일부({1} 애드온)가 손상되었습니다. RiftWii를 다시 업데이트해 주세요.",
+    "The {1} add-on is from a different RiftWii ({2}, this one is {3}). Update RiftWii again.":
+        "{1} 애드온은 다른 RiftWii의 것입니다({2}, 이 RiftWii는 {3}). RiftWii를 다시 업데이트해 주세요.",
+    "There was not enough memory for the {1} add-on. Restart RiftWii and try again.":
+        "{1} 애드온에 필요한 메모리가 부족했습니다. RiftWii를 다시 시작한 뒤 다시 시도해 주세요.",
+    "The {1} add-on did not start. Send a problem report so this can be fixed.":
+        "{1} 애드온이 시작되지 않았습니다. 이 문제가 해결될 수 있도록 오류 보고서를 보내주세요.",
+    "Sharper picture":
+        "더 선명한 화면",
+    "Off (as made)":
+        "끔 (원래대로)",
+    "Turns off the soft blur some games add.":
+        "일부 게임이 더하는 부드러운 흐림을 끕니다.",
+    "Game speed":
+        "게임 속도",
+    "Smoother (60 Hz)":
+        "더 부드럽게 (60 Hz)",
+    "As made (50 Hz)":
+        "원래대로 (50 Hz)",
+    "Smoother plays at 60 Hz in games that have a 60 Hz mode, on a TV that takes it; the others stay at 50 Hz.":
+        "60 Hz 모드가 있는 게임은 이를 지원하는 TV에서 60 Hz로 플레이합니다. 다른 게임은 50 Hz로 남습니다.",
+    "Default turns 480p on when the Wii is set to 480p and a component cable is seen; pick On (480p) if your TV takes it anyway.":
+        "기본은 Wii가 480p로 설정되어 있고 컴포넌트 케이블이 감지될 때 480p를 켭니다. TV가 지원한다면 켬 (480p)을 고르세요.",
 }
 
 # French, a table of its own (msgid: text), from MidyGamy's translation
@@ -3929,6 +4123,12 @@ FR = {
         "Lecture de la carte SD...",
     "Reading the USB drive... (a big drive takes a moment)":
         "Lecture du stockage USB... (un grand stockage peut prendre un moment)",
+    "{1} opens once RiftWii has finished reading the drives.":
+        "{1} s'ouvrira une fois que RiftWii aura fini de lire les stockages.",
+    "RiftWii is still reading the drives.":
+        "RiftWii est encore en train de lire les stockages.",
+    "Waiting for RiftWii to finish reading the drives...":
+        "En attente que RiftWii finisse de lire les stockages...",
     "Reading the disc...":
         "Lecture du disque...",
     "scan failed":
@@ -4155,6 +4355,10 @@ FR = {
         "Télécharger noms et codes de triche",
     "Get the latest game names":
         "Obtenir les derniers noms de jeux",
+    "Download missing covers":
+        "Télécharger les jaquettes manquantes",
+    "Missing covers will be downloaded when you go back to Home.":
+        "Les jaquettes manquantes seront téléchargées au retour à l'accueil.",
     "Update":
         "Mettre à jour",
     "Menu IOS":
@@ -4283,10 +4487,12 @@ FR = {
         "Langue du menu. \"Wii\" utilise le paramètre de la console.",
     "Downloads the newest game names from GameTDB.":
         "Télécharge les derniers noms de jeux depuis GameTDB.",
+    "Downloads the covers, boxes and 3D covers Home does not have yet from GameTDB. A game GameTDB has no picture for stays without one.":
+        "Télécharge depuis GameTDB les jaquettes, boîtiers et jaquettes 3D qui manquent à l'accueil. Un jeu sans image sur GameTDB reste sans image.",
     "Shows live what the controllers in the adapter are pressing.":
         "Affiche en direct les entrées des manettes branchées sur l'adaptateur.",
-    "Reads the SD card and the USB drive again.":
-        "Relance la lecture de la carte SD et du stockage USB.",
+    "Reads the SD card and the USB drive again, and retries missing covers, boxes and 3D covers.":
+        "Relit la carte SD et le stockage USB, et réessaie de télécharger les jaquettes, boîtiers et jaquettes 3D manquants.",
     "No d2x cIOS was found in slots 248 to 252, so the menu runs under IOS 58. Install d2x to play games from SD or USB.":
         "Aucun cIOS d2x trouvé dans les slots 248 à 252, le menu tourne sous l'IOS 58. Installez d2x pour jouer depuis la SD ou l'USB.",
     "Check for a new version":
@@ -4399,8 +4605,8 @@ FR = {
         "Serveur de remplacement pour le jeu en ligne officiel désormais fermé. L'option personnalisée utilise wfc_domain dans settings.txt.",
     "Getting covers from GameTDB: {1} left":
         "Récupération des jacquettes GameTDB : {1} restante(s)",
-    "Covers could not be downloaded ({1}). To try again, use Settings > Look for games again.":
-        "Impossible de télécharger les jacquettes ({1}). Pour réessayer : Paramètres > Rechercher à nouveau les jeux.",
+    "Covers could not be downloaded ({1}). To try again, use Settings > Online > Download missing covers.":
+        "Impossible de télécharger les jaquettes ({1}). Pour réessayer : Paramètres > En ligne > Télécharger les jaquettes manquantes.",
     "Cover":
         "Jacquette",
     "Download again":
@@ -4439,6 +4645,14 @@ FR = {
         "Expérimental. En jeu, maintenez 1 et appuyez sur HOME (Manette GC : L + R + Bas). Les images vont dans sd:/riftwii/screenshots au relancement de RiftWii. Incompatible avec certains jeux/mods.",
     "Music while the menu is open: music.ogg from sd:/riftwii, or the one in RiftWii's own folder.":
         "Musique du menu : fichier music.ogg situé dans sd:/riftwii ou dans le dossier propre de RiftWii.",
+    "Launch music":
+        "Au lancement",
+    "Keep playing":
+        "Continuer",
+    "Fade out":
+        "Fondu sortant",
+    "Keep playing: the menu's music plays on under the launch screen and fades out as the game starts. Fade out: it fades out when you start a game.":
+        "Continuer : la musique du menu continue sous l'écran de lancement et s'estompe au démarrage du jeu. Fondu sortant : elle s'estompe dès que vous lancez un jeu.",
     "Music is on, but there is none to play: put a music.ogg in sd:/riftwii, or pick a theme with music.":
         "La musique est activée, mais il n'y a rien à jouer : mettez un music.ogg dans sd:/riftwii ou choisissez un thème avec musique.",
     "On a Wii U the GameCube adapter may not work in game from the front USB ports; the rear ones work.":
@@ -4469,8 +4683,20 @@ FR = {
         "Échec : {1} est sur le stockage USB. RiftWii n'accède au stockage USB en jeu que si le jeu y est aussi stocké. Mettez le jeu sur l'USB, ou placez {1} dans le dossier riftwii de votre SD.",
     "Updating RiftWii":
         "Mise à jour de RiftWii",
-    "RiftWii {1} is out. Downloading and installing it now; this takes a minute...":
-        "RiftWii {1} est disponible. Téléchargement et installation en cours...",
+        "RiftWii {1} is out. Installing it now; this takes a few minutes.":
+        "RiftWii {1} est disponible. Installation en cours; cela prend quelques minutes.",
+    "Downloading RiftWii ({1} of {2} MB)":
+        "Téléchargement de RiftWii ({1} sur {2} Mo)",
+    "Downloading RiftWii...":
+        "Téléchargement de RiftWii...",
+    "Downloading plugins ({1} of {2} MB)":
+        "Téléchargement des plugins ({1} sur {2} Mo)",
+    "Downloading plugins...":
+        "Téléchargement des plugins...",
+    "Checking the download...":
+        "Vérification du téléchargement...",
+    "Writing to the SD card...":
+        "Écriture sur la carte SD...",
     "Update failed":
         "Échec de la mise à jour",
     "RiftWii {1} could not be installed: {2}. This version keeps working; the new one is at {3}":
@@ -4737,6 +4963,8 @@ FR = {
         "Fichiers cachés macOS sur la carte SD",
     "This SD card has hidden files that macOS makes when it copies (names that start with \"._\"). RiftWii skips them, but they fill the card and can confuse other homebrew. To remove them, put the card in your Mac, open Terminal and type: dot_clean -m /Volumes/ followed by the card's name. On Windows, delete the files whose names start with \"._\".":
         "Cette carte contient des fichiers système macOS commençant par \"._\". RiftWii les ignore mais ils prennent de la place. Pour les supprimer sur Mac, utilisez la commande Terminal `dot_clean -m /Volumes/[NomCarte]`. Sur Windows, supprimez manuellement les fichiers \"._\".",
+    "RiftWii doesn't play CISO files. Convert it to ISO or RVZ with Dolphin (right-click the game, Convert File).":
+        "RiftWii ne lance pas les fichiers CISO. Convertissez-le en ISO ou RVZ avec Dolphin (clic droit sur le jeu, Convertir le fichier).",
     "This code mod can't start":
         "Ce mod de code ne peut pas démarrer",
     "How should this code mod start?":
@@ -4999,6 +5227,12 @@ FR = {
         "Créer une image SD ?",
     "Make it":
         "Créer",
+    "The SD card is too fragmented":
+        "La carte SD est trop fragmentée",
+    "The free space on the SD card is too scattered. {1} would be written in more than {2} pieces, which is more than RiftWii can follow, so the game would not start from it. Free up space or format the SD card (copy its files off first), then try again. Or build it anyway.":
+        "L'espace libre de la carte SD est trop dispersé. {1} serait écrite en plus de {2} morceaux, plus que RiftWii ne peut en suivre, donc le jeu ne démarrerait pas. Libérez de la place ou formatez la carte SD (copiez d'abord ses fichiers), puis réessayez. Ou créez-la quand même.",
+    "Build anyway":
+        "Créer quand même",
     "Making {1}":
         "Création de {1}",
     "Stop":
@@ -5407,18 +5641,18 @@ FR = {
         "Chaînes Wii",
     "Which games Home lists: every drive's and the Wii's own, or one place's only. With a game on both drives, one copy is enough.":
         "Les jeux qu'affiche l'Accueil : ceux de chaque support et ceux de la Wii elle-même, ou ceux d'un seul endroit. Avec un jeu sur les deux supports, une copie suffit.",
-    "GameCube games play in Wii mode (trial)":
-        "Les jeux GameCube fonctionnent en mode Wii (essai)",
-    "WiiWare and Virtual Console games on Home":
-        "Jeux WiiWare et Console Virtuelle sur l'Accueil",
-    "A game can have more Home tiles, each with its own mods":
-        "Un jeu peut avoir plusieurs tuiles d'accueil, chacune avec ses mods",
-    "Put the games on Home in your own order":
-        "Rangez les jeux de l'Accueil dans votre ordre",
-    "Indigo: a third built-in theme":
-        "Indigo : un troisième thème intégré",
-    "Saves can be shared with USB Loader GX's emulated NAND":
-        "Les sauvegardes peuvent être partagées avec la NAND émulée d'USB Loader GX",
+    "GameCube games from a USB drive":
+        "Jeux GameCube depuis un USB",
+    "The Wii U's GameCube adapter in GameCube games":
+        "L'adaptateur GameCube de Wii U sur GameCube",
+    "GameCube mods built with libogc, like Sonic Riders TE":
+        "Mods GameCube avec libogc, comme Sonic Riders TE",
+    "WiiWare and VC: launch screen and screenshots":
+        "WiiWare et CV : écran de lancement et captures",
+    "Problem reports can be sent again":
+        "Les rapports de problème fonctionnent à nouveau",
+    "A smaller RiftWii: half the download":
+        "Un RiftWii plus léger : moitié moins à télécharger",
     "Memory for RiftWii's extras":
         "Mémoire pour les extras de RiftWii",
     "about {1} KB":
@@ -5449,6 +5683,8 @@ FR = {
         "Wiimote",
     "Nunchuk":
         "Nunchuk",
+    "Wii U Pro Controller":
+        "Manette Pro Wii U",
     "Classic Controller":
         "Manette Classique",
     "GameCube controller":
@@ -5647,6 +5883,32 @@ FR = {
         "\"{1}\" quitte l'accueil, avec ses propres mods et réglages, et son image dans sd:/riftwii/profiles si elle en a une. Le jeu et ses mods restent.",
     "Removed \"{1}\". This page is the game's own again.":
         "\"{1}\" retirée. Cette page est de nouveau celle du jeu.",
+    "A part of RiftWii is missing (the {1} add-on). Update RiftWii again.":
+        "Une partie de RiftWii est manquante (le module {1}). Mettez RiftWii à jour à nouveau.",
+    "A part of RiftWii is damaged (the {1} add-on). Update RiftWii again.":
+        "Une partie de RiftWii est endommagée (le module {1}). Mettez RiftWii à jour à nouveau.",
+    "The {1} add-on is from a different RiftWii ({2}, this one is {3}). Update RiftWii again.":
+        "Le module {1} vient d'un autre RiftWii ({2}, celui-ci est {3}). Mettez RiftWii à jour à nouveau.",
+    "There was not enough memory for the {1} add-on. Restart RiftWii and try again.":
+        "Il n'y avait pas assez de mémoire pour le module {1}. Redémarrez RiftWii et réessayez.",
+    "The {1} add-on did not start. Send a problem report so this can be fixed.":
+        "Le module {1} n'a pas démarré. Envoyez un rapport de problème pour que cela soit corrigé.",
+    "Sharper picture":
+        "Image plus nette",
+    "Off (as made)":
+        "Désactivé (d'origine)",
+    "Turns off the soft blur some games add.":
+        "Retire le léger flou que certains jeux ajoutent.",
+    "Game speed":
+        "Vitesse du jeu",
+    "Smoother (60 Hz)":
+        "Plus fluide (60 Hz)",
+    "As made (50 Hz)":
+        "D'origine (50 Hz)",
+    "Smoother plays at 60 Hz in games that have a 60 Hz mode, on a TV that takes it; the others stay at 50 Hz.":
+        "Plus fluide joue à 60 Hz dans les jeux qui ont un mode 60 Hz, sur une télé qui l'accepte ; les autres restent à 50 Hz.",
+    "Default turns 480p on when the Wii is set to 480p and a component cable is seen; pick On (480p) if your TV takes it anyway.":
+        "Par défaut active le 480p quand la Wii est réglée sur 480p et qu'un câble composante est détecté ; choisissez Activé (480p) si votre télé l'accepte quand même.",
 }
 
 # Languages kept in tables of their own: written after LANGS, every msgid
@@ -5665,7 +5927,8 @@ def check(repo):
     would never be looked up."""
     sources = ["wii/menu/rift_menu.cpp", "wii/menu/gameextras.cpp", "wii/menu/gui_gamegrid.cpp", "wii/launch/channel.cpp", "wii/menu/frontend.cpp",
                "wii/launch/codebuilds.cpp", "wii/menu/gui_searchkeys.cpp", "wii/main.cpp", "wii/menu/vsdmake.cpp",
-               "wii/menu/gui_shelf.cpp", "wii/menu/memorybudget.cpp", "wii/menu/modtiles.cpp"]
+               "wii/menu/gui_shelf.cpp", "wii/menu/memorybudget.cpp", "wii/menu/modtiles.cpp",
+               "wii/core/plugins.cpp", "wii/menu/homescan.cpp"]
     text = "".join(open(os.path.join(repo, p), encoding="utf-8").read() for p in sources)
     missing = [k for k in T if '"%s"' % escape(k) not in text]
     for k in missing:
@@ -5675,7 +5938,12 @@ def check(repo):
     import glob
     import re
     untranslated = set()
-    for path in sorted(glob.glob(os.path.join(repo, "wii", "**", "*.cpp"), recursive=True)):
+    # The plugins too (docs/PLUGINS.md): their text is shown through the
+    # loader's tr(), so it needs its translations here like the menu's.
+    code_files = glob.glob(os.path.join(repo, "wii", "**", "*.cpp"), recursive=True)
+    for pattern in ("*.c", "*.cpp"):
+        code_files += glob.glob(os.path.join(repo, "plugins", "**", pattern), recursive=True)
+    for path in sorted(code_files):
         code = open(path, encoding="utf-8").read()
         for m in re.finditer(r'\btr\(\s*"((?:[^"\\]|\\.)*)"', code):
             literal = m.group(1)

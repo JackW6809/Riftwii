@@ -1413,6 +1413,22 @@ struct Selection {
 std::string Where(const Selection& s) {
     return "option '" + s.option->name + "' choice '" + s.choice->name + "' patch '" + s.patch_id + "'";
 }
+// A save folder is the game's own: the card's root, or a folder RiftWii or
+// the Homebrew Channel keeps (and everything in them), would put the game's
+// saves and a copy of its NAND save among their files (BUG-19). Resolved
+// paths only; FAT does not tell case apart.
+bool SavegameFolderAllowed(const std::string& resolved) {
+    std::string path;
+    for (const char c : resolved) path += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    while (path.size() > 1 && path.back() == '/') path.pop_back();
+    if (path.empty() || path == "/") return false;
+    for (const char* kept : {"/riftwii", "/apps", "/private"}) {
+        const std::string folder = kept;
+        if (path == folder || path.compare(0, folder.size() + 1, folder + "/") == 0) return false;
+    }
+    return true;
+}
+
 // Substitutes placeholders and resolves an external-style path against
 // `base`. `what` names the field for messages.
 bool ResolveExternal(const std::string& raw, const std::string& base, const Selection& sel,
@@ -1574,6 +1590,7 @@ bool plan_package(const Package& package, const DiscIdentity& disc, const PlanOp
         }
         Plan tmp;
         std::vector<std::string> unsupported;
+        std::size_t memory_bytes = 0;
         for (const auto& sel : selected) {
             const Patch& p = *sel.patch;
             std::string base = package.root;
@@ -1643,7 +1660,13 @@ bool plan_package(const Package& package, const DiscIdentity& disc, const PlanOp
                 }
                 case PatchKind::Memory: {
                     if (step.index >= p.memory.size()) { error = "corrupt patch order"; return false; }
-                    MemoryPatch m = p.memory[step.index];
+                    const MemoryPatch& listed = p.memory[step.index];
+                    memory_bytes += listed.value.size() + listed.original.size();
+                    if (memory_bytes > kMaxPlanMemoryBytes) {
+                        error = Where(sel) + ": the selected <memory> patches carry more than 16 MiB of values in all";
+                        return false;
+                    }
+                    MemoryPatch m = listed;
                     if (!m.valuefile.empty()) {
                         if (!ResolveExternal(m.valuefile, base, sel, disc, "valuefile", m.valuefile, error)) return false;
                     }
@@ -1658,6 +1681,11 @@ bool plan_package(const Package& package, const DiscIdentity& disc, const PlanOp
                     if (step.index >= p.savegames.size()) { error = "corrupt patch order"; return false; }
                     SavegamePatch s = p.savegames[step.index];
                     if (!ResolveExternal(s.external, base, sel, disc, "external", s.external, error)) return false;
+                    if (!SavegameFolderAllowed(s.external)) {
+                        error = Where(sel) + ": its <savegame> folder " + s.external +
+                                " is the SD card's root or a folder RiftWii or the Homebrew Channel uses; a save needs a folder of its own";
+                        return false;
+                    }
                     if (!options.allow_savegames) {
                         unsupported.push_back(Where(sel) + ": <savegame> redirection is not supported yet");
                     }

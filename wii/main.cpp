@@ -24,7 +24,6 @@
 #include "input.h"
 #include "menu.h"
 #include "video.h"
-#include "menufont_zst.h"
 #include "zstd.h"
 
 #include "autorun.hpp"
@@ -40,6 +39,8 @@
 #include "ios_reload.hpp"
 #include "loadersettings.hpp"
 #include "d2xsd.hpp"
+#include "covers.hpp"
+#include "entropy.hpp"
 #include "log.hpp"
 #include "memlimits.hpp"
 #include "menuios.hpp"
@@ -54,6 +55,8 @@
 #include "wiifont.hpp"
 #include "channel.hpp"
 #include "skin.hpp"
+#include "stash.hpp"
+#include "plugins.hpp"
 
 // Where the player leaves to (the HOME Menu, wii/menu/rift_menu.cpp): 1 back
 // to the loader that started RiftWii (the Homebrew Channel), 2 the Wii
@@ -150,12 +153,15 @@ void ExitApp() {
     // theme download is stopped (the next start fetches it again).
     riftwii::wii::NetCancelBackground();
     riftwii::wii::NetWaitForBackground();
+    // The cover loader finishes the file it is on before the card goes.
+    riftwii::wii::CoverLoaderHold();
     riftwii::wii::MenuMusicStop();
     riftwii::wii::ScreenshotsStop();
     riftwii::wii::GcAdapterMenuEnd();
     ShutoffRumble();
     ShutdownAudio();
     StopGX();
+    riftwii::wii::plugin::ShutdownAll("RiftWii is closing");
     LeaveTo(ExitRequested);
     std::exit(0);
 }
@@ -232,7 +238,10 @@ bool StartedFromUsb() {
 // launch opens boot.log. Each line is synced to the card, so after a hang
 // its last line names the step that never finished.
 void OpenSessionLog(bool sd_mounted) {
-    if (!sd_mounted) return;
+    if (!sd_mounted) {
+        riftwii::wii::EntropyStart();  // the console and the clock, at least
+        return;
+    }
     mkdir("sd:/riftwii", 0777);
     riftwii::wii::RotateSessionLog();
     riftwii::wii::LogOpen("sd:/riftwii/session.log");
@@ -246,6 +255,7 @@ void OpenSessionLog(bool sd_mounted) {
     // AHBPROT off (the Homebrew Channel, the channel since version 9): what
     // needs the hardware (IOS patches, the GameCube adapter) can work.
     riftwii::wii::logf("Hardware access: %s\n", read32(0x0D800064) == 0xFFFFFFFF ? "yes" : "no (AHBPROT on)");
+    riftwii::wii::EntropyStart();
     // Which title the system is running: the RiftWii channel or the
     // Homebrew Channel (both pass the same path), and the channel installed.
     {
@@ -273,16 +283,20 @@ void OpenSessionLog(bool sd_mounted) {
     riftwii::wii::mem::LogUsage("start");
 }
 
-// The menu font (wii/font/rounded.ttf) ships zstd-compressed (Makefile.wii).
-// Unpacked into MEM2, where FreeType reads it for the whole menu phase, so
-// neither the DOL nor the MEM1 heap carries the 1.7 MB TTF.
+// The menu font (wii/font/rounded.ttf) ships zstd-compressed in the
+// start-up stash (Makefile.wii, wii/core/stash.hpp), already in MEM2.
+// Unpacked into MEM2 too, where FreeType reads it for the whole menu
+// phase, so neither the DOL's resident part nor the MEM1 heap carries it.
 bool UnpackMenuFont(u8*& font, std::size_t& size) {
-    const unsigned long long full = ZSTD_getFrameContentSize(menufont_zst, menufont_zst_size);
+    const u8* packed = nullptr;
+    u32 packed_size = 0;
+    if (!riftwii::wii::stash::Find("menufont.zst", packed, packed_size)) return false;
+    const unsigned long long full = ZSTD_getFrameContentSize(packed, packed_size);
     if (full == ZSTD_CONTENTSIZE_UNKNOWN || full == ZSTD_CONTENTSIZE_ERROR || full == 0) return false;
     size = static_cast<std::size_t>(full);
     font = riftwii::wii::skin::Mem2Alloc(size);
     if (font == nullptr) return false;
-    return ZSTD_decompress(font, size, menufont_zst, menufont_zst_size) == size;
+    return ZSTD_decompress(font, size, packed, packed_size) == size;
 }
 
 }  // namespace
@@ -415,7 +429,11 @@ int main() {
     timed("settings and language");
 
     InitVideo();
+    // Logged either side: with four Wii Remotes connected the menu froze on a
+    // Wii (#138), and the last line of the log names how far it got.
+    riftwii::wii::logf("Pads: starting libogc's Wii Remote stack (WPAD_Init, then each channel's data format)\n");
     SetupPads();
+    riftwii::wii::logf("Pads: started\n");
     InitAudio();
     timed("video, pads and audio");
     // Settings > Menu font: the Wii Menu's, read from the NAND, else ours.
@@ -463,7 +481,17 @@ int main() {
     InitGUIThreads();
     timed("FreeType and the GUI thread");
     riftwii::wii::ScreenshotsStart();
+    riftwii::wii::mem::LogUsage("threads started");
     riftwii::wii::CrashSetPhase(riftwii::wii::CrashPhase::Menu);
+    // The plugin test switch (docs/DEVELOPING.md): only with
+    // sd:/riftwii/plugin_test.txt on the card; nothing loads at a plain
+    // start. Here, with the menu's crash screen ready, so a plugin that
+    // crashes shows it as a player would see it.
+    if (std::string refused; sd_mounted && riftwii::wii::plugin::RunTestSwitch(refused)) {
+        if (!refused.empty()) SetHomeNotice(refused);
+        timed("plugin test");
+        riftwii::wii::mem::LogUsage("plugin test");
+    }
     if (!sd_mounted) SetNoSdCard(StartedFromUsb());
     const int action = MainMenu(sd_mounted ? MENU_SOURCE : MENU_NEEDS_SD, state);
     MenuWatchdogStop();
@@ -490,11 +518,14 @@ int main() {
     // the game itself takes over (LaunchMusicEnd).
     const bool game_launch = action == MENU_LAUNCH || action == MENU_BOOT || action == MENU_PLAY_CHANNEL;
     const bool music_kept = game_launch && riftwii::wii::MenuMusicKeepForLaunch();
-    if (!music_kept) riftwii::wii::MenuMusicStop();
+    if (!music_kept) riftwii::wii::MenuMusicFadeOut();  // also stops it for a launch that keeps none
     riftwii::wii::ScreenshotsStop();
     // Before anything is launched: nothing of the menu's adapter may be
     // left in flight for the game (or the next IOS) to answer.
     riftwii::wii::GcAdapterMenuEnd();
+    // Stage (a)'s plugins have nothing to do in a launch: shut down before
+    // it, their arena given back to the heap (docs/PLUGINS.md, "Loading").
+    riftwii::wii::plugin::ShutdownAll("the menu closed");
     riftwii::wii::mem::LogUsage("menu closed");
     const bool heap_whole = riftwii::wii::mem::CheckHeap("menu closed");
     const riftwii::wii::LaunchSource source = riftwii::wii::SelectedSource(state);

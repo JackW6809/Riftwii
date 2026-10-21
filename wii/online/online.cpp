@@ -3,6 +3,7 @@
 #include "online.hpp"
 
 #include <network.h>
+#include <ogc/machine/processor.h>
 #include <poll.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -22,6 +23,7 @@
 #include "loadersettings.hpp"
 #include "log.hpp"
 #include "netsock.hpp"
+#include "plugins.hpp"
 #include "tls.hpp"
 #include "textfile.hpp"
 #include "riftwii/nandchannel.hpp"
@@ -29,6 +31,7 @@
 #include "riftwii/dol.hpp"
 #include "riftwii/gcbanner.hpp"
 #include "riftwii/http.hpp"
+#include "riftwii/pluginfile.hpp"
 #include "riftwii/themepack.hpp"
 #include "riftwii/update.hpp"
 
@@ -36,7 +39,9 @@ namespace riftwii::wii {
 namespace {
 
 constexpr const char* kTitlesUrl = "http://www.gametdb.com/wiitdb.txt?LANG=";
-constexpr const char* kCheatsUrl = "http://codes.rc24.xyz/txt.php?txt=";
+// Over https: a cheat's code runs inside the game, so nobody on the way
+// may change it (SEC-02; rc24's chain is in tlsroots.c).
+constexpr const char* kCheatsUrl = "https://codes.rc24.xyz/txt.php?txt=";
 constexpr std::time_t kWeek = 7 * 24 * 60 * 60;
 constexpr const char* kLatestApi = "https://api.github.com/repos/KakarottoCake/Riftwii/releases/latest";
 constexpr const char* kUpdateNote = "sd:/riftwii/update.txt";
@@ -53,10 +58,20 @@ constexpr const char* kAppsDone = "sd:/riftwii/apps_updated.txt";
 // tester) costs one timeout and not one per download.
 std::vector<std::string> g_unreachable;
 
+// `local_ok` false: a redirect from a server on the internet, which must
+// not lead to the player's own network even by a name that resolves there
+// (CAV-04). `resolved` gets the address the host's name came to.
 bool exchange(const HttpUrl& url, const std::string& request, HttpResponse& response, std::string& error,
-              std::size_t max_bytes, int timeout_ms, const HttpProgress& progress = nullptr) {
+              std::size_t max_bytes, int timeout_ms, const HttpProgress& progress = nullptr, bool local_ok = true,
+              std::uint32_t* resolved = nullptr) {
     NetServer server;
     if (!ResolveServer(url.host, url.port, server, error)) return false;
+    if (resolved) *resolved = server.ip;
+    if (!local_ok && http_local_ipv4(server.ip)) {
+        error = "a redirect to " + url.host + " (" + server.label() +
+                "), an address on this network, from a server on the internet; not followed";
+        return false;
+    }
     // By address: GameTDB's names and covers come from one server under
     // two names.
     const std::string where = server.label();
@@ -142,9 +157,19 @@ bool HttpGet(const std::string& url, std::vector<std::uint8_t>& body, std::strin
     if (!NetStart(error)) return false;
     HttpUrl parsed;
     if (!parse_http_url(url, parsed, error)) return false;
+    // Whether the server that sent this hop is itself on this network: one
+    // there may send the download on to another there, one out on the
+    // internet not. Asked again at every hop, so a local server that sends
+    // it out to the internet cannot have that one send it back in
+    // (CodeRabbit on #169).
+    bool local_ok = true;
     for (int hop = 0; hop < 4; ++hop) {
         HttpResponse response;
-        if (!exchange(parsed, http_get_request(parsed), response, error, max_bytes, timeout_ms, progress)) return false;
+        std::uint32_t resolved = 0;
+        if (!exchange(parsed, http_get_request(parsed), response, error, max_bytes, timeout_ms, progress, local_ok,
+                      &resolved))
+            return false;
+        local_ok = http_local_ipv4(resolved);
         if (response.status >= 300 && response.status < 400 && response.headers.count("location")) {
             // A redirect this download does not take is the server's
             // answer, worded as any other ("answered"), so the caller
@@ -221,6 +246,9 @@ struct UpdateNote {
     std::time_t checked = 0;
     std::string latest;
     ReleaseAsset dol;
+    // The release's riftwii-update.pack: the in-app update writes its
+    // plugins before the DOL (WriteUpdatePlugins).
+    ReleaseAsset pack;
     std::string installed;
 };
 
@@ -236,6 +264,9 @@ UpdateNote ReadUpdateNote() {
             if (text.rfind("dol ", 0) == 0) note.dol.url = text.substr(4);
             if (text.rfind("sha256 ", 0) == 0) note.dol.sha256 = text.substr(7);
             if (text.rfind("size ", 0) == 0) note.dol.size = std::strtoull(text.c_str() + 5, nullptr, 10);
+            if (text.rfind("pack ", 0) == 0) note.pack.url = text.substr(5);
+            if (text.rfind("pack_sha256 ", 0) == 0) note.pack.sha256 = text.substr(12);
+            if (text.rfind("pack_size ", 0) == 0) note.pack.size = std::strtoull(text.c_str() + 10, nullptr, 10);
             if (text.rfind("installed ", 0) == 0) note.installed = text.substr(10);
         }
         std::fclose(f);
@@ -249,6 +280,10 @@ void WriteUpdateNote(const UpdateNote& note) {
         if (!note.dol.url.empty()) {
             std::fprintf(f, "dol %s\nsha256 %s\nsize %llu\n", note.dol.url.c_str(), note.dol.sha256.c_str(),
                          note.dol.size);
+        }
+        if (!note.pack.url.empty()) {
+            std::fprintf(f, "pack %s\npack_sha256 %s\npack_size %llu\n", note.pack.url.c_str(),
+                         note.pack.sha256.c_str(), note.pack.size);
         }
         if (!note.installed.empty()) std::fprintf(f, "installed %s\n", note.installed.c_str());
         std::fclose(f);
@@ -362,6 +397,8 @@ bool CheckLatestRelease(bool force, std::string& latest, bool& newer, std::strin
         note.latest = tag;
         note.dol = ReleaseAsset{};
         release_asset_from_json(json, "riftwii.dol", note.dol);
+        note.pack = ReleaseAsset{};
+        release_asset_from_json(json, kUpdatePackAsset, note.pack);
         WriteUpdateNote(note);
         logf("Update check: newest release %s, this is %s%s\n", latest.c_str(), RIFTWII_VERSION,
              note.dol.url.empty() ? " (it has no riftwii.dol)" : "");
@@ -446,7 +483,7 @@ void FetchPacks() {
     }
     std::vector<std::uint8_t> body;
     std::string error;
-    if (!HttpGet(pack.url, body, error, 16u << 20, 30000)) {
+    if (!HttpGet(pack.url, body, error, 16u << 20, 30000, nullptr, HttpRedirects::GitHubRelease)) {
         logf("Packs: %s: %s\n", kUpdatePackAsset, error.c_str());
         return;
     }
@@ -498,11 +535,49 @@ void MarkDone(const char* path) {
     }
 }
 
-// What the apps pack may write: the channel installer's folder and
-// RiftWii's icon. RiftWii's boot.dol and meta.xml are the update's own,
+// What the apps pack may write: the channel installer's folder, RiftWii's
+// icon and its plugins (riftwii/plugins/<name>.<version>.rwp, nothing else
+// in that folder). RiftWii's boot.dol and meta.xml are the update's own,
 // and a player's music.ogg stays.
+constexpr char kPluginsPrefix[] = "riftwii/plugins/";
+
+bool PluginFileAllowed(const std::string& path) {
+    const std::size_t prefix = sizeof(kPluginsPrefix) - 1;
+    if (path.compare(0, prefix, kPluginsPrefix) != 0) return false;
+    const std::string file = path.substr(prefix);
+    std::string name;
+    std::string version;
+    // A plugin file of some version: "<name>.<version>.rwp", no folders.
+    return file.find('/') == std::string::npos && plugin_file_parse(file, name, version);
+}
+
 bool AppsFileAllowed(const std::string& path) {
-    return path.compare(0, 16, "riftwii_channel/") == 0 || path == "riftwii/icon.png";
+    return path.compare(0, 16, "riftwii_channel/") == 0 || path == "riftwii/icon.png" || PluginFileAllowed(path);
+}
+
+// The folder the plugins are written to: next to the boot.dol that is
+// running (plugin::Directory), the folder it reads them from, even when
+// RiftWii was renamed or moved; sd:/apps/riftwii/plugins/ when that is not
+// on the SD card, which is all the packs write.
+std::string PluginTargetDirectory() {
+    const std::string directory = plugin::Directory();
+    if (directory.compare(0, 4, "sd:/") != 0) return std::string("sd:/apps/") + kPluginsPrefix;
+    return directory;
+}
+
+// Where an apps pack file goes: sd:/apps/<path>, except the plugins
+// (PluginTargetDirectory).
+std::string AppsFileTarget(const std::string& path) {
+    if (!PluginFileAllowed(path)) return "sd:/apps/" + path;
+    return PluginTargetDirectory() + path.substr(sizeof(kPluginsPrefix) - 1);
+}
+
+// Each folder on the way to `path` ("sd:/apps/riftwii/plugins/x.rwp" is
+// three deep below the card's root).
+void MakeFoldersFor(const std::string& path) {
+    for (std::size_t slash = path.find('/', 4); slash != std::string::npos; slash = path.find('/', slash + 1)) {
+        mkdir(path.substr(0, slash).c_str(), 0777);
+    }
 }
 
 // The card brought up to a pack: sd:/riftwii/themes (its themes' files
@@ -534,8 +609,8 @@ void ApplyPack(PackKind& k) {
             logf("%s: %s skipped\n", k.label, f.path.c_str());
             continue;
         }
-        const std::string path = root + f.path;
-        mkdir((root + f.path.substr(0, f.path.find('/'))).c_str(), 0777);
+        const std::string path = themes ? root + f.path : AppsFileTarget(f.path);
+        MakeFoldersFor(path);
         if (SameFile(path, bytes + f.offset, f.size)) {
             ++same;
             continue;
@@ -560,6 +635,9 @@ void ApplyPack(PackKind& k) {
     }
     logf("%s: %u file(s) brought up to %s's, %u already were%s\n", k.label, written, RIFTWII_VERSION, same,
          failed ? " (some could not be written; tried again next start)" : "");
+    // This version's plugins are all there now: the ones from before the
+    // update are never loaded again, so they go.
+    if (!themes && !failed) plugin::RemoveOtherVersions();
     if (!failed) MarkDone(k.done);
 }
 
@@ -658,12 +736,110 @@ namespace {
 volatile int g_card_writes = 0;
 }  // namespace
 
-CardWriteHold::CardWriteHold() { ++g_card_writes; }
-CardWriteHold::~CardWriteHold() { --g_card_writes; }
+// Holds are taken on the menu thread and the download threads: the count
+// changes with interrupts off, so a thread switch between its load and
+// store cannot lose one.
+CardWriteHold::CardWriteHold() {
+    u32 level;
+    _CPU_ISR_Disable(level);
+    ++g_card_writes;
+    _CPU_ISR_Restore(level);
+}
+CardWriteHold::~CardWriteHold() {
+    u32 level;
+    _CPU_ISR_Disable(level);
+    --g_card_writes;
+    _CPU_ISR_Restore(level);
+}
 bool CardWritesBusy() { return g_card_writes > 0; }
 
+namespace {
+
+// The release's plugins, written before its DOL (docs/PLUGINS.md, "Updates:
+// plugins first"), so the new RiftWii's GameCube loader is on the card
+// from its first start: riftwii-update.pack downloaded and checked as the
+// DOL is, its apps part's plugin files (the new version's names, beside
+// the old version's, which the old DOL keeps using until the swap) written
+// next to the running DOL. False, with `error`, when one could not be: the
+// update then stops before the DOL is touched. The rest of the pack (the
+// themes, the channel installer) waits for the new DOL's first start.
+//
+// `report` is told each step as it starts, and again as the pack's bytes
+// arrive.
+bool WriteUpdatePlugins(const UpdateNote& note, const std::string& latest, const std::string& dol_path,
+                        std::string& error, const std::function<void(UpdateStep, std::uint64_t, std::uint64_t)>& report) {
+    if (note.pack.url.empty()) {
+        logf("Update: %s has no %s, so no plugins are written before its DOL\n", latest.c_str(), kUpdatePackAsset);
+        return true;
+    }
+    if (note.pack.sha256.empty()) {
+        error = std::string("GitHub gives no SHA-256 for this release's ") + kUpdatePackAsset +
+                ", so its plugins cannot be checked. Download it from " + kReleasesPage + " instead";
+        return false;
+    }
+    std::vector<std::uint8_t> pack;
+    // The pack is several MB, as long a download as the DOL: a tester's
+    // Wii spent about six minutes here with the bar standing still.
+    logf("Update: downloading %s (%u bytes) for the plugins\n", kUpdatePackAsset,
+         static_cast<unsigned>(note.pack.size));
+    report(UpdateStep::DownloadingPlugins, 0, note.pack.size);
+    // Set even when the release gives no size (total 0), so the text and
+    // the screen's activity still follow the bytes.
+    const std::uint64_t total = note.pack.size;
+    const HttpProgress got = [&report, total](std::size_t received) {
+        report(UpdateStep::DownloadingPlugins, total != 0 ? std::min<std::uint64_t>(received, total) : received, total);
+    };
+    if (!HttpGet(note.pack.url, pack, error, 16u << 20, 30000, got, HttpRedirects::GitHubRelease)) {
+        error = std::string("the update's ") + kUpdatePackAsset + ": " + error;
+        return false;
+    }
+    logf("Update: %s downloaded (%u bytes); checking it\n", kUpdatePackAsset, static_cast<unsigned>(pack.size()));
+    report(UpdateStep::CheckingPlugins, pack.size(), pack.size());
+    if ((note.pack.size != 0 && pack.size() != note.pack.size) || Sha256Hex(pack) != note.pack.sha256) {
+        error = std::string("the update's ") + kUpdatePackAsset + " does not match GitHub's SHA-256";
+        return false;
+    }
+    // The themes part ends where the apps part, with the plugins, starts.
+    ThemePack themes;
+    std::size_t split = 0;
+    ThemePack apps;
+    if (!parse_theme_pack(pack.data(), pack.size(), themes, error, kThemePackHeader, &split) ||
+        !parse_theme_pack(pack.data() + split, pack.size() - split, apps, error, kAppsPackHeader)) {
+        error = std::string("the update's ") + kUpdatePackAsset + ": " + error;
+        return false;
+    }
+    std::vector<UpdateWrite> writes;
+    if (!plan_update_writes(apps, latest, PluginTargetDirectory(), dol_path, writes, error)) return false;
+    logf("Update: writing the plugins of %s to the SD card\n", latest.c_str());
+    report(UpdateStep::WritingPlugins, 0, 0);
+    const std::uint8_t* const bytes = pack.data() + split;
+    unsigned written = 0;
+    unsigned same = 0;
+    // A file half written is worse than none: the power button waits.
+    const CardWriteHold hold;
+    for (const UpdateWrite& w : writes) {
+        if (w.dol) break;  // the caller's, last
+        MakeFoldersFor(w.path);
+        if (SameFile(w.path, bytes + w.offset, w.size)) {
+            ++same;
+            continue;
+        }
+        const std::vector<std::uint8_t> data(bytes + w.offset, bytes + w.offset + w.size);
+        if (!write_file(w.path, data, error)) {
+            error = "the update's plugin " + w.path + " could not be written (" + error + "); RiftWii was not changed";
+            return false;
+        }
+        ++written;
+    }
+    logf("Update: %u plugin(s) of %s written to %s before its DOL, %u already there\n", written, latest.c_str(),
+         PluginTargetDirectory().c_str(), same);
+    return true;
+}
+
+}  // namespace
+
 bool InstallUpdate(const std::string& latest, std::string& where, std::string& error,
-                   const std::function<void(double done)>& progress) {
+                   const std::function<void(const UpdateProgress&)>& progress) {
     UpdateNote note = ReadUpdateNote();
     if (note.latest != latest || note.dol.url.empty()) {
         error = "release " + latest + " has no riftwii.dol attached";
@@ -674,20 +850,46 @@ bool InstallUpdate(const std::string& latest, std::string& where, std::string& e
         error = "RiftWii was not started from a boot.dol on the SD card, so there is nothing to replace";
         return false;
     }
-    logf("Update: downloading %s for %s\n", latest.c_str(), where.c_str());
+    // The bar covers the whole update: the downloads by their bytes (the
+    // DOL, then the update pack, both sizes known from the release) up to
+    // kDownloadsShare, then a step each for the checks and the writes.
+    const std::uint64_t dol_total = note.dol.size;
+    const std::uint64_t pack_total = note.pack.url.empty() ? 0 : note.pack.size;
+    const std::uint64_t all_bytes = dol_total + pack_total;
+    constexpr double kDownloadsShare = 0.90;
+    auto report = [&](UpdateStep step, std::uint64_t done, std::uint64_t total) {
+        if (!progress) return;
+        UpdateProgress p;
+        p.step = step;
+        p.received = done;
+        p.total = total;
+        // Bytes counted toward the downloads so far: the pack's come after the DOL's.
+        std::uint64_t counted = all_bytes;
+        if (step == UpdateStep::DownloadingDol || step == UpdateStep::CheckingDol) counted = done;
+        else if (step == UpdateStep::DownloadingPlugins) counted = dol_total + done;
+        p.share = all_bytes == 0 ? 0.0 : kDownloadsShare * std::min(1.0, static_cast<double>(counted) / static_cast<double>(all_bytes));
+        if (step == UpdateStep::WritingPlugins) p.share = 0.93;
+        if (step == UpdateStep::WritingDol) p.share = 0.96;
+        progress(p);
+    };
+    logf("Update: downloading %s for %s (riftwii.dol, %u bytes)\n", latest.c_str(), where.c_str(),
+         static_cast<unsigned>(note.dol.size));
+    report(UpdateStep::DownloadingDol, 0, dol_total);
     std::vector<std::uint8_t> body;
-    // GitHub's redirect answers are small; the DOL is the bulk. Its size
-    // is known from the release, so the share is the bytes against it
-    // (headers make it a hair early, capped below 1 until it is whole).
-    HttpProgress got;
-    if (progress && note.dol.size != 0) {
-        const double total = static_cast<double>(note.dol.size);
-        got = [&progress, total](std::size_t received) {
-            progress(std::min(0.99, static_cast<double>(received) / total));
-        };
-    }
-    if (!HttpGet(note.dol.url, body, error, 16u << 20, 30000, got)) return false;
-    if (progress) progress(1.0);
+    // GitHub's redirect answers are small; the DOL is the bulk (headers
+    // make the count a hair early, so it is capped at the size).
+    // Set even when the release gives no size (total 0), as for the pack.
+    const HttpProgress got = [&report, dol_total](std::size_t received) {
+        report(UpdateStep::DownloadingDol, dol_total != 0 ? std::min<std::uint64_t>(received, dol_total) : received,
+               dol_total);
+    };
+    if (!HttpGet(note.dol.url, body, error, 16u << 20, 30000, got, HttpRedirects::GitHubRelease)) return false;
+    // A tester's Wii crashed half a minute into an update with nothing
+    // after the line above: this one tells the DOL's download from the
+    // update pack's and the writes that follow it.
+    logf("Update: riftwii.dol downloaded (%u bytes); checking it and fetching the update pack next\n",
+         static_cast<unsigned>(body.size()));
+    report(UpdateStep::CheckingDol, body.size(), body.size());
     if (note.dol.size != 0 && body.size() != note.dol.size) {
         error = "the download has " + std::to_string(body.size()) + " bytes, GitHub says " +
                 std::to_string(note.dol.size);
@@ -713,6 +915,11 @@ bool InstallUpdate(const std::string& latest, std::string& where, std::string& e
         error = "the download is shorter than its DOL header says";
         return false;
     }
+    // The plugins before anything of the DOL: a cut after them leaves the
+    // old DOL, which still has its own plugins.
+    if (!WriteUpdatePlugins(note, latest, where, error, report)) return false;
+    logf("Update: writing riftwii.dol (%u bytes) to the SD card\n", static_cast<unsigned>(body.size()));
+    report(UpdateStep::WritingDol, 0, body.size());
     // New file first, then the swap; the old one stays as boot.dol.old.
     // Nothing may stop it half way (the power button waits for it).
     const CardWriteHold hold;
@@ -777,7 +984,7 @@ bool FillCheatValues(const std::string& game_id, const std::string& name, const 
     return true;
 }
 
-bool DownloadCheats(const std::string& game_id, std::string& error) {
+bool DownloadCheats(const std::string& game_id, std::string& error, const std::set<std::string>& enabled) {
     std::vector<std::uint8_t> body;
     // A WiiWare or Virtual Console game is in the archive under its
     // four-letter code (riftwii/nandchannel.hpp's channel_cheat_code).
@@ -801,10 +1008,22 @@ bool DownloadCheats(const std::string& game_id, std::string& error) {
     // tester lost theirs to one).
     std::string old = read_cheat_file(game_id);
     std::size_t kept = 0;
+    std::size_t held = 0;
+    bool kept_old = false;
     if (!old.empty()) {
-        const std::string merged = merge_cheat_text(std::string(body.begin(), body.end()), old, kept);
+        const std::string merged =
+            merge_cheat_text(std::string(body.begin(), body.end()), old, kept, enabled, &held, &kept_old);
         body.assign(merged.begin(), merged.end());
     }
+    if (kept_old) {
+        // The player's file stays as it was; the menu shows why (in 90
+        // characters) and the log says it whole.
+        error = "a new cheat would take the name of one you turned on; turn it off first";
+        return false;
+    }
+    if (held != 0)
+        logf("Cheats: %u turned-on cheat(s) of %s kept their own code; the archive has a different one now\n",
+             static_cast<unsigned>(held), game_id.c_str());
     if (!write_file(CheatPath(game_id), body, error)) return false;
     logf("Cheats: %u for %s from the GeckoCodes archive, %u of the player's own kept\n",
          static_cast<unsigned>(file.cheats.size()), game_id.c_str(), static_cast<unsigned>(kept));

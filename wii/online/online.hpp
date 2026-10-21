@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -73,10 +74,26 @@ bool UpdateInstalled(const std::string& latest);
 // checks it (size, GitHub's SHA-256, a valid DOL header) and puts it in
 // place of the running boot.dol, keeping the old one as boot.dol.old;
 // meta.xml's version follows. A release without a SHA-256 is refused.
-// `where` is the file replaced. `progress` gets the share of the download
-// done, 0 to 1.
+// `where` is the file replaced. `progress` is called as each step starts
+// and as download bytes arrive.
+enum class UpdateStep {
+    DownloadingDol,
+    CheckingDol,
+    DownloadingPlugins,
+    CheckingPlugins,
+    WritingPlugins,
+    WritingDol,
+};
+struct UpdateProgress {
+    UpdateStep step = UpdateStep::DownloadingDol;
+    // The whole update, 0 to 1 (downloads by bytes, then a step each).
+    double share = 0;
+    // Bytes of this step's file so far and in all (0 when not known).
+    std::uint64_t received = 0;
+    std::uint64_t total = 0;
+};
 bool InstallUpdate(const std::string& latest, std::string& where, std::string& error,
-                   const std::function<void(double done)>& progress = nullptr);
+                   const std::function<void(const UpdateProgress&)>& progress = nullptr);
 
 // Card writes RiftWii must not be stopped in the middle of (the update's
 // swap): while one runs, the GUI thread holds back the power button and
@@ -106,7 +123,9 @@ void EnsureMetaAhbAccess();
 // Fetches the game's cheats into the file, keeping the player's own (cheats
 // added by hand, values filled in). The archive answers with an empty
 // page for a game it has no cheats for: `error` says so.
-bool DownloadCheats(const std::string& game_id, std::string& error);
+// `enabled`: the cheats the player has turned on for it, whose code a
+// download does not change (riftwii/cheats.hpp, merge_cheat_text).
+bool DownloadCheats(const std::string& game_id, std::string& error, const std::set<std::string>& enabled = {});
 // A GameCube game's animated banner, made by the community and hosted by
 // RiiConnect24, asked for by its full ID and then, for a regional copy of
 // a game (`regional_fallback`, riftwii/gcbanner.hpp's

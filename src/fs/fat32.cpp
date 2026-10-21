@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstring>
 #include <limits>
+#include <utility>
 
 namespace riftwii {
 namespace {
@@ -546,6 +547,96 @@ bool Fat32Volume::directory_entries(std::uint32_t directory_cluster, const std::
     return true;
 }
 
+bool Fat32Volume::free_pieces(std::uint64_t file_bytes, std::uint64_t max_pieces, std::uint64_t max_fat_blocks,
+                              const std::vector<Fragment>& also_free, FreeSpaceReport& out,
+                              std::string& error) const {
+    out = FreeSpaceReport{};
+    if (!reader_) {
+        error = "volume not mounted";
+        return false;
+    }
+    const std::uint64_t cluster_bytes = geo_.cluster_bytes();
+    out.cluster_bytes = static_cast<std::uint32_t>(cluster_bytes);
+    const std::uint64_t needed = (file_bytes + cluster_bytes - 1) / cluster_bytes;
+    if (needed == 0) {
+        out.verdict = FreeSpaceVerdict::Fits;
+        return true;
+    }
+
+    // `also_free` as sorted cluster ranges [first, last].
+    const std::uint32_t blocks_per_cluster = geo_.sectors_per_cluster * geo_.blocks_per_sector();
+    const std::uint64_t data_lba = geo_.cluster_lba(2);
+    std::vector<std::pair<std::uint64_t, std::uint64_t>> extra;
+    for (const Fragment& f : also_free) {
+        if (f.sector < data_lba || f.sector_count == 0 || blocks_per_cluster == 0) continue;
+        const std::uint64_t first = (f.sector - data_lba) / blocks_per_cluster + 2;
+        const std::uint64_t last = (f.sector - data_lba + f.sector_count - 1) / blocks_per_cluster + 2;
+        extra.emplace_back(first, last);
+    }
+    std::sort(extra.begin(), extra.end());
+    std::size_t next_extra = 0;
+
+    const std::uint64_t fat_start_sector =
+        std::uint64_t(geo_.reserved_sectors) + std::uint64_t(geo_.active_fat) * geo_.fat_sectors;
+    const std::uint64_t fat_lba = geo_.volume_lba + (fat_start_sector * geo_.bytes_per_sector) / kFatBlockBytes;
+    const std::uint64_t fat_blocks = (std::uint64_t(geo_.fat_sectors) * geo_.bytes_per_sector) / kFatBlockBytes;
+    const std::uint64_t last_cluster = std::uint64_t(geo_.cluster_count) + 1;
+    constexpr std::uint32_t kEntriesPerBlock = kFatBlockBytes / 4;
+    constexpr std::uint32_t kChunkBlocks = 128;  // 64 KiB a read
+
+    std::vector<std::uint8_t> buffer(std::size_t(kChunkBlocks) * kFatBlockBytes);
+    std::uint64_t run = 0;       // length of the free run being counted
+    std::uint64_t pieces = 0;    // runs taken so far
+    std::uint64_t taken = 0;     // clusters of them
+    const auto close_run = [&]() {
+        if (run == 0) return false;
+        ++pieces;
+        taken += run;
+        run = 0;
+        return true;
+    };
+    for (std::uint64_t block = 0; block < fat_blocks; block += kChunkBlocks) {
+        if (block >= max_fat_blocks) {
+            out.verdict = FreeSpaceVerdict::Unchecked;
+            out.pieces = pieces;
+            return true;
+        }
+        const std::uint32_t count = static_cast<std::uint32_t>(std::min<std::uint64_t>(kChunkBlocks, fat_blocks - block));
+        if (!reader_(fat_lba + block, count, buffer.data())) {
+            error = "cannot read FAT block " + std::to_string(fat_lba + block);
+            return false;
+        }
+        out.fat_blocks_read = block + count;
+        for (std::uint32_t i = 0; i < count * kEntriesPerBlock; ++i) {
+            const std::uint64_t cluster = block * kEntriesPerBlock + i;
+            if (cluster < 2) continue;
+            if (cluster > last_cluster) break;
+            while (next_extra < extra.size() && extra[next_extra].second < cluster) ++next_extra;
+            const bool in_extra = next_extra < extra.size() && extra[next_extra].first <= cluster;
+            const bool is_free = in_extra || (le32(buffer.data() + std::size_t(i) * 4) & kFatMask) == 0;
+            if (is_free) {
+                ++run;
+                ++out.free_clusters;
+                if (taken + run >= needed) {
+                    close_run();
+                    out.verdict = pieces > max_pieces ? FreeSpaceVerdict::TooFragmented : FreeSpaceVerdict::Fits;
+                    out.pieces = pieces;
+                    return true;
+                }
+            } else if (close_run() && pieces > max_pieces) {
+                out.verdict = FreeSpaceVerdict::TooFragmented;
+                out.pieces = pieces;
+                return true;
+            }
+        }
+    }
+    close_run();
+    out.pieces = pieces;
+    out.verdict = taken >= needed ? (pieces > max_pieces ? FreeSpaceVerdict::TooFragmented : FreeSpaceVerdict::Fits)
+                                  : FreeSpaceVerdict::NotEnoughSpace;
+    return true;
+}
+
 void Fat32Volume::forget_cached() const {
     fat_cache_.clear();
     dir_cache_.clear();
@@ -623,8 +714,13 @@ bool Fat32Volume::lookup(const std::string& path, Fat32File& out, bool& missing,
     // A file follows as many clusters as its size needs, no more.
     const std::uint64_t cluster_bytes =
         std::uint64_t(geo_.sectors_per_cluster) * geo_.blocks_per_sector() * kFatBlockBytes;
+    // A folder, at most the clusters its largest allowed listing fills: a
+    // long, scattered chain made one fragment per cluster and could run the
+    // Wii out of memory (MIN-03).
+    const std::uint64_t folder_clusters =
+        (std::uint64_t(limits_.max_directory_entries) * 32 + cluster_bytes - 1) / cluster_bytes + 1;
     const std::uint64_t needed = file.entry.is_directory
-                                     ? UINT64_MAX
+                                     ? folder_clusters
                                      : std::max<std::uint64_t>(1, (file.entry.size + cluster_bytes - 1) / cluster_bytes);
     if (!chain(file.entry.first_cluster, file.fragments, error, needed)) {
         error = "'" + path + "': " + error;
@@ -632,8 +728,19 @@ bool Fat32Volume::lookup(const std::string& path, Fat32File& out, bool& missing,
     }
     std::uint64_t capacity = 0;
     for (const Fragment& f : file.fragments) capacity += f.sector_count * kFatBlockBytes;
+    // The FAT ends the file's chain before its size: the volume itself is
+    // damaged (a copy cut short, a drive pulled out before the computer
+    // finished writing its FAT). A loader that reads only the clusters a
+    // game asks for may never notice; the fragment list given to d2x must
+    // cover the whole file, so it is refused, saying by how much.
     if (!file.entry.is_directory && file.entry.size > capacity) {
-        error = "'" + path + "' is larger than its cluster chain";
+        const std::uint64_t clusters_linked = capacity / cluster_bytes;
+        error = "'" + path + "' is larger than its cluster chain: its folder entry says " +
+                std::to_string(file.entry.size) + " bytes (" + std::to_string(needed) + " clusters), but the FAT links " +
+                std::to_string(clusters_linked) + " clusters (" + std::to_string(capacity) +
+                " bytes) from cluster " + std::to_string(file.entry.first_cluster) +
+                ". The drive's file system is damaged: check it on a computer (Windows: the drive's Properties > Tools > "
+                "Check) or copy the file again";
         return false;
     }
     out = std::move(file);

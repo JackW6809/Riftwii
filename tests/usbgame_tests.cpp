@@ -451,6 +451,99 @@ void test_cios_readiness_note() {
     EXPECT_FALSE(cios_revision_is_stub(5662));   // stock IOS56 revision
 }
 
+void test_ciso_detection() {
+    EXPECT_TRUE(is_ciso_image_name("game.ciso"));
+    EXPECT_TRUE(is_ciso_image_name("Luigi's Mansion [GLME01].CISO"));
+    EXPECT_TRUE(is_ciso_image_name("x.CiSo"));
+    EXPECT_FALSE(is_ciso_image_name("._game.ciso"));  // a Mac's AppleDouble file, not an image
+    EXPECT_FALSE(is_ciso_image_name(".ciso"));
+    EXPECT_FALSE(is_ciso_image_name("game.iso"));
+    EXPECT_FALSE(is_ciso_image_name("game.rvz"));
+    EXPECT_FALSE(is_ciso_image_name("game.ciso.txt"));
+    EXPECT_FALSE(is_ciso_image_name(""));
+
+    CisoFinds none;
+    EXPECT_TRUE(ciso_popup_body(none, "help", "and {1} more").empty());
+    EXPECT_TRUE(ciso_log_line(none).empty());
+
+    CisoFinds one;
+    one.note("sd:/games/Test [GXXE01]/game.ciso");
+    EXPECT_EQ(ciso_popup_body(one, "Convert it.", "and {1} more"),
+              std::string("Convert it.\n\nsd:/games/Test [GXXE01]/game.ciso"));
+    EXPECT_EQ(ciso_log_line(one),
+              std::string("Home: CISO DETECTED: sd:/games/Test [GXXE01]/game.ciso (RiftWii plays .iso, .gcm and "
+                          ".rvz; convert it with Dolphin)"));
+
+    // Many: only the first few paths are kept, the count goes on.
+    CisoFinds many;
+    for (int i = 0; i < 10; ++i) many.note("sd:/games/g" + std::to_string(i) + ".ciso");
+    EXPECT_EQ(many.total, static_cast<std::size_t>(10));
+    EXPECT_EQ(many.paths.size(), CisoFinds::kPathsKept);
+    EXPECT_EQ(ciso_popup_body(many, "Help.", "y {1} más"), std::string("Help.\n\nsd:/games/g0.ciso y 9 más"));
+    EXPECT_TRUE(ciso_log_line(many).find("sd:/games/g0.ciso and 9 more (") != std::string::npos);
+
+    // The SD card's finds and the USB drive's, said together: the first
+    // paths in order, every one counted.
+    CisoFinds sd;
+    sd.note("sd:/games/a/a.ciso");
+    CisoFinds usb;
+    for (int i = 0; i < 5; ++i) usb.note("usb:/games/u" + std::to_string(i) + "/game.ciso");
+    sd.merge(usb);
+    EXPECT_EQ(sd.total, static_cast<std::size_t>(6));
+    EXPECT_EQ(sd.paths.size(), CisoFinds::kPathsKept);
+    EXPECT_EQ(sd.paths[0], std::string("sd:/games/a/a.ciso"));
+    EXPECT_EQ(sd.paths[1], std::string("usb:/games/u0/game.ciso"));
+    CisoFinds only_usb;
+    only_usb.merge(usb);
+    EXPECT_EQ(ciso_log_line(only_usb).find("Home: CISO DETECTED: usb:/games/u0/game.ciso and 4 more ("),
+              static_cast<std::size_t>(0));
+}
+
+void test_gc_container_by_magic() {
+    const std::uint8_t ciso[] = {'C', 'I', 'S', 'O', 0, 0, 0x20, 0};
+    const std::uint8_t gcz[] = {0x01, 0xC0, 0x0B, 0xB1, 0, 0, 0, 0};
+    const std::uint8_t wia[] = {'W', 'I', 'A', 0x01, 0, 0, 0, 0};
+    const std::uint8_t rvz[] = {'R', 'V', 'Z', 0x01, 0, 0, 0, 0};
+    const std::uint8_t plain[] = {'G', 'A', 'L', 'E', '0', '1', 0, 0};
+    EXPECT_TRUE(gc_container_by_magic(ciso, sizeof ciso) == GcContainer::Ciso);
+    EXPECT_TRUE(gc_container_by_magic(gcz, sizeof gcz) == GcContainer::Gcz);
+    EXPECT_TRUE(gc_container_by_magic(wia, sizeof wia) == GcContainer::Wia);
+    EXPECT_TRUE(gc_container_by_magic(rvz, sizeof rvz) == GcContainer::Rvz);
+    EXPECT_TRUE(gc_container_by_magic(plain, sizeof plain) == GcContainer::None);
+    EXPECT_TRUE(gc_container_by_magic(ciso, 3) == GcContainer::None);
+    EXPECT_TRUE(gc_container_by_magic(nullptr, 8) == GcContainer::None);
+
+    // Each says what it is and what to do; CISO is never played.
+    EXPECT_TRUE(gc_container_skip_reason(GcContainer::None).empty());
+    EXPECT_TRUE(gc_container_skip_reason(GcContainer::Ciso).find("CISO image named like an ISO") != std::string::npos);
+    EXPECT_TRUE(gc_container_skip_reason(GcContainer::Ciso).find("does not play CISO") != std::string::npos);
+    EXPECT_TRUE(gc_container_skip_reason(GcContainer::Gcz).find("Convert File") != std::string::npos);
+    EXPECT_TRUE(gc_container_skip_reason(GcContainer::Wia).find("WIA image") != std::string::npos);
+    EXPECT_TRUE(gc_container_skip_reason(GcContainer::Rvz).find(".rvz") != std::string::npos);
+}
+
+void test_gc_folder_skip_reason() {
+    // Images RiftWii plays, hidden names, .ciso (reported on its own) and
+    // files beside an image get no line.
+    EXPECT_TRUE(gc_folder_skip_reason("game.iso").empty());
+    EXPECT_TRUE(gc_folder_skip_reason("GAME.GCM").empty());
+    EXPECT_TRUE(gc_folder_skip_reason("game.rvz").empty());
+    EXPECT_TRUE(gc_folder_skip_reason("game.nkit.iso").empty());
+    EXPECT_TRUE(gc_folder_skip_reason("._game.gcz").empty());
+    EXPECT_TRUE(gc_folder_skip_reason("game.ciso").empty());
+    EXPECT_TRUE(gc_folder_skip_reason("cover.PNG").empty());
+    EXPECT_TRUE(gc_folder_skip_reason("readme.txt").empty());
+    EXPECT_TRUE(gc_folder_skip_reason("").empty());
+
+    // The formats players have, each with what to do.
+    EXPECT_EQ(gc_folder_skip_reason("Simpsons.gcz").find("a Dolphin .gcz image"), static_cast<std::size_t>(0));
+    EXPECT_EQ(gc_folder_skip_reason("game.nkit.gcz").find("an NKit image"), static_cast<std::size_t>(0));
+    EXPECT_EQ(gc_folder_skip_reason("game.WIA").find("a .wia image"), static_cast<std::size_t>(0));
+    EXPECT_EQ(gc_folder_skip_reason("game.7z").find("an archive"), static_cast<std::size_t>(0));
+    EXPECT_TRUE(gc_folder_skip_reason("game.gcz").find("Convert File") != std::string::npos);
+    EXPECT_EQ(gc_folder_skip_reason("game.dec"), std::string("not an image RiftWii plays (it plays .iso, .gcm and .rvz)"));
+}
+
 void test_plan_over_usb() {
     // XML -> plan -> replacement over a USB-mapped disc source, consumed
     // through the read overlay. File-to-FST mapping is loader-side; here
@@ -580,6 +673,9 @@ int main() {
     test_collect_split_pieces();
     test_cios_readiness_note();
     test_plan_over_usb();
+    test_ciso_detection();
+    test_gc_folder_skip_reason();
+    test_gc_container_by_magic();
     if (g_failures == 0) std::cout << "usbgame tests passed\n";
     else std::cerr << g_failures << " TEST CHECKS FAILED\n";
     return g_failures == 0 ? 0 : 1;

@@ -10,11 +10,12 @@ name: CI
 on:
   pull_request:
     branches: [main]
-  # Every branch, not only main: commits made without a PR are checked
-  # too, and a contributor sees the result on their fork before opening
-  # one. Tags don't start a run.
+  # Only main: a branch with a pull request is already checked by the
+  # pull_request run, and pushing to every branch ran the same jobs twice.
+  # A branch without a PR can be checked by hand with "Run workflow".
+  # Tags don't start a run.
   push:
-    branches: ['**']
+    branches: [main]
   workflow_dispatch:
   # The nightly (nightly.yml) runs these same checks on the commit it
   # publishes, and publishes nothing when one fails.
@@ -81,6 +82,8 @@ jobs:
       ASAN_OPTIONS: detect_stack_use_after_return=0
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
       - name: Install Ninja
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ninja-build
       # AddressSanitizer and UndefinedBehaviorSanitizer (RIFTWII_SANITIZE in
@@ -144,6 +147,17 @@ jobs:
         run: |
           make -f Makefile.wii -j"$(nproc)"
           test -s riftwii.dol
+          test -s build_wii/riftwii-unpacked.dol
+      # The plugins (docs/PLUGINS.md) next to the DOL: each built with this
+      # commit's build stamp and the DOL's API version, whole, and named
+      # for this version. The DOL's own build already checks this; here it
+      # is checked against the commit CI checked out, so a stale plugin can't
+      # pass. riftwii.dol is packed (tools/pack_dol.py): the stamp is read
+      # from the unpacked DOL the build keeps.
+      - name: Plugins match the DOL
+        run: |
+          python3 tools/make_plugin.py check --dol build_wii/riftwii-unpacked.dol \
+            --commit "$(git rev-parse --short=8 HEAD)" build-plugins/plugins/*.rwp
       - name: Build the channel
         run: make -f Makefile.channel -j"$(nproc)"
       # Size report: the DOL and each runtime blob against main, so a
@@ -195,7 +209,7 @@ jobs:
           # The container's default shell is plain sh: no arrays, no pipefail.
           baseline=""
           if [ -s baseline.json ]; then baseline="--baseline baseline.json"; fi
-          python3 tools/size_report.py --dol riftwii.dol \
+          python3 tools/size_report.py --dol build_wii/riftwii-unpacked.dol \
             --blob build-runtime/riftwii_rt.bin \
             --blob build-runtime/riftwii_rt_rvz.bin \
             --blob build-runtime/riftwii_rt_rvz.rel \
@@ -204,11 +218,13 @@ jobs:
             --blob build-runtime/riftwii_fault.bin \
             --blob build-runtime/riftwii_wlog.bin \
             --blob build-runtime/riftwii_vsd.bin \
+            --plugin build-plugins/selftest.rwp \
+            --plugin build-plugins/gamecube.rwp \
             $baseline --json-out size-report.json > size-report.md
           cat size-report.md >> "$GITHUB_STEP_SUMMARY"
       # Sizes only, a few hundred bytes of JSON. Not the DOL: CI publishes
       # no builds.
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: size-report
           path: size-report.json
@@ -222,6 +238,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.ref }}
           # The checks compare the change with its base, so they need the
           # history and the base branch.
           fetch-depth: 0

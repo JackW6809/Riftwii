@@ -71,24 +71,41 @@ void TestHttp() {
             "[{\"tag_name\":\"v2.0.3-beta\",\"name\":\"RiftWii 2.0.3 Beta\",\"assets\":["
             "{\"id\":1,\"name\":\"riftwii-v2.0.3-beta.zip\",\"uploader\":{\"login\":\"x\"},\"size\":900,"
             "\"digest\":\"sha256:1111111111111111111111111111111111111111111111111111111111111111\","
-            "\"browser_download_url\":\"https://github.com/a/b/releases/download/v2.0.3-beta/riftwii-v2.0.3-beta.zip\"},"
+            "\"browser_download_url\":\"https://github.com/KakarottoCake/Riftwii/releases/download/v2.0.3-beta/riftwii-v2.0.3-beta.zip\"},"
             "{\"id\":2,\"name\" : \"riftwii.dol\",\"uploader\":{\"login\":\"x\",\"id\":5},\"size\": 4526176,"
             "\"digest\":\"sha256:ABCDEF0123456789abcdef0123456789ABCDEF0123456789abcdef0123456789\",\"download_count\":3,"
-            "\"browser_download_url\":\"https://github.com/a/b/releases/download/v2.0.3-beta/riftwii.dol\"}]}]";
+            "\"browser_download_url\":\"https://github.com/KakarottoCake/Riftwii/releases/download/v2.0.3-beta/riftwii.dol\"}]}]";
         ReleaseAsset dol;
         EXPECT_TRUE(release_asset_from_json(json, "riftwii.dol", dol));
-        EXPECT_EQ(dol.url, "https://github.com/a/b/releases/download/v2.0.3-beta/riftwii.dol");
+        EXPECT_EQ(dol.url, "https://github.com/KakarottoCake/Riftwii/releases/download/v2.0.3-beta/riftwii.dol");
         EXPECT_EQ(dol.sha256, "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789");
         EXPECT_TRUE(dol.size == 4526176ull);
         ReleaseAsset none;
         EXPECT_FALSE(release_asset_from_json(json, "boot.dol", none));
         // An older answer without digests: the URL alone.
         const std::string old = "[{\"assets\":[{\"name\":\"riftwii.dol\",\"size\":7,\"digest\":null,"
-                                "\"browser_download_url\":\"https://x/riftwii.dol\"}]}]";
+                                "\"browser_download_url\":\"https://github.com/RiftWii/Riftwii/releases/download/v1/riftwii.dol\"}]}]";
         EXPECT_TRUE(release_asset_from_json(old, "riftwii.dol", dol));
-        EXPECT_EQ(dol.url, "https://x/riftwii.dol");
+        EXPECT_EQ(dol.url, "https://github.com/RiftWii/Riftwii/releases/download/v1/riftwii.dol");
         EXPECT_TRUE(dol.sha256.empty());
         EXPECT_TRUE(dol.size == 7ull);
+        // Only RiftWii's own release files are taken (SEC-03): another
+        // repository, another host, plain http, or a path that climbs out.
+        for (const char* url : {"https://github.com/someone/Riftwii/releases/download/v1/riftwii.dol",
+                                "https://evil.example/KakarottoCake/Riftwii/releases/download/v1/riftwii.dol",
+                                "http://github.com/KakarottoCake/Riftwii/releases/download/v1/riftwii.dol",
+                                "https://github.com/KakarottoCake/Riftwii/releases/download/../../x/riftwii.dol",
+                                "https://github.com/KakarottoCake/Riftwii/releases/download/",
+                                "https://github.com/KakarottoCake/Riftwii/releases/download/v1",
+                                "https://github.com/KakarottoCake/Riftwii/releases/download/v1/",
+                                "https://github.com/KakarottoCake/Riftwii/releases/download//riftwii.dol",
+                                "https://github.com/KakarottoCake/Riftwii/releases/download/v1/x/riftwii.dol",
+                                "https://github.com.evil.example/KakarottoCake/Riftwii/releases/download/v1/a"}) {
+            const std::string forged = "[{\"assets\":[{\"name\":\"riftwii.dol\",\"browser_download_url\":\"" +
+                                       std::string(url) + "\"}]}]";
+            EXPECT_FALSE(release_asset_from_json(forged, "riftwii.dol", dol));
+        }
+        EXPECT_TRUE(riftwii_release_asset_url("https://github.com/kakarottocake/RIFTWII/releases/download/v2/a.zip"));
     }
     EXPECT_EQ(compare_versions("v1.0.9-beta", "2.0.0-beta"), -1);
     EXPECT_EQ(compare_versions("2.0.0", "2.0.0-beta"), 1);
@@ -211,6 +228,15 @@ void TestHttp() {
     EXPECT_TRUE(to.tls);
     EXPECT_EQ(to.host, "cdn.example");
     EXPECT_FALSE(http_redirect(from, "ftp://cdn.example/f", to, error));
+    // A Location with a bare LF, a CR or a space inside would put text of
+    // its own into the request (SEC-06): refused in every form.
+    EXPECT_FALSE(http_redirect(from, "/a\nX-Injected: 1", to, error));
+    EXPECT_FALSE(http_redirect(from, "other\r.dol", to, error));
+    EXPECT_FALSE(http_redirect(from, "/a b", to, error));
+    EXPECT_FALSE(http_redirect(from, "https://cdn.example/f\nX: 1", to, error));
+    EXPECT_FALSE(http_redirect(from, "https://cdn\t.example/f", to, error));
+    EXPECT_FALSE(parse_http_url("http://example.org/a\x7f", url, error));
+    EXPECT_TRUE(http_redirect(from, "/a%0Ab", to, error));  // escaped, it is only text
     HttpUrl plain_from;
     EXPECT_TRUE(parse_http_url("http://www.gametdb.com/x", plain_from, error));
     EXPECT_TRUE(http_redirect(plain_from, "https://www.gametdb.com/x", to, error));  // up to https is fine
@@ -232,8 +258,45 @@ void TestHttp() {
     EXPECT_TRUE(http_redirect_allowed(HttpRedirects::SameHost, banner, same_path));
     EXPECT_TRUE(http_redirect_allowed(HttpRedirects::SameHost, banner, same_upper));
     EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, other_host));
+    // Follow goes anywhere but from the internet into the player's own
+    // network (CAV-04): private and loopback addresses, written as such.
+    {
+        HttpUrl local;
+        for (const char* url : {"http://192.168.1.1/admin", "http://10.0.0.2/", "http://127.0.0.1:8080/x",
+                                "http://172.20.3.4/", "http://169.254.0.1/", "http://localhost/", "http://0.0.0.0/"}) {
+            EXPECT_TRUE(parse_http_url(url, local, error));
+            EXPECT_FALSE(http_redirect_allowed(HttpRedirects::Follow, banner, local));
+            EXPECT_TRUE(http_redirect_allowed(HttpRedirects::Follow, local, local));  // from a local server: fine
+        }
+        // The same test on an address a name resolved to.
+        EXPECT_TRUE(http_local_ipv4(0xC0A80101u));   // 192.168.1.1
+        EXPECT_TRUE(http_local_ipv4(0x7F000001u));   // 127.0.0.1
+        EXPECT_TRUE(http_local_ipv4(0xAC1F0001u));   // 172.31.0.1
+        EXPECT_FALSE(http_local_ipv4(0xAC200001u));  // 172.32.0.1
+        EXPECT_FALSE(http_local_ipv4(0x08080808u));  // 8.8.8.8
+        for (const char* url : {"http://172.32.0.1/", "http://192.169.0.1/", "http://11.0.0.1/",
+                                "http://10.0.0.1.example.com/", "http://1270.0.0.1/"}) {
+            EXPECT_TRUE(parse_http_url(url, local, error));
+            EXPECT_TRUE(http_redirect_allowed(HttpRedirects::Follow, banner, local));
+        }
+    }
     EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, other_port));
     EXPECT_FALSE(http_redirect_allowed(HttpRedirects::SameHost, banner, to_https));
+    // An update's redirects (SEC-03): GitHub's release file servers over
+    // https, nothing else.
+    {
+        HttpUrl release, assets, objects, elsewhere, plain;
+        EXPECT_TRUE(parse_http_url("https://github.com/KakarottoCake/Riftwii/releases/download/v1/riftwii.dol",
+                                   release, error));
+        EXPECT_TRUE(parse_http_url("https://release-assets.githubusercontent.com/github-production/x", assets, error));
+        EXPECT_TRUE(parse_http_url("https://objects.githubusercontent.com/x", objects, error));
+        EXPECT_TRUE(parse_http_url("https://evil.example/riftwii.dol", elsewhere, error));
+        EXPECT_TRUE(parse_http_url("http://release-assets.githubusercontent.com/x", plain, error));
+        EXPECT_TRUE(http_redirect_allowed(HttpRedirects::GitHubRelease, release, assets));
+        EXPECT_TRUE(http_redirect_allowed(HttpRedirects::GitHubRelease, release, objects));
+        EXPECT_FALSE(http_redirect_allowed(HttpRedirects::GitHubRelease, release, elsewhere));
+        EXPECT_FALSE(http_redirect_allowed(HttpRedirects::GitHubRelease, release, plain));
+    }
 }
 
 void TestCheats() {
@@ -305,6 +368,92 @@ void TestCheats() {
         EXPECT_EQ(file.cheats[2].name, "New one");
         EXPECT_EQ(file.cheats[3].name, "My own cheat");
         EXPECT_EQ(file.cheats[3].notes.size(), 1u);
+    }
+    // The same download with "infinite health" turned on: its code stays
+    // the player's (SEC-02), and only that one is counted as held.
+    std::size_t held = 0;
+    const std::string guarded =
+        merge_cheat_text(fresh_text, old_text, kept, {"infinite health [wiiztec]"}, &held);
+    EXPECT_EQ(kept, 3u);
+    EXPECT_EQ(held, 1u);
+    EXPECT_TRUE(parse_cheat_text(guarded, file, error));
+    if (file.cheats.size() == 4) {
+        EXPECT_EQ(file.cheats[0].words[1], 0x60000000u);  // turned on: the old code
+        EXPECT_EQ(file.cheats[2].name, "New one");        // new to the file: the download's
+    }
+    // Only the listed name counts: the old file has one "infinite health",
+    // so "... (2)" turned on names none of its blocks.
+    merge_cheat_text(fresh_text, old_text, kept, {"infinite health [wiiztec] (2)"}, &held);
+    EXPECT_EQ(held, 0u);
+    // Two cheats of one name, the second turned on: each pairs with the
+    // download's block in the same place, and only the second keeps its code.
+    {
+        const std::string two_old =
+            "SB4E01\nSuper Mario Galaxy 2\n\nTwin\n04000000 00000001\n\nTwin\n04000000 00000002\n";
+        const std::string two_new =
+            "SB4E01\nSuper Mario Galaxy 2\n\nTwin\n04000000 00000011\n\nTwin\n04000000 00000012\n";
+        const std::string mixed = merge_cheat_text(two_new, two_old, kept, {"Twin (2)"}, &held);
+        EXPECT_EQ(held, 1u);
+        EXPECT_TRUE(parse_cheat_text(mixed, file, error));
+        if (file.cheats.size() == 2) {
+            EXPECT_EQ(file.cheats[0].words[1], 0x00000011u);  // not turned on: the download's
+            EXPECT_EQ(file.cheats[1].words[1], 0x00000002u);  // turned on: the player's
+        }
+    }
+    // A download that adds a cheat of a turned-on one's name ahead of it
+    // (FU-02): the player's block would become "Inf (2)" and the name
+    // turned on, "Inf", would run the download's code. The download is not
+    // taken; the old file comes back as it was. Under a heading too, and
+    // the same addition with nothing turned on is taken.
+    {
+        const std::string inf_old =
+            "SB4E01\nSuper Mario Galaxy 2\n\nVersion 1.0\n\nInf\n04000000 00000001\n";
+        const std::string inf_new =
+            "SB4E01\nSuper Mario Galaxy 2\n\nInf\nC0000000 00000002\n\nVersion 1.0\n\nInf\n04000000 00000001\n";
+        bool kept_old = false;
+        std::string merged_inf = merge_cheat_text(inf_new, inf_old, kept, {"Inf"}, &held, &kept_old);
+        EXPECT_TRUE(kept_old);
+        EXPECT_EQ(merged_inf, inf_old);
+        EXPECT_EQ(held, 0u);
+        merged_inf = merge_cheat_text(inf_new, inf_old, kept, {}, &held, &kept_old);
+        EXPECT_FALSE(kept_old);
+        EXPECT_TRUE(merged_inf.find("C0000000 00000002") != std::string::npos);
+        // Before any heading, the new one ahead of the player's: the first
+        // "Inf" pairs with the player's and keeps its code, so the name
+        // still runs it and the rest of the download is taken.
+        const std::string flat_old = "SB4E01\nSuper Mario Galaxy 2\n\nInf\n04000000 00000001\n";
+        const std::string flat_new =
+            "SB4E01\nSuper Mario Galaxy 2\n\nInf\nC0000000 00000002\n\nInf\n04000000 00000001\n";
+        merged_inf = merge_cheat_text(flat_new, flat_old, kept, {"Inf"}, &held, &kept_old);
+        EXPECT_FALSE(kept_old);
+        EXPECT_EQ(held, 1u);
+        EXPECT_TRUE(merged_inf.find("C0000000") == std::string::npos);
+        // A name turned on that the old file has under no revision (kept
+        // from a file for another release): the download would decide its
+        // code, so it is not taken. A name the old file has for one release
+        // may come for another: a download adding that heading is taken.
+        const std::string other_old = "SB4E01\nSuper Mario Galaxy 2\n\nOther\n04000000 00000003\n";
+        merged_inf = merge_cheat_text(flat_new, other_old, kept, {"Inf"}, &held, &kept_old);
+        EXPECT_TRUE(kept_old);
+        EXPECT_EQ(merged_inf, other_old);
+        const std::string release_new = inf_old + "\nVersion 1.01\n\nInf\nC0000000 00000002\n";
+        merged_inf = merge_cheat_text(release_new, inf_old, kept, {"Inf"}, &held, &kept_old);
+        EXPECT_FALSE(kept_old);
+        EXPECT_TRUE(merged_inf.find("Version 1.01") != std::string::npos);
+        // The same name added after the player's: its number stays, taken.
+        const std::string after_new =
+            "SB4E01\nSuper Mario Galaxy 2\n\nInf\n04000000 00000001\n\nInf\nC0000000 00000002\n";
+        merged_inf = merge_cheat_text(after_new, flat_old, kept, {"Inf"}, &held, &kept_old);
+        EXPECT_FALSE(kept_old);
+        EXPECT_TRUE(merged_inf.find("C0000000 00000002") != std::string::npos);
+    }
+    // Notes alone changing on a turned-on cheat: the download's block.
+    {
+        const std::string noted_old = "SB4E01\nSuper Mario Galaxy 2\n\nNoted\n04000000 00000001\nold note\n";
+        const std::string noted_new = "SB4E01\nSuper Mario Galaxy 2\n\nNoted\n04000000 00000001\nnew note\n";
+        const std::string noted = merge_cheat_text(noted_new, noted_old, kept, {"Noted"}, &held);
+        EXPECT_EQ(held, 0u);
+        EXPECT_TRUE(noted.find("new note") != std::string::npos);
     }
     // Values filled in on the Wii: the template stays, so they can change.
     std::string valued =
@@ -757,6 +906,23 @@ void TestVideoModes() {
     EXPECT_EQ(copy[403], 2);
 }
 
+// The menu's music settings: menu_music and launch_music (Music while the
+// menu is open, and whether it plays on under a launch or fades out).
+void TestSettingsMusic() {
+    LoaderSettings s;
+    EXPECT_EQ(s.menu_music, "on");
+    s.parse("menu_music = off\n");
+    EXPECT_EQ(s.menu_music, "off");
+    s.parse("menu_music = loud\n");
+    EXPECT_EQ(s.menu_music, "off");
+    EXPECT_EQ(s.launch_music, "on");
+    s.parse("launch_music = off\n");
+    EXPECT_EQ(s.launch_music, "off");
+    EXPECT_TRUE(s.serialize().find("launch_music = off\n") != std::string::npos);
+    s.parse("launch_music = loud\n");
+    EXPECT_EQ(s.launch_music, "off");
+}
+
 void TestSettings() {
     LoaderSettings s;
     s.parse("# c\nlanguage = ja\nvideo_width=704\ndeflicker = bogus\nborders = remove\nonline = off\nfuture = 1\n");
@@ -922,6 +1088,77 @@ void TestWfc() {
     LaunchModel back;
     back.restore(m.save());
     EXPECT_EQ(back.game.server, "wiilink");
+}
+
+// Issue #130: a game with no GameTDB cover (some titles have no entry)
+// stopped every download after it. Only a run of downloads with no answer,
+// or a card that cannot store one, stops them now.
+void TestCoverDownloads() {
+    EXPECT_EQ(http_answered_status("art.gametdb.com answered 404"), 404);
+    EXPECT_EQ(http_answered_status("art.gametdb.com answered 301 (a redirect, not followed for this download)"), 301);
+    EXPECT_EQ(http_answered_status("art.gametdb.com answered 503"), 503);
+    EXPECT_EQ(http_answered_status("no answer from art.gametdb.com (TLS error -5)"), 0);
+    EXPECT_EQ(http_answered_status("art.gametdb.com is answering too slowly; given up after 32 s"), 0);
+    EXPECT_EQ(http_answered_status("art.gametdb.com answered 4040"), 0);
+    EXPECT_EQ(http_answered_status("art.gametdb.com answered 40"), 0);
+
+    EXPECT_TRUE(cover_answer_means_missing(404));
+    EXPECT_TRUE(cover_answer_means_missing(403));
+    EXPECT_TRUE(cover_answer_means_missing(410));
+    EXPECT_TRUE(cover_answer_means_missing(302));
+    EXPECT_FALSE(cover_answer_means_missing(408));
+    EXPECT_FALSE(cover_answer_means_missing(429));
+    EXPECT_FALSE(cover_answer_means_missing(500));
+    EXPECT_FALSE(cover_answer_means_missing(0));
+
+    // Missing covers among stored ones never stop the downloads.
+    CoverDownloads run;
+    EXPECT_EQ(run.take_summary(), std::string());
+    EXPECT_FALSE(run.count(CoverOutcome::Stored));
+    EXPECT_FALSE(run.count(CoverOutcome::NotFound));
+    EXPECT_FALSE(run.count(CoverOutcome::NotFound));
+    EXPECT_FALSE(run.count(CoverOutcome::Stored));
+    EXPECT_EQ(run.stored(), 2u);
+    EXPECT_EQ(run.not_found(), 2u);
+
+    // One or two downloads with no answer are passed over; an answer
+    // between them starts the count again.
+    EXPECT_FALSE(run.count(CoverOutcome::NoAnswer));
+    EXPECT_FALSE(run.count(CoverOutcome::NoAnswer));
+    EXPECT_FALSE(run.count(CoverOutcome::NotFound));
+    EXPECT_FALSE(run.count(CoverOutcome::NoAnswer));
+    EXPECT_FALSE(run.count(CoverOutcome::NoAnswer));
+    EXPECT_EQ(run.no_answer(), 4u);
+    EXPECT_EQ(run.take_summary(),
+              std::string("Covers: 2 downloaded this session; GameTDB has no cover for 3 game(s) (asked again in a "
+                          "week); 4 got no answer and were passed over (tried again after Look for games again or a "
+                          "restart)."));
+    EXPECT_EQ(run.take_summary(), std::string());  // said once
+
+    // The third in a row stops them: the network is down.
+    EXPECT_TRUE(run.count(CoverOutcome::NoAnswer));
+
+    // A card that cannot store a cover stops them at once.
+    run.reset();
+    EXPECT_EQ(run.stored(), 0u);
+    EXPECT_TRUE(run.count(CoverOutcome::CannotStore));
+    run.reset();
+    EXPECT_FALSE(run.count(CoverOutcome::Stored));
+    EXPECT_EQ(run.take_summary(), std::string("Covers: 1 downloaded this session; GameTDB has no cover for 0 game(s) "
+                                              "(asked again in a week)."));
+
+    // The shelf's boxes and the 3D covers keep a count of their own, under
+    // their own names, which a reset keeps.
+    CoverDownloads boxes("Shelf", "full cover");
+    EXPECT_FALSE(boxes.count(CoverOutcome::NotFound));
+    EXPECT_FALSE(boxes.count(CoverOutcome::NoAnswer));
+    EXPECT_FALSE(boxes.count(CoverOutcome::NoAnswer));
+    EXPECT_TRUE(boxes.count(CoverOutcome::NoAnswer));
+    boxes.reset();
+    EXPECT_EQ(boxes.log_name(), std::string("Shelf"));
+    EXPECT_FALSE(boxes.count(CoverOutcome::NotFound));
+    EXPECT_EQ(boxes.take_summary(), std::string("Shelf: 0 downloaded this session; GameTDB has no full cover for 1 "
+                                                "game(s) (asked again in a week)."));
 }
 
 void TestCoverArt() {
@@ -1174,11 +1411,6 @@ void TestCoverArt() {
     EXPECT_EQ(s.menu_sounds, "off");
     s.parse("menu_sounds = loud\n");
     EXPECT_EQ(s.menu_sounds, "off");
-    EXPECT_EQ(s.menu_music, "on");
-    s.parse("menu_music = off\n");
-    EXPECT_EQ(s.menu_music, "off");
-    s.parse("menu_music = loud\n");
-    EXPECT_EQ(s.menu_music, "off");
     EXPECT_EQ(s.menu_font, "riftwii");
     EXPECT_EQ(s.clock, "auto");
     s.parse("clock = 24\n");
@@ -1272,6 +1504,20 @@ void TestHeadlessArguments() {
     EXPECT_TRUE(error.find("video_mode") != std::string::npos);
     EXPECT_FALSE(parse_headless_launch({"--launch", "game=RMCE01", "speed=fast"}, h, error));
     EXPECT_TRUE(error.find("speed") != std::string::npos);
+    // A GameCube program switch, as the blob writes it (exec.txt).
+    EXPECT_TRUE(parse_headless_launch({"--launch", "path=sd:/games/Sonic Gems Collection [G2XE8P]/Game.iso",
+                                       "game=G2XE8P", "gc_dol=123456768", "gc_restart=3221225472", "gc_arg=cd",
+                                       "gc_arg=-x 1"},
+                                      h, error));
+    EXPECT_TRUE(h.gc_exec);
+    EXPECT_EQ(h.gc_dol, 123456768u);
+    EXPECT_EQ(h.gc_restart, 3221225472u);
+    EXPECT_EQ(h.gc_args.size(), static_cast<std::size_t>(2));
+    EXPECT_EQ(h.gc_args[1], std::string("-x 1"));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=G2XE8P", "gc_dol=4294967296"}, h, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=G2XE8P", "gc_dol=-1"}, h, error));
+    EXPECT_TRUE(parse_headless_launch({"--launch", "game=RMCE01"}, h, error));
+    EXPECT_FALSE(h.gc_exec);
     EXPECT_FALSE(parse_headless_launch({"--launch", "game=rmce01"}, h, error));
     EXPECT_FALSE(parse_headless_launch({"--launch", "game=RMCE01", "gct=usb:/codes/x.gct"}, h, error));
     // An image by its path, a four-character ID, packs by file name or all.
@@ -1288,6 +1534,152 @@ void TestHeadlessArguments() {
     EXPECT_FALSE(parse_headless_launch({"--launch", "path=/games/x.iso"}, h, error));
     EXPECT_FALSE(parse_headless_launch({"--launch", "game=RMC"}, h, error));
     EXPECT_FALSE(parse_headless_launch({"--launch", "game=RMCE01", "xml=../ctgp.xml"}, h, error));
+}
+
+// A Wii game's own Reset (docs/HEADLESS.md): the launch RiftWii leaves for
+// itself, written by headless_launch_arguments and read back by the same
+// parser every other launch goes through.
+void TestResetRequest() {
+    HeadlessLaunch h;
+    h.game = "SMNP03";
+    h.from = "usb";
+    h.path = "usb:/wbfs/Newer SMBW [SMNP03]/SMNP03.wbfs";
+    h.choices = "SMNP03.txt";
+    h.packs_given = true;
+    h.xmls = {"NewerSMBW.xml", "sd:/riftwii/riifs/extra pack.xml"};
+    h.settings.video_mode = "pal60";
+    h.settings.cios = "249";
+    h.settings.server = "custom";
+    h.wfc_domain = "wfc.example.org";
+    h.gct = "sd:/codes/SMNP03.gct";
+    h.return_to = 0x0001000147584C44ULL;
+    h.reset = true;
+    const std::vector<std::string> args = headless_launch_arguments(h);
+    EXPECT_EQ(args.front(), std::string("--launch"));
+    EXPECT_TRUE(is_headless_launch(args));
+    HeadlessLaunch back;
+    std::string error;
+    EXPECT_TRUE(parse_headless_launch(args, back, error));
+    EXPECT_EQ(back.game, h.game);
+    EXPECT_EQ(back.from, h.from);
+    EXPECT_EQ(back.path, h.path);
+    EXPECT_EQ(back.choices, h.choices);
+    EXPECT_TRUE(back.packs_given);
+    EXPECT_FALSE(back.all_packs);
+    EXPECT_TRUE(back.xmls == h.xmls);
+    EXPECT_EQ(back.settings.video_mode, std::string("pal60"));
+    EXPECT_EQ(back.settings.cios, std::string("249"));
+    EXPECT_EQ(back.settings.server, std::string("custom"));
+    EXPECT_EQ(back.settings.language, std::string("global"));  // unset keys stay unset
+    EXPECT_EQ(back.wfc_domain, h.wfc_domain);
+    EXPECT_EQ(back.gct, h.gct);
+    EXPECT_TRUE(back.return_to == h.return_to);
+    EXPECT_TRUE(back.reset);
+    // And the same arguments again from what was read.
+    EXPECT_TRUE(headless_launch_arguments(back) == args);
+
+    // No pack on says so (xml=none), or the saved choices would come back;
+    // a code build alone is the whole choice.
+    HeadlessLaunch plain;
+    plain.game = "RSBE01";
+    plain.from = "disc";
+    plain.packs_given = true;
+    plain.return_to_menu = true;
+    HeadlessLaunch plain_back;
+    EXPECT_TRUE(parse_headless_launch(headless_launch_arguments(plain), plain_back, error));
+    EXPECT_TRUE(plain_back.packs_given);
+    EXPECT_TRUE(plain_back.xmls.empty());
+    EXPECT_TRUE(plain_back.return_to_menu);
+    EXPECT_FALSE(plain_back.reset);
+    plain.code_builds = {"sd:/projectplus"};
+    EXPECT_TRUE(parse_headless_launch(headless_launch_arguments(plain), plain_back, error));
+    EXPECT_TRUE(plain_back.code_builds.size() == 1u && plain_back.xmls.empty());
+
+    // Checked like any other launch input: names that climb out of their
+    // folder, values and counts past a bound, a choices file that is not a
+    // file name, a reset that is not 1.
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "path=sd:/games/../../x.iso"}, back, error));
+    EXPECT_TRUE(error.find("..") != std::string::npos);
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "xml=sd:/riivolution/../../x.xml"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "xml=sd:/riivolution\\..\\x.xml"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "code_build=sd:/a/../b"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "gct=sd:/codes/../x.gct"}, back, error));
+    EXPECT_TRUE(parse_headless_launch({"--launch", "game=SMNP03", "xml=sd:/riivolution/my..pack.xml"}, back, error));
+    EXPECT_TRUE(launch_path_stays_put("sd:/a/b..c/d"));
+    EXPECT_FALSE(launch_path_stays_put(".."));
+    EXPECT_FALSE(launch_path_stays_put("a/.."));
+    EXPECT_FALSE(launch_path_stays_put("../a"));
+    EXPECT_TRUE(parse_headless_launch({"--launch", "game=SMNP03", "choices=SMNP03.txt"}, back, error));
+    EXPECT_TRUE(parse_headless_launch({"--launch", "game=SMNP03", "choices=prof+1_a-b.txt"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "choices=../SMNP03.txt"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "choices=sd:/x.txt"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "choices=a/b.txt"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "choices=.hidden.txt"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "choices=x..y.txt"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "choices=SMNP03"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "reset=0"}, back, error));
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "reset=yes"}, back, error));
+    const std::string long_path = "sd:/" + std::string(kMaxLaunchValueBytes, 'a');
+    EXPECT_FALSE(parse_headless_launch({"--launch", "game=SMNP03", "xml=" + long_path}, back, error));
+    EXPECT_TRUE(error.find("longer") != std::string::npos);
+    EXPECT_TRUE(parse_headless_launch({"--launch", "game=SMNP03",
+                                       "xml=sd:/" + std::string(kMaxLaunchValueBytes - 4, 'a')}, back, error));
+    std::vector<std::string> many = {"--launch", "game=SMNP03"};
+    for (std::size_t i = 0; i < kMaxLaunchPacks; ++i) many.push_back("xml=pack" + std::to_string(i) + ".xml");
+    EXPECT_TRUE(parse_headless_launch(many, back, error));
+    EXPECT_EQ(back.xmls.size(), kMaxLaunchPacks);
+    many.push_back("xml=one-too-many.xml");
+    EXPECT_FALSE(parse_headless_launch(many, back, error));
+    std::vector<std::string> builds = {"--launch", "game=SMNP03"};
+    for (std::size_t i = 0; i < kMaxLaunchCodeBuilds + 1; ++i) builds.push_back("code_build=build" + std::to_string(i));
+    EXPECT_FALSE(parse_headless_launch(builds, back, error));
+
+    // The sector the loader makes and the Reset arms: the same text, "--idle--"
+    // or "--launch" first, NUL-filled. The next start takes up only the second.
+    std::vector<std::uint8_t> idle, armed;
+    std::string why;
+    EXPECT_TRUE(launch_request_sector(args, false, 512, idle, why));
+    EXPECT_TRUE(launch_request_sector(args, true, 512, armed, why));
+    EXPECT_EQ(idle.size(), static_cast<std::size_t>(512));
+    EXPECT_EQ(armed.size(), static_cast<std::size_t>(512));
+    EXPECT_EQ(std::memcmp(idle.data(), "--idle--\n", 9), 0);
+    EXPECT_EQ(std::memcmp(armed.data(), "--launch\n", 9), 0);
+    EXPECT_EQ(std::memcmp(idle.data() + 8, armed.data() + 8, 120), 0);  // after the first line: the same
+    std::vector<std::string> read_back;
+    EXPECT_FALSE(launch_lines_from_text(std::string(idle.begin(), idle.end()), read_back));
+    EXPECT_TRUE(read_back.empty());
+    EXPECT_TRUE(launch_lines_from_text(std::string(armed.begin(), armed.end()), read_back));
+    EXPECT_TRUE(read_back == args);
+    // A launch too long for one sector is not made.
+    std::vector<std::string> huge = {"--launch"};
+    for (int i = 0; i < 20; ++i) huge.push_back("xml=sd:/riivolution/" + std::string(40, 'a' + i % 20) + ".xml");
+    EXPECT_FALSE(launch_request_sector(huge, true, 512, armed, why));
+    EXPECT_TRUE(why.find("sector holds 511") != std::string::npos);
+    // A made-up Newer request, the longest kind in practice: a path on USB,
+    // two packs, settings and a custom server.
+    HeadlessLaunch newer;
+    newer.game = "SMNP03";
+    newer.from = "usb";
+    newer.path = "usb:/wbfs/New Super Mario Bros. Wii - Newer Super Mario Bros. Wii [SMNP03]/SMNP03.wbfs";
+    newer.choices = "SMNP03.txt";
+    newer.packs_given = true;
+    newer.xmls = {"NewerSMBW.xml", "NewerSMBW-widescreen.xml"};
+    newer.settings.video_mode = "pal60";
+    newer.settings.language = "en";
+    newer.settings.cios = "249";
+    newer.return_to_menu = true;
+    newer.reset = true;
+    EXPECT_TRUE(launch_request_sector(headless_launch_arguments(newer), true, 512, armed, why));
+    // The reader takes the lines of a file as a real file has them.
+    EXPECT_TRUE(launch_lines_from_text("--launch\r\ngame=SMNP03  \n\n  \nfrom=disc\n", read_back));
+    EXPECT_EQ(read_back.size(), static_cast<std::size_t>(3));
+    EXPECT_EQ(read_back[1], std::string("game=SMNP03"));
+    EXPECT_FALSE(launch_lines_from_text("game=SMNP03\n", read_back));  // no "--launch"
+    EXPECT_FALSE(launch_lines_from_text("--launch\ngame=" + std::string(kMaxLaunchLineBytes, 'A') + "\n", read_back));
+    std::string lines = "--launch\n";
+    for (std::size_t i = 0; i < kMaxLaunchLines; ++i) lines += "xml=a.xml\n";
+    EXPECT_FALSE(launch_lines_from_text(lines, read_back));
+    EXPECT_TRUE(read_back.empty());
 }
 
 // Friivolution's FRIIV_CFG, laid out the way a loader builds it.
@@ -1432,6 +1824,20 @@ void TestPlayLogRecord() {
     }
     const std::uint32_t stored = (std::uint32_t(r[0]) << 24) | (std::uint32_t(r[1]) << 16) | (std::uint32_t(r[2]) << 8) | r[3];
     EXPECT_EQ(stored, sum);
+    // Not characters (MIN-06): an overlong '/', a surrogate half written in
+    // UTF-8, and a code point past U+10FFFF each become one '?'; a real
+    // four-byte character stays a surrogate pair.
+    {
+        const std::vector<std::uint8_t> bad =
+            play_log_record("\xC0\xAF" "\xED\xA0\x80" "\xF4\x90\x80\x80" "\xF0\x9F\x98\x80", "RMGE01", 1);
+        const auto unit = [&](int i) { return (bad[4 + 2 * i] << 8) | bad[5 + 2 * i]; };
+        EXPECT_EQ(unit(0), int('?'));
+        EXPECT_EQ(unit(1), int('?'));
+        EXPECT_EQ(unit(2), int('?'));
+        EXPECT_EQ(unit(3), 0xD83D);
+        EXPECT_EQ(unit(4), 0xDE00);
+        EXPECT_EQ(unit(5), 0);
+    }
     // A long name keeps its terminator.
     const std::vector<std::uint8_t> l = play_log_record(std::string(60, 'x'), "RMGE01", 1);
     EXPECT_EQ(l[4 + 2 * 38 + 1], 'x');
@@ -1532,6 +1938,7 @@ int main() {
     TestPlayLogRecord();
     TestReturnTo();
     TestHeadlessArguments();
+    TestResetRequest();
     TestFriivolutionArguments();
     TestHttp();
     TestCheats();
@@ -1540,9 +1947,11 @@ int main() {
     TestVideoModes();
     TestKeepsPictureWidth();
     TestSettings();
+    TestSettingsMusic();
     TestGameLanguage();
     TestWfc();
     TestCoverArt();
+    TestCoverDownloads();
     TestLang();
     TestHistory();
     if (g_failures != 0) {

@@ -709,7 +709,8 @@ static void test_card_paths() {
     EXPECT_EQ(gc_card_path("GMSE01", true), std::string("sd:/riftwii/gc/cards/shared.raw"));
     EXPECT_EQ(gc_card_path("GMSP01", true), std::string("sd:/riftwii/gc/cards/shared.raw"));
     EXPECT_EQ(gc_card_path("GMSJ01", true), std::string("sd:/riftwii/gc/cards/shared-jp.raw"));
-    EXPECT_EQ(gc_card_path("GM/../J", false), std::string("sd:/riftwii/gc/cards/GMJ.raw"));
+    // Not a plain ID: by its bytes, so no slash or dot reaches the name.
+    EXPECT_EQ(gc_card_path("GM/../J", false), std::string("sd:/riftwii/gc/cards/x474d2f2e2e2f4a.raw"));
     EXPECT_FALSE(gc_card_shift_jis("GMS"));
 }
 
@@ -743,7 +744,7 @@ static void test_backup_names() {
     EXPECT_EQ(gc_backup_folder("GMSE01", false), std::string("sd:/riftwii/gc/backups/GMSE01"));
     EXPECT_EQ(gc_backup_folder("GMSE01", true), std::string("sd:/riftwii/gc/backups/shared"));
     EXPECT_EQ(gc_backup_folder("GMSJ01", true), std::string("sd:/riftwii/gc/backups/shared-jp"));
-    EXPECT_EQ(gc_backup_folder("GM/../J", false), std::string("sd:/riftwii/gc/backups/GMJ"));
+    EXPECT_EQ(gc_backup_folder("GM/../J", false), std::string("sd:/riftwii/gc/backups/x474d2f2e2e2f4a"));
 
     GcBackupStamp stamp;
     stamp.year = 2026;
@@ -908,6 +909,39 @@ static void test_backup_files() {
     EXPECT_TRUE(fs::exists(fs::path(folder) / "notes.txt"));
     EXPECT_EQ(gc_backup_list(folder).size(), kGcBackupsKept);
 
+    // A restore of the oldest backup: its undo copy does not prune the very
+    // backup being restored (BUG-18); the next oldest goes instead.
+    {
+        const std::vector<std::string> listed = gc_backup_list(folder);
+        const std::string oldest = listed.back();
+        const std::string next_oldest = listed[listed.size() - 2];
+        bytes.back() = 0x04;
+        write_file(card, bytes);
+        now.day = 24;
+        now.undo = true;
+        made = gc_backup_card(card, folder, now, oldest);
+        now.undo = false;
+        EXPECT_TRUE(made.what == GcBackupResult::What::Made);
+        EXPECT_TRUE(fs::exists(fs::path(folder) / oldest));
+        EXPECT_FALSE(fs::exists(fs::path(folder) / next_oldest));
+        EXPECT_EQ(gc_backup_list(folder).size(), kGcBackupsKept);
+    }
+
+    // Card names (MIN-04): a disc's ID as it is; one with other characters
+    // by its bytes, never empty and never shared with another.
+    EXPECT_EQ(gc_card_path("GALE01", false), std::string("sd:/riftwii/gc/cards/GALE01.raw"));
+    EXPECT_EQ(gc_card_path("....", false), std::string("sd:/riftwii/gc/cards/x2e2e2e2e.raw"));
+    EXPECT_TRUE(gc_card_path("GA-E01", false) != gc_card_path("GA_E01", false));
+    EXPECT_TRUE(gc_card_path("", false) != std::string("sd:/riftwii/gc/cards/.raw"));
+    EXPECT_EQ(gc_backup_folder("....", false), std::string("sd:/riftwii/gc/backups/x2e2e2e2e"));
+    // The name an odd ID's card had before MIN-04, for a copy at launch:
+    // none for a plain ID (unchanged), a shared card, or an ID with no
+    // capitals or digits.
+    EXPECT_EQ(gc_card_legacy_path("GM/../J", false), std::string("sd:/riftwii/gc/cards/GMJ.raw"));
+    EXPECT_EQ(gc_card_legacy_path("GALE01", false), std::string());
+    EXPECT_EQ(gc_card_legacy_path("....", false), std::string());
+    EXPECT_EQ(gc_card_legacy_path("GM/../J", true), std::string());
+
     // Files that differ only in length, or are missing, are not the same.
     write_file(root / "short.raw", Bytes(199999, 0x5A));
     EXPECT_FALSE(gc_files_same(card, (root / "short.raw").string()));
@@ -920,6 +954,37 @@ static void test_backup_files() {
     EXPECT_TRUE(read_file(card) == restored);
     EXPECT_TRUE(gc_overwrite_file(card, Bytes(10, 0x22), error));
     EXPECT_EQ(read_file(card).size(), 10u);
+    EXPECT_FALSE(fs::exists(card + ".tmp"));  // put in place, nothing left beside it
+    EXPECT_FALSE(fs::exists(card + ".old"));  // the old card, moved aside, is gone once the new one is in
+    // A write cut between its two renames left the card only at .old: the
+    // next write puts it back and replaces it, never removes it unread.
+    fs::rename(card, card + ".old");
+    EXPECT_TRUE(gc_overwrite_file(card, Bytes(12, 0x44), error));
+    EXPECT_EQ(read_file(card).size(), 12u);
+    EXPECT_FALSE(fs::exists(card + ".old"));
+    fs::rename(card, card + ".old");
+    EXPECT_TRUE(gc_overwrite_file(card, Bytes(12, 0x55), error));  // as long as the stranded card: still put back first
+    EXPECT_TRUE(read_file(card) == Bytes(12, 0x55));
+    // The recovery a game's start runs (NEW-03): a card only at .old comes
+    // back; nothing to do without one; a card made since the cut and .old
+    // both stay, and a write then refuses rather than remove the older.
+    fs::rename(card, card + ".old");
+    EXPECT_TRUE(gc_recover_card(card, error) == GcRecovery::PutBack);
+    EXPECT_TRUE(read_file(card) == Bytes(12, 0x55));
+    EXPECT_FALSE(fs::exists(card + ".old"));
+    EXPECT_TRUE(gc_recover_card(card, error) == GcRecovery::Nothing);
+    write_file(card + ".old", Bytes(12, 0x66));  // the card from before a cut
+    EXPECT_TRUE(gc_recover_card(card, error) == GcRecovery::BothKept);
+    EXPECT_TRUE(error.find(".old") != std::string::npos);
+    EXPECT_FALSE(gc_overwrite_file(card, Bytes(14, 0x77), error));
+    EXPECT_TRUE(read_file(card + ".old") == Bytes(12, 0x66));
+    EXPECT_TRUE(read_file(card) == Bytes(12, 0x55));
+    EXPECT_FALSE(fs::exists(card + ".tmp"));
+    // The same length as both, written in place otherwise: refused too.
+    EXPECT_FALSE(gc_overwrite_file(card, Bytes(12, 0x77), error));
+    EXPECT_TRUE(read_file(card + ".old") == Bytes(12, 0x66));
+    EXPECT_TRUE(read_file(card) == Bytes(12, 0x55));
+    fs::remove(card + ".old");
 
     // A copy whose source cannot be read leaves nothing behind.
     EXPECT_FALSE(gc_copy_file((root / "missing.raw").string(), (root / "out.raw").string(), error));
@@ -1211,6 +1276,88 @@ static void test_dolphin_limits() {
     EXPECT_FALSE(count.full);
 }
 
+// Recovering a card's ID must preserve the identity used by serial-bound
+// saves and must never turn a corrupt header into an apparently valid one.
+static void test_flash_id() {
+    GcCardFormat format = sample_format(false);
+    Bytes card;
+    gc_card_format(card, format);
+    // Stand in for a save bound to the header's original serial. The
+    // whole image, including this stored identity, must stay byte exact.
+    std::memcpy(card.data() + kGcCardSystemBlocks * kGcCardBlockBytes, card.data(), 32);
+    const Bytes before = card;
+    std::array<std::uint8_t, 12> recovered{};
+    EXPECT_TRUE(gc_card_flash_id(card, recovered));
+    EXPECT_TRUE(recovered == format.flash_id);
+    EXPECT_TRUE(card == before);
+
+    format.flash_id = recovered;
+    Bytes reformatted;
+    gc_card_format(reformatted, format);
+    EXPECT_TRUE(std::memcmp(card.data(), reformatted.data(), 12) == 0);
+
+    // Recovery needs only the complete header, not the save area.
+    const Bytes header(card.begin(), card.begin() + 0x200);
+    EXPECT_TRUE(gc_card_flash_id(header, recovered));
+    EXPECT_TRUE(recovered == format.flash_id);
+
+    // Every refusal leaves both the image and the caller's output alone.
+    const auto refused = [](const Bytes& input) {
+        const Bytes unchanged = input;
+        std::array<std::uint8_t, 12> output;
+        output.fill(0xA5);
+        const auto original_id = output;
+        EXPECT_FALSE(gc_card_flash_id(input, output));
+        EXPECT_TRUE(output == original_id);
+        EXPECT_TRUE(input == unchanged);
+    };
+    Bytes damaged = card;
+    damaged[19] ^= 1;  // format time changed without updating its checksum
+    refused(damaged);
+    damaged = card;
+    damaged[24] ^= 1;  // a non-serial, non-time header field
+    refused(damaged);
+    damaged = card;
+    damaged[0x1FF] ^= 1;  // the inverse checksum matters too
+    refused(damaged);
+    refused(Bytes(0x200, 0xFF));
+    refused(Bytes(0x200, 0));
+    refused(Bytes(card.begin(), card.begin() + 0x1FF));
+    refused(Bytes{});
+
+    // A matching checksum alone does not make an unformatted card valid.
+    Bytes unformatted(0x200, 0xFF);
+    gc_card_checksum(unformatted.data(), 0x1FC, unformatted.data() + 0x1FC);
+    refused(unformatted);
+    Bytes bad_encoding = header;
+    poke16(bad_encoding.data() + 0x24, 2);
+    gc_card_checksum(bad_encoding.data(), 0x1FC, bad_encoding.data() + 0x1FC);
+    refused(bad_encoding);
+
+    // Exercise subtraction's byte wrap and both format-time boundaries.
+    for (const std::uint64_t time : {0ull, 0xFFFFFFFFFFFFFFFFull}) {
+        format.format_time = time;
+        for (unsigned i = 0; i < format.flash_id.size(); ++i) {
+            format.flash_id[i] = i % 2 == 0 ? 0 : 0xFF;
+        }
+        gc_card_format(card, format);
+        EXPECT_TRUE(gc_card_flash_id(card, recovered));
+        EXPECT_TRUE(recovered == format.flash_id);
+    }
+}
+
+// A blank card (an erased image) is formatted with SRAM's ID, and the
+// launch then hands that same ID back to the SRAM setter, so a bad SRAM
+// checksum is repaired before the first launch: the ID must come back whole.
+static void test_flash_id_of_blank_card() {
+    const GcCardFormat format = sample_format(false);
+    Bytes card(kGcCardSystemBlocks * kGcCardBlockBytes, 0xFF);
+    gc_card_format(card, format);
+    std::array<std::uint8_t, 12> recovered{};
+    EXPECT_TRUE(gc_card_flash_id(card, recovered));
+    EXPECT_TRUE(recovered == format.flash_id);
+}
+
 int main() {
     test_backup_undo();
     test_dolphin_import();
@@ -1220,6 +1367,8 @@ int main() {
     test_card_text();
     test_card_paths();
     test_icon_texture();
+    test_flash_id();
+    test_flash_id_of_blank_card();
     test_format();
     test_import_export_delete();
     test_directory_full();

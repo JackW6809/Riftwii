@@ -53,10 +53,17 @@ bool WriteAll(const std::string& path, const std::vector<std::uint8_t>& bytes) {
     const std::string temp = path + ".part";
     FILE* f = std::fopen(temp.c_str(), "wb");
     if (!f) return false;
-    const bool ok = bytes.empty() || std::fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
-    std::fclose(f);
+    bool ok = bytes.empty() || std::fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
+    ok = std::fclose(f) == 0 && ok;
+    // The old file goes only once the new one is whole: a full card used
+    // to cost the picture that was already there (BUG-13). FAT's rename
+    // does not replace a file, so the old one is removed first.
+    if (!ok) {
+        std::remove(temp.c_str());
+        return false;
+    }
     std::remove(path.c_str());
-    if (!ok || std::rename(temp.c_str(), path.c_str()) != 0) {
+    if (std::rename(temp.c_str(), path.c_str()) != 0) {
         std::remove(temp.c_str());
         return false;
     }
@@ -303,6 +310,10 @@ void Ask(const std::string& game_id, int rank) {
 
 }  // namespace
 
+void ForgetCoverMiss(const std::string& game_id) {
+    if (ValidId(game_id)) std::remove(MissPath(game_id).c_str());
+}
+
 bool CoverWanted(const std::string& game_id) {
     if (!ValidId(game_id)) return false;
     struct stat st;
@@ -337,10 +348,11 @@ CoverFetch FetchCoverNow(const std::string& game_id, std::string& error) {
         std::vector<std::uint8_t> png;
         std::string why;
         if (!HttpGet(cover_url(region, game_id), png, why, 512u << 10, 8000)) {
-            static const std::string kMissing = " answered 404";  // HttpGet's words for a 404
-            if (why.size() >= kMissing.size() && why.compare(why.size() - kMissing.size(), kMissing.size(), kMissing) == 0) continue;
+            // GameTDB's refusal (a 404 most often) means no cover in this
+            // region; anything else is no answer about this game at all.
+            if (cover_answer_means_missing(http_answered_status(why))) continue;
             error = why;
-            return CoverFetch::Failed;
+            return CoverFetch::NoAnswer;
         }
         std::vector<std::uint8_t> rgba;
         int w = 0, h = 0;
